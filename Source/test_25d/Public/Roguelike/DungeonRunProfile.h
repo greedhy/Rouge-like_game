@@ -44,7 +44,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="1", ClampMax="8")) int32 SpawnsPerFrame = 2;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.1")) float SpawnBudgetMs = 1.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="1")) float EnemyLoadTimeout = 30.f;
-    // Actor/GAS is the default. Mass is reserved for an explicitly enabled minority later.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mass Melee") bool bUseMassMelee = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mass Melee", meta=(ClampMin="1", ClampMax="50")) int32 MassPerCombatRoom = 50;
+    int32 MassCountForWave(bool bTwoWaves, int32 Wave) const;
+    int32 EncounterCapacity() const { return 30 + (bUseMassMelee ? FMath::Clamp(MassPerCombatRoom, 1, 50) : 0); }
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TSoftClassPtr<AEnemyCharacter> NormalClass;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float NormalHealth = 100.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TObjectPtr<UPureMassMonsterType> MonsterType;

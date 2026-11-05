@@ -8,6 +8,22 @@
 #include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystem/Data/AbilityInfo.h"
 #include "Player/MyPlayerState.h"
+#include "Equipment/EquipmentComponent.h"
+#include "Equipment/WeaponSetConfig.h"
+
+bool USpellMenuWidgetController::IsSelectedWeaponAbility()
+{
+	const auto* Set = GetCurrentWeaponSet();
+	if (Set) for (const auto& Entry : Set->Abilities)
+		if (Entry.Ability && Entry.Ability->GetDefaultObject<UGameplayAbility>()->GetAssetTags().HasTagExact(SelectedAbility.Ability)) return true;
+	return false;
+}
+
+UWeaponSetConfig* USpellMenuWidgetController::GetCurrentWeaponSet()
+{
+	const auto* PS = GetMyPS();
+	return PS && PS->GetEquipmentComponent() ? PS->GetEquipmentComponent()->GetWeaponSet() : nullptr;
+}
 
 void USpellMenuWidgetController::BroadcastInitialValues()
 {
@@ -17,7 +33,8 @@ void USpellMenuWidgetController::BroadcastInitialValues()
 
 void USpellMenuWidgetController::BindCallbacksToDependencies()
 {
-	GetMyASC()->AbilityStatusChanged.AddLambda([this](const FGameplayTag& AbilityTag, const FGameplayTag& StatusTag, int32 NewLevel)
+    UnbindCallbacksFromDependencies();
+	GetMyASC()->AbilityStatusChanged.AddWeakLambda(this,[this](const FGameplayTag& AbilityTag, const FGameplayTag& StatusTag, int32 NewLevel)
 		{
 			if (SelectedAbility.Ability.MatchesTagExact(AbilityTag))
 			{
@@ -25,6 +42,7 @@ void USpellMenuWidgetController::BindCallbacksToDependencies()
 				bool bEnableSpendPoints = false;
 				bool bEnableEquip = false;
 				ShouldEnableButtons(StatusTag, CurrentSpellPoints, bEnableSpendPoints, bEnableEquip);
+				if (IsSelectedWeaponAbility()) bEnableSpendPoints = false;
 				FString Description;
 				FString NextLevelDescription;
 				GetMyASC()->GetDescriptionsByAbilityTag(AbilityTag, Description, NextLevelDescription);
@@ -41,7 +59,7 @@ void USpellMenuWidgetController::BindCallbacksToDependencies()
 
 	GetMyASC()->AbilityEquipped.AddUObject(this, &USpellMenuWidgetController::OnAbilityEquipped);
 
-	GetMyPS()->OnSpellPointsChangedDelegate.AddLambda([this](int32 SpellPoints)
+	GetMyPS()->OnSpellPointsChangedDelegate.AddWeakLambda(this,[this](int32 SpellPoints)
 		{
 			SpellPointsChanged.Broadcast(SpellPoints);
 			CurrentSpellPoints = SpellPoints;
@@ -49,6 +67,7 @@ void USpellMenuWidgetController::BindCallbacksToDependencies()
 			bool bEnableSpendPoints = false;
 			bool bEnableEquip = false;
 			ShouldEnableButtons(SelectedAbility.Status, CurrentSpellPoints, bEnableSpendPoints, bEnableEquip);
+			if (IsSelectedWeaponAbility()) bEnableSpendPoints = false;
 			FString Description;
 			FString NextLevelDescription;
 			GetMyASC()->GetDescriptionsByAbilityTag(SelectedAbility.Ability, Description, NextLevelDescription);
@@ -87,6 +106,7 @@ void USpellMenuWidgetController::SpellGlobeSelected(const FGameplayTag& AbilityT
 	bool bEnableSpendPoints = false;
 	bool bEnableEquip = false;
 	ShouldEnableButtons(AbilityStatus, SpellPoints, bEnableSpendPoints, bEnableEquip);
+	if (IsSelectedWeaponAbility()) bEnableSpendPoints = false;
 	FString Description;
 	FString NextLevelDescription;
 	GetMyASC()->GetDescriptionsByAbilityTag(AbilityTag, Description, NextLevelDescription);
@@ -95,6 +115,7 @@ void USpellMenuWidgetController::SpellGlobeSelected(const FGameplayTag& AbilityT
 
 void USpellMenuWidgetController::SpendPointButtonPressed()
 {
+	if (IsSelectedWeaponAbility()) return;
 	if (GetMyASC())
 	{
 		GetMyASC()->ServerSpendSpellPoint(SelectedAbility.Ability);
@@ -197,4 +218,11 @@ void USpellMenuWidgetController::ShouldEnableButtons(const FGameplayTag& Ability
 			bShouldEnableSpellPointsButton = true;
 		}
 	}
+}
+
+void USpellMenuWidgetController::UnbindCallbacksFromDependencies()
+{
+ if(auto* PS=Cast<AMyPlayerState>(PlayerState);IsValid(PS))PS->OnSpellPointsChangedDelegate.RemoveAll(this);
+ if(auto* Component=Cast<UMyAbilitySystemComponent>(ASC);IsValid(Component))
+ { Component->AbilityStatusChanged.RemoveAll(this);Component->AbilityEquipped.RemoveAll(this); }
 }

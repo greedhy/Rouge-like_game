@@ -32,8 +32,9 @@ void UOverlayWidgetController::BroadcastInitialValues()
 
 void UOverlayWidgetController::BindCallbacksToDependencies()
 {
+    UnbindCallbacksFromDependencies();
 	GetMyPS()->OnXPChangedDelegate.AddUObject(this, &UOverlayWidgetController::OnXPChanged);
-    GetMyPS()->OnLevelChangedDelegate.AddLambda(
+    GetMyPS()->OnLevelChangedDelegate.AddWeakLambda(this,
         [this](int32 NewLevel, bool bLevelUp)
         {
             OnPlayerLevelChangedDelegate.Broadcast(NewLevel, bLevelUp);
@@ -42,25 +43,25 @@ void UOverlayWidgetController::BindCallbacksToDependencies()
 
 
 
-    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetHealthAttribute()).AddLambda(
+    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetHealthAttribute()).AddWeakLambda(this,
         [this](const FOnAttributeChangeData& Data) {
             OnHealthChanged.Broadcast(Data.NewValue);
         }
 
     );
-    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetMaxHealthAttribute()).AddLambda(
+    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetMaxHealthAttribute()).AddWeakLambda(this,
         [this](const FOnAttributeChangeData& Data) {
             OnMaxHealthChanged.Broadcast(Data.NewValue);
         }
 
     );
-    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetManaAttribute()).AddLambda(
+    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetManaAttribute()).AddWeakLambda(this,
         [this](const FOnAttributeChangeData& Data) {
             OnManaChanged.Broadcast(Data.NewValue);
         }
 
     );
-    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetMaxManaAttribute()).AddLambda(
+    ASC->GetGameplayAttributeValueChangeDelegate(GetMyAS()->GetMaxManaAttribute()).AddWeakLambda(this,
         [this](const FOnAttributeChangeData& Data) {
             OnMaxManaChanged.Broadcast(Data.NewValue);
         }
@@ -72,7 +73,7 @@ void UOverlayWidgetController::BindCallbacksToDependencies()
         // Listen for later grants/replication; the initial snapshot is sent only
         // after the view has subscribed, in BroadcastInitialValues.
         GetMyASC()->AbilitiesGiven.AddUObject(this, &UOverlayWidgetController::BroadcastAbilityInfo);
-            GetMyASC()->EffectAssectTags.AddLambda(
+            GetMyASC()->EffectAssectTags.AddWeakLambda(this,
                 [this](const FGameplayTagContainer& TagContainer)
                 {
                     for (const FGameplayTag& Tag : TagContainer)
@@ -133,4 +134,16 @@ void UOverlayWidgetController::OnAbilityEquipped(const FGameplayTag& AbilityTag,
     Info.StatusTag = Status;
     Info.InputTag = Slot;
     AbilityInfoDelegate.Broadcast(Info);
+}
+
+void UOverlayWidgetController::UnbindCallbacksFromDependencies()
+{
+ if(auto* PS=Cast<AMyPlayerState>(PlayerState);IsValid(PS))
+ { PS->OnXPChangedDelegate.RemoveAll(this);PS->OnLevelChangedDelegate.RemoveAll(this); }
+ if(auto* Component=Cast<UMyAbilitySystemComponent>(ASC);IsValid(Component))
+ {
+  for(const auto& Attribute:{UMyAttributeSet::GetHealthAttribute(),UMyAttributeSet::GetMaxHealthAttribute(),UMyAttributeSet::GetManaAttribute(),UMyAttributeSet::GetMaxManaAttribute()})
+   Component->GetGameplayAttributeValueChangeDelegate(Attribute).RemoveAll(this);
+  Component->AbilityEquipped.RemoveAll(this);Component->AbilitiesGiven.RemoveAll(this);Component->EffectAssectTags.RemoveAll(this);
+ }
 }

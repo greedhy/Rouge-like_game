@@ -2,6 +2,7 @@
 
 
 #include "Character/BaseCharacter.h"
+#include "AbilitySystem/Batch6/Batch6Slow.h"
 
 #include "MyGameplayTags.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
@@ -162,11 +163,14 @@ void ABaseCharacter::StunTagChanged(const FGameplayTag CallbackTag, int32 NewCou
 	RefreshMovementSpeed();
 }
 
+
+
 void ABaseCharacter::RefreshMovementSpeed()
 {
 	const bool bHitReact = AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(FMyGameplayTags::Get().Effects_HitReact);
 	const bool bRooted = TerrainStatus && TerrainStatus->IsTerrainStatusActive(ETerrainSurfaceType::Vines);
-	const float Multiplier = TerrainStatus ? TerrainStatus->GetTerrainMovementMultiplier() : 1.f;
+	const float Multiplier = FMath::Min(TerrainStatus ? TerrainStatus->GetTerrainMovementMultiplier() : 1.f,
+        UBatch6SlowComponent::GetMultiplier(this));
 	GetCharacterMovement()->MaxWalkSpeed = (bDead || bIsStunned || bHitReact || bRooted) ? 0.f : BaseWalkSpeed * Multiplier;
 	if (bRooted) GetCharacterMovement()->StopMovementImmediately();
 }

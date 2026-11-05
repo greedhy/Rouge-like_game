@@ -30,6 +30,7 @@ private:
  UPROPERTY() TObjectPtr<UTexture2D> BackgroundTexture;
  UPROPERTY() TArray<TObjectPtr<UTexture2D>> IconTextures;
  TSharedPtr<SVerticalBox> Rows;
+ TSharedPtr<SVerticalBox> ElementRows;
  TArray<TSharedPtr<FSlateBrush>> IconBrushes;
  FSlateBrush BackgroundBrush;
  FText Status;

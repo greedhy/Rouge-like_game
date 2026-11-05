@@ -5,6 +5,8 @@
 #include "AbilitySystemComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "LegacyProjectileTestListener.h"
+#include "UObject/Script.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLegacyMonsterAssetsTest,"test_25d.LegacyMonsters.AuthoredConfiguration",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLegacyMonsterAssetsTest::RunTest(const FString&)
@@ -43,6 +45,34 @@ bool FLegacySlingLeaseTest::RunTest(const FString&)
  TestFalse(TEXT("Dormant source cannot damage"),Shot->IsValidOverlap(Target));
  TestTrue(TEXT("Source can wake"),Source->WakeFromDungeonPool(FTransform::Identity,NAME_None));
  TestFalse(TEXT("Old projectile cannot borrow new life"),Shot->IsValidOverlap(Target));
+ GEngine->DestroyWorldContext(W);W->DestroyWorld(false);return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLegacySlingBeginPlayTest,"test_25d.LegacyMonsters.ProjectileBeginPlayReentrancy",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLegacySlingBeginPlayTest::RunTest(const FString&)
+{
+ FEditorScriptExecutionGuard ScriptGuard;
+ auto* W=UWorld::CreateWorld(EWorldType::Game,false);
+ GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(W);
+ auto* Shot=W->SpawnActor<AEnemySlingProjectile>();
+ TestNotNull(TEXT("Stop callback is reflected"),Shot->FindFunction(TEXT("WorldStopped")));
+ auto* Listener=NewObject<ULegacyProjectileTestListener>(W);
+ // Collision changes are synchronous and may destroy the actor through gameplay
+ // callbacks. Reproduce that boundary without relying on level overlap ordering.
+ Shot->Sphere->OnComponentCollisionSettingsChangedEvent.AddDynamic(Listener,&ULegacyProjectileTestListener::DestroyOnCollisionChange);
+ Shot->DispatchBeginPlay();
+ TestTrue(TEXT("Collision setup invokes the destructive callback"),Listener->bCalled);
+ TestTrue(TEXT("Projectile is destroyed during collision setup"),Shot->IsActorBeingDestroyed());
+ TestFalse(TEXT("Destroyed projectile does not receive a movement prerequisite"),
+  Shot->ProjectileMovement->PrimaryComponentTick.GetPrerequisites().ContainsByPredicate(
+   [Shot](const FTickPrerequisite& P){return P.PrerequisiteObject.Get()==Shot;}));
+ auto* LiveShot=W->SpawnActor<AEnemySlingProjectile>();
+ LiveShot->DispatchBeginPlay();
+ TestTrue(TEXT("Live projectile binds its stop callback"),LiveShot->ProjectileMovement->OnProjectileStop.IsBound());
+ TestTrue(TEXT("Live projectile retains movement ordering"),
+  LiveShot->ProjectileMovement->PrimaryComponentTick.GetPrerequisites().ContainsByPredicate(
+   [LiveShot](const FTickPrerequisite& P){return P.PrerequisiteObject.Get()==LiveShot;}));
+ LiveShot->ProjectileMovement->OnProjectileStop.Broadcast(FHitResult());
+ TestTrue(TEXT("World stop still destroys the live projectile"),LiveShot->IsActorBeingDestroyed());
  GEngine->DestroyWorldContext(W);W->DestroyWorld(false);return true;
 }
 #endif

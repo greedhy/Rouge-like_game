@@ -1,3 +1,4 @@
+#include "Equipment/EquipmentSlots.h"
 #include "Misc/AutomationTest.h"
 #include "Equipment/EquipmentComponent.h"
 #include "Backpack/BackpackComponent.h"
@@ -300,6 +301,31 @@ bool FEquipmentChannelValidationTest::RunTest(const FString& Parameters)
  TestTrue(TEXT("Equipment channel accepted"), Effect->IsSafeEquipmentEffect(1.f));
  Effect->Modifiers[0].EvaluationChannelSettings.SetEvaluationChannel(EGameplayModEvaluationChannel::Channel0);
  TestFalse(TEXT("Base channel rejected even when other GE settings are valid"), Effect->IsSafeEquipmentEffect(1.f));
+ return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquipmentTenSlotsTest, "test_25d.Equipment.TenSlots", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FEquipmentTenSlotsTest::RunTest(const FString&)
+{
+ EquipmentTests::FFixture F;
+ TestEqual(TEXT("Ten ordered standard slots"),EquipmentSlots::All().Num(),10);
+ int32 Elements=0;
+ F.B->TryAddItem(F.Armor,1);
+ for (const auto& Info:EquipmentSlots::All())
+ {
+  TestTrue(TEXT("Legacy component defaults extended"),F.E->AvailableSlots.HasTagExact(Info.Tag));
+  Elements+=Info.bElement ? 1 : 0;
+
+  TestTrue(TEXT("Equip standard slot"),F.Equip(0,Info.Tag));
+  TestTrue(TEXT("Independent bonus"),FMath::IsNearlyEqual(F.Value(),15.f));
+  auto Snapshot=F.State->ExportBackpackSnapshot();
+  TestTrue(TEXT("Restore new slot identity"),F.State->ImportBackpackSnapshot(Snapshot));
+  TestTrue(TEXT("No duplicate effect"),FMath::IsNearlyEqual(F.Value(),15.f));
+  TestTrue(TEXT("Unequip"),F.Unequip(Info.Tag));
+  TestTrue(TEXT("Restored armor"),FMath::IsNearlyEqual(F.Value(),10.f));
+
+ }
+ TestEqual(TEXT("Separate element group"),Elements,3);
+ TestEqual(TEXT("Armor retains saved Chest identity"),EquipmentSlots::All()[3].Tag.ToString(),FString(TEXT("Equipment.Slot.Chest")));
  return true;
 }
 #endif

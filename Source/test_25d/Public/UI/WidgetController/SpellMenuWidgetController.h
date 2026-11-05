@@ -35,9 +35,12 @@ class TEST_25D_API USpellMenuWidgetController : public UMyWidgetController
 {
 	GENERATED_BODY()
 public:
+	const UAbilityInfo* GetAbilityCatalog() const { return AbilityInfo; }
+	class UWeaponSetConfig* GetCurrentWeaponSet();
 	
 	virtual void BroadcastInitialValues() override;
 	virtual void BindCallbacksToDependencies() override;
+	virtual void UnbindCallbacksFromDependencies() override;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnPlayerStatChangedSignature SpellPointsChanged;
@@ -72,6 +75,7 @@ public:
 	void OnAbilityEquipped(const FGameplayTag& AbilityTag, const FGameplayTag& Status, const FGameplayTag& Slot, const FGameplayTag& PreviousSlot);
 
 private:
+	bool IsSelectedWeaponAbility();
 
 	static void ShouldEnableButtons(const FGameplayTag& AbilityStatus, int32 SpellPoints, bool& bShouldEnableSpellPointsButton, bool& bShouldEnableEquipButton);
 	FSelectedAbility SelectedAbility = { FMyGameplayTags::Get().Abilities_None,  FMyGameplayTags::Get().Abilities_Status_Locked };

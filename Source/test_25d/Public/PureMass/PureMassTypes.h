@@ -21,6 +21,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") int32 IdleAnimation = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") int32 RunAnimation = 1;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") int32 AttackAnimation = 2;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") TObjectPtr<USkeletalMesh> WeaponMesh;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") FName WeaponSocket = TEXT("WeaponHandSocket");
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering") FTransform WeaponOffset = FTransform::Identity;
+    /** Clip contact time, used to align the strike to the server windup. Zero keeps legacy playback. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering", meta=(ClampMin="0")) float AttackContactTime = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rendering", meta=(ClampMin="0.01")) float AttackClipDuration = .35f;
+    float AttackPlayRate() const { return AttackContactTime>0.f && AttackWindupSeconds>0.f ? FMath::Clamp(AttackContactTime/AttackWindupSeconds,.05f,10.f) : 1.f; }
+    float AttackRecoverySeconds() const { return FMath::Max(.01f,(AttackClipDuration-(AttackContactTime>0.f && AttackWindupSeconds>0.f ? AttackContactTime : 0.f))/AttackPlayRate()); }
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement") float Radius = 32.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement") float HalfHeight = 60.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement") float Speed = 250.f;
@@ -28,6 +36,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float AttackDamage = 10.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float AttackRange = 120.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float AttackPeriod = 1.5f;
+    /** Opt-in warning before melee impact. Zero preserves legacy test types. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0", ClampMax="3")) float AttackWindupSeconds = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float Armor = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float BlockChance = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat") float CriticalResistance = 0.f;
@@ -46,6 +56,7 @@ struct TEST_25D_API FPureMassView
     UPROPERTY(BlueprintReadOnly) float Health = 0.f;
     UPROPERTY(BlueprintReadOnly) float MaxHealth = 0.f;
     UPROPERTY(BlueprintReadOnly) uint8 State = 0;
+    UPROPERTY(BlueprintReadOnly) bool bPetrified = false;
     UPROPERTY(BlueprintReadOnly) TObjectPtr<UPureMassMonsterType> Type;
 };
 
@@ -55,6 +66,8 @@ struct TEST_25D_API FPureMassDamage
     GENERATED_BODY()
     UPROPERTY() TWeakObjectPtr<AActor> Source;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float Amount = 0.f;
+    /** Cosmetic velocity-change impulse, consumed only by the lethal hit. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector DeathImpulse = FVector::ZeroVector;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FGameplayTag DamageType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float StatusDuration = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float DamagePerSecond = 0.f;
@@ -81,11 +94,15 @@ struct TEST_25D_API FPureMassFragment : public FMassFragment
     float NextPathTime = 0.f;
     float AttackRemaining = 0.f;
     float AttackVisualRemaining = 0.f;
+    float AttackWindupRemaining = 0.f;
+    TWeakObjectPtr<AActor> PendingAttackTarget;
+    float PetrifyRemaining = 0.f;
     float RootRemaining = 0.f;
     float RootRecovery = 0.f;
     float StatusRemaining = 0.f;
     float StatusDPS = 0.f;
     float StatusSlow = 1.f;
+    TArray<FVector2D> SpellSlows; // X multiplier, Y remaining duration; entity lifetime owned.
     TWeakObjectPtr<AActor> StatusSource;
     struct FTerrainContact
     {

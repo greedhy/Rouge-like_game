@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
 #include "ActiveGameplayEffectHandle.h"
+#include "GameplayAbilitySpec.h"
 #include "EquipmentComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -49,9 +50,17 @@ public:
  bool IsReadyForCurrentAvatar() const;
  bool ValidateRecords(const TArray<FEquipmentSlot>& Records) const;
  bool RestoreCombined(const TArray<FReplicatedInventorySlot>& Items, int32 Capacity, int32 BagRevision, const TArray<FEquipmentSlot>& Records, int32 SavedRevision);
+ UFUNCTION(BlueprintPure) class UWeaponSetConfig* GetWeaponSet() const;
+ uint32 GetWeaponGeneration() const { return WeaponGeneration; }
+ bool IsWeaponAbility(FGameplayAbilitySpecHandle Handle) const;
+ FGameplayTag GetSavedInputSlot(const FGameplayAbilitySpec& Spec) const;
+ bool CanAssignWeaponSlot(FGameplayAbilitySpecHandle Handle, FGameplayTag Slot) const;
+ void RefreshWeaponVisuals();
+ void RememberWeaponSlotDisplacement(FGameplayAbilitySpecHandle Incoming,const FGameplayAbilitySpec& Displaced);
  bool ContainsInstance(const FGuid& Id) const;
  virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
+ virtual void OnRegister() override;
  virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
  UFUNCTION() void OnRep_State();
@@ -67,6 +76,17 @@ private:
  TWeakObjectPtr<UAbilitySystemComponent> EffectASC;
  TMap<FGuid, FActiveGameplayEffectHandle> Handles;
  bool bMutating = false;
+ TWeakObjectPtr<UAbilitySystemComponent> WeaponASC;
+ TArray<FGameplayAbilitySpecHandle> WeaponHandles;
+ TMap<FGameplayAbilitySpecHandle, FGameplayTag> DisplacedSlots;
+ TWeakObjectPtr<UWeaponSetConfig> AppliedWeaponSet;
+ FGuid AppliedWeaponInstance;
+ uint32 WeaponGeneration = 0;
+ bool PrepareWeaponSet(const TArray<FEquipmentSlot>& Records, TArray<FGameplayAbilitySpecHandle>& Prepared);
+ void CommitWeaponSet(const TArray<FEquipmentSlot>& Records, const TArray<FGameplayAbilitySpecHandle>& Prepared);
+ void DiscardWeaponSet(const TArray<FGameplayAbilitySpecHandle>& Prepared);
+ UWeaponSetConfig* WeaponSetFor(const TArray<FEquipmentSlot>& Records) const;
+
  FDelegateHandle RemovedDelegate;
  void BindEffects();
  void OnEffectRemoved(const FActiveGameplayEffect& Effect);

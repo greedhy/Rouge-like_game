@@ -6,8 +6,12 @@ AEnemySlingProjectile::AEnemySlingProjectile(){PrimaryActorTick.bCanEverTick=tru
 void AEnemySlingProjectile::BeginPlay()
 {
  Super::BeginPlay();
+ // BeginPlay and collision updates can synchronously invoke gameplay callbacks.
+ // A muzzle overlap may already have hit and destroyed this projectile.
+ if(!IsValid(this) || IsActorBeingDestroyed()) return;
  // Production walls need not generate overlaps. Let swept movement block them.
  Sphere->SetCollisionResponseToChannel(ECC_WorldStatic,ECR_Block);
+ if(!IsValid(this) || IsActorBeingDestroyed()) return;
  ProjectileMovement->OnProjectileStop.AddDynamic(this,&ThisClass::WorldStopped);
  ProjectileMovement->bTickBeforeOwner=false;
  RemoveTickPrerequisiteComponent(ProjectileMovement);

@@ -1,4 +1,6 @@
 #include "Misc/AutomationTest.h"
+#include "Character/TelegraphedEnemyCharacter.h"
+#include "TimerManager.h"
 #include "Character/EnemyCharacter.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -200,5 +202,40 @@ bool FDungeonPoolRagdollTest::RunTest(const FString&)
     }
     GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLifecyclePoolCallbackTest, "test_25d.Lifecycle.PoolOldCallback",
+ EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLifecyclePoolCallbackTest::RunTest(const FString&)
+{
+ FEditorScriptExecutionGuard Guard;
+ auto* World=UWorld::CreateWorld(EWorldType::Game,false);
+ GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+ auto* Enemy=World->SpawnActor<ATelegraphedEnemyCharacter>();
+ auto* ASC=Enemy->GetAbilitySystemComponent();ASC->InitAbilityActorInfo(Enemy,Enemy);
+ ASC->AddAttributeSetSubobject(NewObject<UMyAttributeSet>(Enemy));
+ ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(),100);
+ ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxHealthAttribute(),100);
+ Enemy->EnableDungeonPooling(0);
+ const int32 Lease=Enemy->GetDungeonPoolLease();
+ FStoneGolemAttackTuning Tuning;
+ const int32 Serial=Enemy->BeginAttack(Tuning,FVector::ZeroVector,0);
+ TestTrue(TEXT("First-life attack valid"),Enemy->IsAttackCurrent(Serial,Lease));
+ bool Executed=false,Accepted=false;
+ FTimerHandle Handle;
+ TWeakObjectPtr<ATelegraphedEnemyCharacter> WeakEnemy=Enemy;
+ // External delayed work is not owned by the Actor's timer binding and survives its reset.
+ World->GetTimerManager().SetTimer(Handle,FTimerDelegate::CreateLambda([&Executed,&Accepted,WeakEnemy,Serial,Lease]()
+ {Executed=true;if(auto* E=WeakEnemy.Get()){Accepted=E->IsAttackCurrent(Serial,Lease);E->FinishAttack(Serial);}}),.01f,false);
+ Enemy->Die(FVector::ZeroVector);Enemy->SleepForDungeonPool();
+ TestTrue(TEXT("Second life wakes"),Enemy->WakeFromDungeonPool(FTransform::Identity,TEXT("Second")));
+ const int32 NewSerial=Enemy->BeginAttack(Tuning,FVector::ZeroVector,0);
+ for(int32 Frame=0;Frame<3;++Frame){++GFrameCounter;World->GetTimerManager().Tick(.1f);}
+ TestTrue(TEXT("Old delayed callback actually executed"),Executed);
+ TestFalse(TEXT("Old life rejected despite valid Actor"),Accepted);
+ TestTrue(TEXT("Old completion cannot cancel new attack"),Enemy->IsAttackCurrent(NewSerial,Enemy->GetDungeonPoolLease()));
+ World->GetTimerManager().ClearTimer(Handle);
+ GEngine->DestroyWorldContext(World);World->DestroyWorld(false);
+ return true;
 }
 #endif

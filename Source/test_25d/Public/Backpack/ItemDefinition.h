@@ -49,6 +49,7 @@ struct FBackpackItemDefEntry : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
  bool bEquippable = false;
+ UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Equipment") TObjectPtr<class UWeaponSetConfig> WeaponSet;
  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment") bool bRandomizedEquipment = false;
  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment") FName GenerationProfile;
  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")

@@ -18,6 +18,7 @@
 #include "Roguelike/DungeonRunDirector.h"
 #include "Roguelike/DungeonGenerationRuntime.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Character/StanderPlayer.h"
 
 void UEquipmentSoulLabel::NativeOnInitialized()
 {
@@ -99,6 +100,7 @@ AEquipmentEntranceSamples::AEquipmentEntranceSamples()
 {
  PrimaryActorTick.bCanEverTick = true; PrimaryActorTick.TickInterval = .25f;
  EquipmentNames = {TEXT("SapphireRing"),TEXT("RubyRing"),TEXT("IronGuardChest"),TEXT("SapphireRing"),TEXT("RubyRing")};
+ StanderWeaponNames = {TEXT("StanderWeaponSwordShield"),TEXT("StanderWeaponHammer"),TEXT("StanderWeaponDualBlades"),TEXT("StanderWeaponBow"),TEXT("StanderWeaponPistol"),TEXT("StanderWeaponMagic"),TEXT("StanderWeaponSpear"),TEXT("StanderWeaponStaff"),TEXT("StanderWeaponFighter"),TEXT("StanderWeaponRapier"),TEXT("StanderWeaponDoubleBlades")};
 }
 void AEquipmentEntranceSamples::Tick(float DeltaSeconds)
 {
@@ -108,11 +110,23 @@ void AEquipmentEntranceSamples::Tick(float DeltaSeconds)
  if (!Director || !Director->GetGeneration() || Director->GetGeneration()->Phase != EDungeonGenerationPhase::Ready) return;
  auto* Catalog = LoadObject<UBackpackItemDefinitions>(nullptr,TEXT("/Game/BluePrints/DA/DA_BackpackItemDefinitions.DA_BackpackItemDefinitions"));
  if (!Catalog) { SetActorTickEnabled(false); return; }
- for (int32 I=0; I<EquipmentNames.Num(); ++I)
+ // The entrance can be ready before possession. Wait for a pawn before deciding
+ // which character-specific sample set belongs in this run.
+ const auto* PC = GetWorld()->GetFirstPlayerController();
+ if (!PC || !PC->GetPawn()) return;
+ TArray<FName> Names = EquipmentNames;
+ const int32 BaseCount = Names.Num();
+ if (Cast<AStanderPlayer>(PC->GetPawn())) Names.Append(StanderWeaponNames);
+ if (bBaseSamplesSpawned) return;
+ bBaseSamplesSpawned = true;
+ for (int32 I=0; I<Names.Num(); ++I)
  {
-  const FPrimaryAssetId Id(FPrimaryAssetType(TEXT("BackpackItem")),EquipmentNames[I]);
+  const FPrimaryAssetId Id(FPrimaryAssetType(TEXT("BackpackItem")),Names[I]);
   if (!Catalog->FindDefinition(Id)) continue;
-  const FVector Position = Director->GetRoomCenter(0) + FVector(-360.f+I*180.f,330.f,40.f);
+  const int32 WeaponIndex = I-BaseCount;
+  const FVector Offset = WeaponIndex < 0 ? FVector(-360.f+I*180.f,330.f,40.f)
+   : FVector(-270.f+(WeaponIndex%4)*180.f,-180.f-(WeaponIndex/4)*140.f,40.f);
+  const FVector Position = Director->GetRoomCenter(0) + Offset;
   const FTransform Transform(FRotator::ZeroRotator,Position);
   auto* Item = GetWorld()->SpawnActorDeferred<AEquipmentSoulPickup>(AEquipmentSoulPickup::StaticClass(),Transform,this,nullptr,ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
   if (!Item) continue;

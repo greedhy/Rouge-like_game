@@ -66,6 +66,7 @@ public:
 	void ServerToggleAbility(FGameplayAbilitySpecHandle AbilityHandle, FGameplayTag InputTag);
 
 	FGameplayTag GetStatusFromAbilityTag(const FGameplayTag& AbilityTag);
+	UFUNCTION(BlueprintPure, Category="Abilities|Input")
 	FGameplayTag GetSlotFromAbilityTag(const FGameplayTag& AbilityTag);
 	bool SlotIsEmpty(const FGameplayTag& Slot);
 	static bool AbilityHasAnySlot(const FGameplayAbilitySpec& Spec);

@@ -1,7 +1,9 @@
+#include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "Equipment/EquipmentComponent.h"
+#include "Player/MyPlayerState.h"
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "AbilitySystem/MyAbilitySystemComponent.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "MyAbilityTypes.h"
@@ -211,6 +213,8 @@ void UMyAbilitySystemComponent::UpdateAbilityStatuses(int32 Level)
 	for (const FMyAbilityInfo& Info : AbilityInfo->AbilityInformation)
 	{
 		if (!Info.AbilityTag.IsValid()) continue;
+		const auto* CatalogAbility=Info.Ability?Cast<UMyGameplayAbility>(Info.Ability.GetDefaultObject()):nullptr;
+		if(CatalogAbility && CatalogAbility->IsEquipmentGrantedOnly()) continue;
 		if (Level < Info.LevelRequirement) continue;
 		if (GetSpecFromAbilityTag(Info.AbilityTag) == nullptr)
 		{
@@ -224,8 +228,11 @@ void UMyAbilitySystemComponent::UpdateAbilityStatuses(int32 Level)
 }
 void UMyAbilitySystemComponent::ServerSpendSpellPoint_Implementation(const FGameplayTag& AbilityTag)
 {
+ if(auto* State=Cast<AMyPlayerState>(GetOwnerActor()))
+  if(auto* Spec=GetSpecFromAbilityTag(AbilityTag);Spec && State->GetEquipmentComponent()->IsWeaponAbility(Spec->Handle)) return;
 	if (FGameplayAbilitySpec* AbilitySpec = GetSpecFromAbilityTag(AbilityTag))
 	{
+		if(const auto* Ability=Cast<UMyGameplayAbility>(AbilitySpec->Ability);Ability && Ability->IsEquipmentGrantedOnly()) return;
 		if (GetAvatarActor()->Implements<UPlayerInterface>())
 		{
 			IPlayerInterface::Execute_AddToSpellPoints(GetAvatarActor(), -1);
@@ -351,6 +358,7 @@ void UMyAbilitySystemComponent::ServerEquipAbility_Implementation(const FGamepla
 {
 	FGameplayAbilitySpec* Spec = GetSpecFromAbilityTag(AbilityTag);
 	if (!Spec || !Slot.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("InputTag")))) return;
+ if(auto* State=Cast<AMyPlayerState>(GetOwnerActor());State && !State->GetEquipmentComponent()->CanAssignWeaponSlot(Spec->Handle,Slot)) return;
 	const FMyGameplayTags& Tags = FMyGameplayTags::Get();
 	const FGameplayTag Status = GetStatusFromSpec(*Spec);
 	if (Status != Tags.Abilities_Status_Equipped && Status != Tags.Abilities_Status_Unlocked) return;
@@ -369,6 +377,7 @@ void UMyAbilitySystemComponent::ServerEquipAbility_Implementation(const FGamepla
 	if (bPassive && !Spec->IsActive() && !TryActivateAbility(Spec->Handle)) return;
 	if (FGameplayAbilitySpec* OldSpec = GetSpecWithSlot(Slot); OldSpec && OldSpec != Spec)
 	{
+ if(auto* State=Cast<AMyPlayerState>(GetOwnerActor())) State->GetEquipmentComponent()->RememberWeaponSlotDisplacement(Spec->Handle,*OldSpec);
 		const FGameplayTag OldTag = GetAbilityTagFromSpec(*OldSpec);
 		if (IsPassiveAbility(*OldSpec))
 		{
@@ -479,6 +488,8 @@ void UMyAbilitySystemComponent::AddCharacterAbilitiesFromSaveData(ULoadScreenSav
 	for (const FSavedAbility& Data : SaveData->SavedAbilities)
 	{
 		const TSubclassOf<UGameplayAbility> LoadedAbilityClass = Data.GameplayAbility;
+		const auto* SavedAbility=LoadedAbilityClass?Cast<UMyGameplayAbility>(LoadedAbilityClass.GetDefaultObject()):nullptr;
+		if(SavedAbility && SavedAbility->IsEquipmentGrantedOnly()) continue;
 																														
 		FGameplayAbilitySpec LoadedAbilitySpec = FGameplayAbilitySpec(LoadedAbilityClass, Data.AbilityLevel);
 

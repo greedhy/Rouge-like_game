@@ -22,13 +22,6 @@ class UUserWidget;
 /**
  * 
  */
-enum class ETargetingStatus : uint8
-{
-	TargetingEnemy,
-	TargetingNonEnemy,
-	NotTargeting
-};
-
 UCLASS()
 class TEST_25D_API AMyPlayerController : public APlayerController
 {
@@ -85,6 +78,7 @@ protected:
 	virtual void SetupInputComponent() override;
 
 private:
+	friend class FPlayerBasicInputTest;
 	void InitializeLocalInput();
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputMappingContext> PlayerContext;
@@ -109,9 +103,6 @@ private:
 
 	void Move(const FInputActionValue& InputActionValue);
 	void CursorTrace();
-	void ShiftPressed() { bShiftKeyDown = true; };
-	void ShiftReleased() { bShiftKeyDown = false; };
-	bool bShiftKeyDown = false;
 
 	TObjectPtr<AActor> LastActor;
 	TObjectPtr<AActor> ThisActor;
@@ -131,15 +122,8 @@ private:
 
 	UMyAbilitySystemComponent* GetASC();
 
-	FVector CachedDestination= FVector::ZeroVector;
-	float FollowTime=0.f;
-	float ShortPressThreshold = 0.5f;
-	bool bAutoRunning = false;
 
-	ETargetingStatus TargetingStatus = ETargetingStatus::NotTargeting;
 
-	UPROPERTY(EditDefaultsOnly)
-	float AutoRunAcceptanceRadius = 50.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Backpack", meta = (ClampMin = "0"))
 	float PickupRequestRange = 250.f;
@@ -152,7 +136,6 @@ private:
 
 
 
-	void AutoRun();
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UDamageTextComponent> DamageTextComponentClass;

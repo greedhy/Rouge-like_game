@@ -26,6 +26,7 @@
 #include "Player/MyPlayerState.h"
 #include "PureMass/PureMassIncomingDamageEffect.h"
 #include "PureMass/PureMassRuntime.h"
+#include "PureMass/PureMassCrowd.h"
 #include "PureMass/PureMassSubsystem.h"
 #include "TimerManager.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -78,7 +79,12 @@ int32 ADungeonRunDirector::GetRoomIndex(const FVector& P) const
     FIntPoint Cell(FMath::FloorToInt(P.X/G->Manifest.RoomSpacing+.5),FMath::FloorToInt(P.Y/G->Manifest.RoomSpacing+.5));
     return G->Manifest.Layout.Rooms.IndexOfByPredicate([&](const FDungeonRoomPlacement& R) { return R.Cell == Cell; });
 }
-bool ADungeonRunDirector::IsManagedEnemy(const AActor* Actor) { return IsValid(Actor) && Actor->ActorHasTag(TEXT("DungeonEncounter")); }
+bool ADungeonRunDirector::IsManagedEnemy(const AActor* Actor)
+{
+    if (!IsValid(Actor)) return false;
+    const auto* Enemy = Cast<AEnemyCharacter>(Actor);
+    return (Enemy && Enemy->bDungeonEncounter) || (Actor->HasAuthority() && Actor->ActorHasTag(TEXT("DungeonEncounter")));
+}
 bool ADungeonRunDirector::AllowsCombat(const AActor* Source, const AActor* Target)
 {
     const UWorld* World = Target ? Target->GetWorld() : Source ? Source->GetWorld() : nullptr;
@@ -99,7 +105,9 @@ void ADungeonRunDirector::Tick(float DeltaSeconds)
     if (HasAuthority()) { DrainPoolReturns(); TickAuthority(); }
     SamplePerformance(DeltaSeconds);
     // Creating gameplay doors before these checks would invalidate the generation nav probe.
-    if (Generation && Generation->Phase==EDungeonGenerationPhase::Ready && !Rooms.IsEmpty())
+    // A late client can receive server Ready before its own streaming/navigation
+    // probe completes. Closed encounter doors would invalidate that local probe.
+    if (Generation && Generation->CanLocalPlayerMove() && !Rooms.IsEmpty())
     { if (!bLocalBuilt) BuildLocalPresentation(); ApplyDoorPresentation(); }
 }
 
@@ -149,6 +157,13 @@ bool ADungeonRunDirector::InitializeRun()
     if (!Model.Initialize(Generation->Manifest.Layout)) { FailRun(Model.Error); return false; }
     RunId=Generation->Manifest.GenerationId; Economy=NewObject<UDungeonRunEconomy>(this); Mass=GetWorld()->GetSubsystem<UPureMassSubsystem>();
     if (!Mass || !Economy->Initialize(RunId)) { FailRun(TEXT("RunServicesUnavailable")); return false; }
+    if (Profile->bUseMassMelee)
+    {
+        if (!Profile->MonsterType) { FailRun(TEXT("MissingMassMeleeType")); return false; }
+        bool HasCrowd = false;
+        for (TActorIterator<APureMassCrowd> It(GetWorld()); It; ++It) { HasCrowd = true; break; }
+        if (!HasCrowd && !GetWorld()->SpawnActor<APureMassCrowd>()) { FailRun(TEXT("MassCrowdSpawnFailed")); return false; }
+    }
     Mass->Enable(); MassRemovedHandle=Mass->OnMonsterRemoved.AddUObject(this,&ADungeonRunDirector::OnMassRemoved);
     EffectSpawnHandle=GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this,&ADungeonRunDirector::TrackEffect));
     for (int32 I=0; I<Model.Rooms.Num(); ++I) if (Model.Rooms[I].Role==EDungeonRoomRole::Treasure)
@@ -202,10 +217,12 @@ bool ADungeonRunDirector::FindSpawnPosition(float Radius, float HalfHeight, FVec
 {
     auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()); if (!Nav) return false;
     const int32 Room=RoomOverride==INDEX_NONE?Model.ActiveRoom:RoomOverride;
-    for (int32 Attempt=0; Attempt<49; ++Attempt)
+    const int32 Grid = Profile && Profile->bUseMassMelee ? 11 : 7;
+    const float Spacing = Grid == 11 ? 170.f : 230.f;
+    for (int32 Attempt=0; Attempt<Grid*Grid; ++Attempt)
     {
-        const int32 Slot=SpawnSequence++%49;
-        FVector Desired=GetRoomCenter(Room)+FVector((Slot%7-3)*230,(Slot/7-3)*230,80); FNavLocation P;
+        const int32 Slot=SpawnSequence++%(Grid*Grid);
+        FVector Desired=GetRoomCenter(Room)+FVector((Slot%Grid-Grid/2)*Spacing,(Slot/Grid-Grid/2)*Spacing,80); FNavLocation P;
         if (!Nav->ProjectPointToNavigation(Desired,P,FVector(80,80,200))) continue;
         const FVector D=P.Location-GetRoomCenter(Room);
         if (FMath::Abs(D.X)+Radius>1050 || FMath::Abs(D.Y)+Radius>1050) continue;
@@ -233,23 +250,24 @@ bool ADungeonRunDirector::SpawnWave()
     if (RoomRole==EDungeonRoomRole::Combat) Success=SpawnActorGroup(Model.Encounter.Wave==1?TotalNormalCount/2:TotalNormalCount-TotalNormalCount/2,true);
     else if (RoomRole==EDungeonRoomRole::Elite) Success=QueueActorTarget(Profile->EliteClass.Get(),Profile->EliteHealth,true) && SpawnActorGroup(4,true);
     else if (RoomRole==EDungeonRoomRole::Boss) Success=QueueActorTarget(Profile->BossClass.Get(),Profile->BossHealth,true,true) && SpawnActorGroup(2,true) && SpawnActorGroup(2,false);
+    if (Success) Success = SpawnMassGroup(Profile->MassCountForWave(RoomRole==EDungeonRoomRole::Combat, Model.Encounter.Wave), true);
     return Model.Encounter.EndWave(Success);
 }
 bool ADungeonRunDirector::SpawnMassGroup(int32 Count, bool bRequired)
 {
-    if (!Mass || MassTargets.Num()+ActorTargets.Num()+Count>30) return false;
+    if (Count == 0) return true;
+    if (!Mass || !Profile->MonsterType || MassTargets.Num()+ActorTargets.Num()+SpawnQueue.Num()+Count>Profile->EncounterCapacity()) return false;
     for (int32 I=0; I<Count; ++I)
     {
-        FVector P; if (!FindSpawnPosition(Profile->MonsterType->Radius,Profile->MonsterType->HalfHeight,P)) return false;
-        const int32 Id=Mass->SpawnMonster(Profile->MonsterType,P,Model.Rooms[Model.ActiveRoom].RoomId); if (Id==INDEX_NONE) return false;
-        const FName Key(*FString::Printf(TEXT("M%d"),Id)); MassTargets.Add(Id,Key); if (!bRequired) OptionalMass.Add(Id);
+        const FName Key(*FString::Printf(TEXT("MQueued%d"),++ActorSequence));
         if (!Model.Encounter.RegisterTarget(Key,bRequired)) return false;
+        SpawnQueue.Add({nullptr,0.f,bRequired,false,Key,RunId,Model.ActiveRoom,false,true});
     }
     return true;
 }
 bool ADungeonRunDirector::SpawnActorGroup(int32 Count, bool bRequired)
 {
-    if (Count < 1 || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()+Count > 30) return false;
+    if (Count < 1 || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()+Count > Profile->EncounterCapacity()) return false;
     if (Profile->NormalRoster.IsEmpty())
     {
         const auto Class=Profile->NormalClass.IsNull()?Profile->EliteClass.Get():Profile->NormalClass.Get();
@@ -267,7 +285,7 @@ bool ADungeonRunDirector::SpawnActorGroup(int32 Count, bool bRequired)
 }
 bool ADungeonRunDirector::QueueActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired, bool bIsBoss, bool bPoolEligible)
 {
-    if (!Class || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()>=30) return false;
+    if (!Class || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()>=Profile->EncounterCapacity()) return false;
     const FName Id(*FString::Printf(TEXT("A%d"),++ActorSequence));
     if (!Model.Encounter.RegisterTarget(Id,bRequired)) return false;
     SpawnQueue.Add({Class,Health,bRequired,bIsBoss,Id,RunId,Model.ActiveRoom,bPoolEligible});
@@ -282,7 +300,19 @@ void ADungeonRunDirector::PumpSpawnQueue()
         const auto Job=SpawnQueue[0]; SpawnQueue.RemoveAt(0);
         if (Job.Run!=RunId || Job.Room!=Model.ActiveRoom) { FailRun(TEXT("StaleEnemySpawnRequest")); return; }
         if (!Job.Required && bBossDead) { Model.Encounter.ResolveTarget(Job.Id,EDungeonTargetResolution::Recycled); continue; }
-        if (!SpawnActorTarget(Job.Class,Job.Health,Job.Required,Job.IsBoss,Job.Id,Job.PoolEligible)) { FailRun(TEXT("EnemySpawnFailed")); return; }
+        bool Spawned = false;
+        if (Job.IsMass)
+        {
+            FVector P;
+            if (FindSpawnPosition(Profile->MonsterType->Radius,Profile->MonsterType->HalfHeight,P))
+            {
+                const int32 Id = Mass->SpawnMonster(Profile->MonsterType,P,Model.Rooms[Job.Room].RoomId);
+                Spawned = Id != INDEX_NONE;
+                if (Spawned) { MassTargets.Add(Id,Job.Id); if (!Job.Required) OptionalMass.Add(Id); }
+            }
+        }
+        else Spawned = SpawnActorTarget(Job.Class,Job.Health,Job.Required,Job.IsBoss,Job.Id,Job.PoolEligible);
+        if (!Spawned) { FailRun(TEXT("EnemySpawnFailed")); return; }
         ++LastSpawnCount; LastSpawnMs=(FPlatformTime::Seconds()-Start)*1000;
         if (LastSpawnMs>=FMath::Max(.1f,Profile->SpawnBudgetMs)) break;
     }
@@ -290,7 +320,7 @@ void ADungeonRunDirector::PumpSpawnQueue()
 bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired, bool bIsBoss, FName ReservedId, bool bPoolEligible)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(DungeonEnemyPool_AcquireOrCreate);
-    if (!Class || ActorTargets.Num()+MassTargets.Num() >= 30) return false;
+    if (!Class || ActorTargets.Num()+MassTargets.Num() >= Profile->EncounterCapacity()) return false;
     const auto* CDO=Class->GetDefaultObject<AEnemyCharacter>(); FVector P;
     if (!FindSpawnPosition(CDO->GetCapsuleComponent()->GetScaledCapsuleRadius(),CDO->GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),P)) return false;
     const FTransform Transform(FRotator::ZeroRotator,P);
@@ -303,6 +333,7 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
     if (Reused && !Enemy->WakeFromDungeonPool(Transform, RoomId)) { Enemy->Destroy(); return false; }
     if (!Enemy) Enemy=GetWorld()->SpawnActorDeferred<AEnemyCharacter>(Class,Transform,this,nullptr,ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
     if (!Enemy) return false;
+    Enemy->bDungeonEncounter = true;
     Enemy->Tags.AddUnique(TEXT("DungeonEncounter")); Enemy->MonsterRoomId=Model.Rooms[Model.ActiveRoom].RoomId;
     const FName Key=ReservedId.IsNone()?FName(*FString::Printf(TEXT("A%d"),++ActorSequence)):ReservedId; ActorTargets.Add(Enemy,Key);
     Enemy->FOnDeath.AddUniqueDynamic(this,&ADungeonRunDirector::OnActorDied); Enemy->OnDestroyed.AddUniqueDynamic(this,&ADungeonRunDirector::OnActorDestroyed);
@@ -326,12 +357,13 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
 AEnemyCharacter* ADungeonRunDirector::SpawnSummonedEnemy(AEnemyCharacter* Summoner,TSubclassOf<AEnemyCharacter> Class,const FTransform& Transform)
 {
     if(!HasAuthority() || Phase!=EDungeonRunPhase::Encounter || !IsValid(Summoner) || Summoner->IsDead_Implementation() ||
-        !ActorTargets.Contains(Summoner) || !Class || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()>=30 ||
+        !ActorTargets.Contains(Summoner) || !Class || ActorTargets.Num()+MassTargets.Num()+SpawnQueue.Num()>=Profile->EncounterCapacity() ||
         GetRoomIndex(Transform.GetLocation())!=ActiveRoom || GetRoomIndex(Summoner->GetActorLocation())!=ActiveRoom) return nullptr;
     auto* Minion=GetWorld()->SpawnActorDeferred<AEnemyCharacter>(Class,Transform,Summoner,nullptr,ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding);
     if(!Minion) return nullptr;
     const FName Key(*FString::Printf(TEXT("A%d"),++ActorSequence));
     if(!Model.Encounter.RegisterTarget(Key,false)){Minion->Destroy();return nullptr;}
+    Minion->bDungeonEncounter = true;
     Minion->Tags.AddUnique(TEXT("DungeonEncounter"));Minion->Tags.AddUnique(TEXT("SourceOwnedSummon"));
     Minion->MonsterRoomId=Summoner->MonsterRoomId;
     Minion->SummoningSource=Summoner;

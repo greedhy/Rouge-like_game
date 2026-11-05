@@ -45,3 +45,10 @@ int32 UDungeonRunProfile::NormalPoolQuota(UClass* Class) const
     }
     return Position==INDEX_NONE ? 0 : Capacity/Eligible+(Position<Capacity%Eligible?1:0);
 }
+
+int32 UDungeonRunProfile::MassCountForWave(bool bTwoWaves, int32 Wave) const
+{
+    if (!bUseMassMelee || Wave < 1 || Wave > (bTwoWaves ? 2 : 1)) return 0;
+    const int32 Count = FMath::Clamp(MassPerCombatRoom, 1, 50);
+    return bTwoWaves ? (Wave == 1 ? Count / 2 : Count - Count / 2) : Count;
+}

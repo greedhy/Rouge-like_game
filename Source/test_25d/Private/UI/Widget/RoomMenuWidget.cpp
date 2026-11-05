@@ -82,6 +82,8 @@ void URoomMenuWidget::BuildTree()
     StatusText=AddText(Column,TEXT(""),17);
     auto* Mode=AddPage(TEXT("选择游戏模式"),TEXT("已选择存档 · 选择本次冒险的方式"));
     AddButton(Mode,TEXT("SinglePlayerButton"),TEXT("单人模式"))->OnClicked.AddDynamic(this,&ThisClass::SingleClicked);
+    AddButton(Mode,TEXT("SwordShieldTrialButton"),TEXT("单人剑盾试炼"))->OnClicked.AddDynamic(this,&ThisClass::SwordTrialClicked);
+    AddButton(Mode,TEXT("StanderTrialButton"),TEXT("Stander动作试炼"))->OnClicked.AddDynamic(this,&ThisClass::StanderTrialClicked);
     AddButton(Mode,TEXT("MultiplayerButton"),TEXT("多人模式"))->OnClicked.AddDynamic(this,&ThisClass::MultiplayerClicked);
     AddButton(Mode,TEXT("ReturnToSaveButton"),TEXT("返回存档选择"))->OnClicked.AddDynamic(this,&ThisClass::BackClicked);
     auto* Multi=AddPage(TEXT("多人模式"),TEXT("与同一局域网内的朋友一起冒险"));
@@ -146,6 +148,8 @@ void URoomMenuWidget::Refresh()
     LobbyHint->SetText(FText::FromString(GS->bStarting?TEXT("房主已开始游戏，正在加载地图…"):Host?TEXT("开始后所有玩家一起进入默认地图"):TEXT("等待房主开始游戏")));
 }
 void URoomMenuWidget::SingleClicked(){ if(Rooms()) Rooms()->StartSinglePlayer(); }
+void URoomMenuWidget::SwordTrialClicked(){ if(Rooms()) Rooms()->StartSwordShieldTrial(); }
+void URoomMenuWidget::StanderTrialClicked(){ if(Rooms()) Rooms()->StartStanderTrial(); }
 void URoomMenuWidget::MultiplayerClicked(){ Pages->SetActiveWidgetIndex(1); }
 void URoomMenuWidget::CreateClicked(){ if(Rooms()) Rooms()->CreateRoom(); }
 void URoomMenuWidget::JoinPageClicked(){ Pages->SetActiveWidgetIndex(2); JoinPassword->SetKeyboardFocus(); }

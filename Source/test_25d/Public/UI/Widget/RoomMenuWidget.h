@@ -52,6 +52,8 @@ private:
     UEditableTextBox* AddPassword(UVerticalBox* Parent,FName Name);
     UVerticalBox* AddPage(const FString& Title,const FString& Subtitle);
     UFUNCTION() void SingleClicked();
+    UFUNCTION() void SwordTrialClicked();
+    UFUNCTION() void StanderTrialClicked();
     UFUNCTION() void MultiplayerClicked();
     UFUNCTION() void CreateClicked();
     UFUNCTION() void JoinPageClicked();

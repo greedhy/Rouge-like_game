@@ -2,8 +2,10 @@
 
 
 #include "Character/PlayerCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "Equipment/EquipmentComponent.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "AbilitySystem/Ability/MyGameplayAbility.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/MyPlayerState.h"
 #include "AbilitySystemComponent.h"
@@ -13,6 +15,7 @@
 #include"NiagaraComponent.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "Camera/CameraComponent.h"
+#include "TimerManager.h"
 #include "GameFramework/SpringArmComponent.h"
 
 #include "AbilitySystem/Debuff/DebuffNiagaraComponent.h"
@@ -52,6 +55,14 @@ APlayerCharacter::APlayerCharacter()
 	CharacterClass = ECharacterClass::Elementalist;
 }
 
+void APlayerCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	// Interaction belongs to the player body, independent of a cosmetic mesh's physics asset.
+	// Apply after Blueprint defaults so existing player variants inherit the same contract.
+	GetCapsuleComponent()->SetGenerateOverlapEvents(true);
+}
+
 void APlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
@@ -81,12 +92,18 @@ int32 APlayerCharacter::GetPlayerLevel_Implementation()
 	return Player_State->GetPlayerLevel();
 }
 
+void APlayerCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+	GetWorldTimerManager().ClearTimer(DeathTimer);
+	Super::EndPlay(Reason);
+}
+
 void APlayerCharacter::Die(const FVector& DeathImpulse)
 {
 	Super::Die(DeathImpulse);
 
 	FTimerDelegate DeathTimerDelegate;
-	DeathTimerDelegate.BindLambda([this]()
+	DeathTimerDelegate.BindWeakLambda(this, [this]()
 		{
 			AMyGameModeBase* MyGM = Cast<AMyGameModeBase>(UGameplayStatics::GetGameMode(this));
 			if (MyGM)
@@ -103,6 +120,7 @@ void APlayerCharacter::InitAbilityActorInfo()
 	AMyPlayerState* Player_State = GetPlayerState<AMyPlayerState>();
 	check(Player_State);
 	Player_State->GetAbilitySystemComponent()->InitAbilityActorInfo(Player_State, this);
+ Player_State->GetEquipmentComponent()->RefreshWeaponVisuals();
 	UMyAbilitySystemComponent * UmyASC = Cast<UMyAbilitySystemComponent>(Player_State->GetAbilitySystemComponent());
 	if (UmyASC)
 	{
@@ -366,6 +384,10 @@ void APlayerCharacter::WriteProgressToSaveData(ULoadScreenSaveGame* SaveData, co
 		SaveData->SavedAbilities.Empty();
 		SaveAbilityDelegate.BindLambda([this, MyASC, SaveData](const FGameplayAbilitySpec& AbilitySpec)
 			{
+                auto* EquipmentState=GetPlayerState<AMyPlayerState>();
+                auto* Equipment=EquipmentState?EquipmentState->GetEquipmentComponent():nullptr;
+                if(Equipment && Equipment->IsWeaponAbility(AbilitySpec.Handle)) return;
+                if(const auto* Ability=Cast<UMyGameplayAbility>(AbilitySpec.Ability);Ability && Ability->IsEquipmentGrantedOnly()) return;
 				const FGameplayTag AbilityTag = MyASC->GetAbilityTagFromSpec(AbilitySpec);
 				UAbilityInfo* AbilityInfo = UMyAbilitySystemLibrary::GetAbilityInfo(this);
 				FMyAbilityInfo Info = AbilityInfo->FindAbilityInfoForTag(AbilityTag);
@@ -373,8 +395,8 @@ void APlayerCharacter::WriteProgressToSaveData(ULoadScreenSaveGame* SaveData, co
 				FSavedAbility SavedAbility;
 				SavedAbility.GameplayAbility = Info.Ability;
 				SavedAbility.AbilityLevel = AbilitySpec.Level;
-				SavedAbility.AbilitySlot = MyASC->GetSlotFromAbilityTag(AbilityTag);
-				SavedAbility.AbilityStatus = MyASC->GetStatusFromAbilityTag(AbilityTag);
+				SavedAbility.AbilitySlot = Equipment?Equipment->GetSavedInputSlot(AbilitySpec):MyASC->GetSlotFromAbilityTag(AbilityTag);
+				SavedAbility.AbilityStatus = SavedAbility.AbilitySlot.IsValid()?FMyGameplayTags::Get().Abilities_Status_Equipped:MyASC->GetStatusFromAbilityTag(AbilityTag);
 				SavedAbility.AbilityTag = AbilityTag;
 				SavedAbility.AbilityType = Info.AbilityType;
 

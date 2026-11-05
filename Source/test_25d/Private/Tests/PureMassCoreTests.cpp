@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "PureMass/PureMassSubsystem.h"
 #include "PureMass/PureMassProcessor.h"
+#include "PureMass/PureMassCrowd.h"
 #include "PureMass/PureMassIncomingDamageEffect.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
@@ -63,6 +64,33 @@ int32 ActorCount(UWorld* World)
     for (TActorIterator<AActor> It(World); It; ++It) ++Count;
     return Count;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPureMassDeathImpulseTest, "test_25d.PureMass.LethalImpulsePresentation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FPureMassDeathImpulseTest::RunTest(const FString&)
+{
+    FPureMassTestWorld Scope;
+    auto* Sim = Scope.World->GetSubsystem<UPureMassSubsystem>();
+    auto* Crowd = Scope.World->SpawnActor<APureMassCrowd>();
+    if (!TestNotNull(TEXT("Simulation"), Sim) || !TestNotNull(TEXT("Crowd"), Crowd)) return false;
+    Sim->Enable();
+    auto* Type = NewObject<UPureMassMonsterType>();
+    const int32 Id = Sim->SpawnMonster(Type, FVector(0,0,60));
+    FPureMassDamage Damage; Damage.Amount = 1.f; Damage.DeathImpulse = FVector(450,0,200);
+    Sim->ApplyDamage(Id, Damage);
+    TestEqual(TEXT("Nonlethal hit does not queue death"), Crowd->PendingDeaths.Num(), 0);
+    Damage.Amount = 10000.f;
+    Sim->ApplyDamage(Id, Damage);
+    if (!TestEqual(TEXT("Lethal hit queues one presentation"), Crowd->PendingDeaths.Num(), 1)) return false;
+    TestTrue(TEXT("Lethal impulse survives subsystem and queue"), FVector(Crowd->PendingDeaths[0].DeathImpulse).Equals(Damage.DeathImpulse));
+    Sim->ApplyDamage(Id, Damage);
+    TestEqual(TEXT("Repeated lethal hit does not duplicate presentation"), Crowd->PendingDeaths.Num(), 1);
+    FPureMassDamage DefaultDamage; DefaultDamage.Amount = 10000.f;
+    Sim->ApplyDamage(Sim->SpawnMonster(Type, FVector(100,0,60)), DefaultDamage);
+    if (!TestEqual(TEXT("Next life queues independently"), Crowd->PendingDeaths.Num(), 2)) return false;
+    TestTrue(TEXT("Default hit cannot inherit previous impulse"), FVector(Crowd->PendingDeaths[1].DeathImpulse).IsZero());
+    TestEqual(TEXT("Deaths remain once per entity"), Sim->GetDeathCount(), int64(2));
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPureMassGeometryTest, "test_25d.PureMass.CapsuleSweeps", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

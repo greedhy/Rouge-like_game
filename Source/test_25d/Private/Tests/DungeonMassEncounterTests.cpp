@@ -374,4 +374,38 @@ bool FDungeonMassClientAuthority::RunTest(const FString&)
     return true;
 }
 #endif
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonMassWarningLifecycle,
+    "test_25d.Roguelike.Mass.WarningLifecycle",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDungeonMassWarningLifecycle::RunTest(const FString&)
+{
+    using namespace DungeonMassEncounterTests;
+    FWorld F; if (!F.Ready(*this)) return false;
+    F.Type->AttackWindupSeconds=.35f;
+    F.Type->AttackContactTime=.29f;
+    F.Type->AttackClipDuration=1.208333f;
+    const int32 Id=F.Sim->SpawnMonster(F.Type,FVector(0,0,60));
+    auto* Player=F.Character(FVector(30,0,60)); F.Player(Player);
+    auto& Fragment=F.Mass->GetMutableEntityManager().GetFragmentDataChecked<FPureMassFragment>(F.Sim->GetEntity(Id));
+    F.Step(.1f);
+    TestEqual(TEXT("First update warns rather than impacts"),int32(Fragment.State),4);
+    TestEqual(TEXT("No attack cooldown before impact"),Fragment.AttackRemaining,0.f);
+    F.Step(.1f); F.Step(.1f);
+    TestEqual(TEXT("Windup remains visible"),int32(Fragment.State),4);
+    Player->SetActorLocation(FVector(200,0,60)); F.Step(.1f);
+    TestFalse(TEXT("Escaping range cancels pending attack"),Fragment.PendingAttackTarget.IsValid());
+    Player->SetActorLocation(FVector(30,0,60)); F.Step(.1f);
+    TestEqual(TEXT("Reentry restarts full warning"),int32(Fragment.State),4);
+    Fragment.PetrifyRemaining=.2f; F.Step(.1f);
+    TestFalse(TEXT("Petrify cancels pending impact"),Fragment.PendingAttackTarget.IsValid());
+    F.Step(.1f); F.Step(.1f); F.Step(.1f); F.Step(.1f); F.Step(.1f); F.Step(.1f);
+    TestTrue(TEXT("Full new warning allows impact cooldown"),Fragment.AttackRemaining>0.f);
+    TestTrue(TEXT("Strike recovery preserves the remainder of the spear clip"),Fragment.AttackVisualRemaining>.8f);
+    Player->SetActorLocation(FVector(250,0,60)); F.Step(.2f);
+    TestEqual(TEXT("Target leaving after impact does not truncate follow-through"),int32(Fragment.State),2);
+    Fragment.PetrifyRemaining=.2f; F.Step(.1f);
+    TestEqual(TEXT("Petrify interrupts attack presentation"),int32(Fragment.State),0);
+    return true;
+}
+
 #endif

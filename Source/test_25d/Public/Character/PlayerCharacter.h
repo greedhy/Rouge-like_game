@@ -20,7 +20,9 @@ class TEST_25D_API APlayerCharacter : public ABaseCharacter,public IPlayerInterf
 	GENERATED_BODY()
 public:
 	APlayerCharacter();
+	virtual void PostInitializeComponents() override;
 
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 

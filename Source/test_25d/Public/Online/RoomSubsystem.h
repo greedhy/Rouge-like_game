@@ -21,6 +21,8 @@ public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
     UFUNCTION(BlueprintCallable) void StartSinglePlayer();
+    UFUNCTION(BlueprintCallable) void StartSwordShieldTrial();
+    UFUNCTION(BlueprintCallable) void StartStanderTrial();
     UFUNCTION(BlueprintCallable) void CreateRoom();
     UFUNCTION(BlueprintCallable) void JoinRoom(const FString& Password);
     UFUNCTION(BlueprintCallable) void LeaveRoom();
@@ -55,6 +57,8 @@ private:
     UPROPERTY() TSoftObjectPtr<UWorld> DefaultMap;
     FString HostPassword,PendingPassword;
     bool bHosting=false,bAcceptingPlayers=false,bReturnScheduled=false;
+    bool bSwordShieldTrial=false;
+    bool bStanderTrial=false;
     double Deadline=0,ReturnAt=0;
     enum class EAfterDestroy:uint8 { None, Create, Search, Single, Return };
     EAfterDestroy AfterDestroy=EAfterDestroy::None;

@@ -11,6 +11,7 @@
 #include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "UI/Widget/DamageNumberPool.h"
 #include "UObject/ConstructorHelpers.h"
 
 APureMassPlayerController::APureMassPlayerController()
@@ -47,33 +48,11 @@ void APureMassPlayerController::FlushMassDamageNumbers()
 void APureMassPlayerController::ClientShowMassDamageNumbers_Implementation(const TArray<FPureMassDamageNumber>& Numbers)
 {
     if (!IsLocalController() || !MassDamageTextComponentClass || GetNetMode() == NM_DedicatedServer) return;
-    if (!IsValid(DamageNumberAnchor))
+    auto* Pool=GetWorld()->GetSubsystem<UDamageNumberPool>();
+    for(int32 Index=0;Index<FMath::Min(Numbers.Num(),256);++Index)
     {
-        FActorSpawnParameters Spawn;
-        Spawn.Owner = this;
-        Spawn.ObjectFlags |= RF_Transient;
-        DamageNumberAnchor = GetWorld()->SpawnActor<AActor>(Spawn);
-        if (!DamageNumberAnchor) return;
-        DamageNumberAnchor->SetActorHiddenInGame(false);
-        DamageNumberAnchor->SetActorEnableCollision(false);
-    }
-    ActiveDamageNumbers.RemoveAll([](const auto& Weak) { return !Weak.IsValid() || !Weak->IsRegistered(); });
-    for (int32 Index = 0; Index < FMath::Min(Numbers.Num(), 256); ++Index)
-    {
-        const auto& Number = Numbers[Index];
-        if (!FMath::IsFinite(Number.Damage) || Number.Damage <= 0.f || Number.Position.ContainsNaN()) continue;
-        if (ActiveDamageNumbers.Num() >= 256)
-        {
-            if (auto* Oldest = ActiveDamageNumbers[0].Get()) Oldest->DestroyComponent();
-            ActiveDamageNumbers.RemoveAt(0);
-        }
-        auto* Text = NewObject<UDamageTextComponent>(DamageNumberAnchor, MassDamageTextComponentClass);
-        const FVector StyleOffset = Text->GetRelativeLocation();
-        Text->SetOwnerPlayer(GetLocalPlayer());
-        Text->RegisterComponent();
-        Text->SetWorldLocation(FVector(Number.Position) + StyleOffset);
-        Text->SetDamageText(Number.Damage, Number.bBlocked, Number.bCritical);
-        ActiveDamageNumbers.Add(Text);
+        const auto& Number=Numbers[Index];
+        Pool->Show(this,MassDamageTextComponentClass,FVector(Number.Position),Number.Damage,Number.bBlocked,Number.bCritical);
     }
 }
 
@@ -81,10 +60,6 @@ void APureMassPlayerController::EndPlay(EEndPlayReason::Type Reason)
 {
     GetWorldTimerManager().ClearTimer(DamageNumberTimer);
     PendingDamageNumbers.Reset();
-    for (const auto& Weak : ActiveDamageNumbers) if (auto* Text = Weak.Get()) Text->DestroyComponent();
-    ActiveDamageNumbers.Reset();
-    if (IsValid(DamageNumberAnchor)) DamageNumberAnchor->Destroy();
-    DamageNumberAnchor = nullptr;
     Super::EndPlay(Reason);
 }
 
@@ -101,15 +76,10 @@ bool APureMassPlayerController::IsBlocked(FGameplayTag Tag) const
 
 void APureMassPlayerController::SetupInputComponent()
 {
-    // Bypass the base controller's private Actor-only LMB handlers, retaining its UI/RPC support.
+    // Keep the Mass input asset bindings and cursor targeting, sharing the same keyboard-only controls.
     APlayerController::SetupInputComponent();
     auto* Input = CastChecked<UMyInputComponent>(InputComponent);
     if (MassMoveAction) Input->BindAction(MassMoveAction, ETriggerEvent::Triggered, this, &ThisClass::MoveMass);
-    if (MassShiftAction)
-    {
-        Input->BindAction(MassShiftAction, ETriggerEvent::Started, this, &ThisClass::ShiftDown);
-        Input->BindAction(MassShiftAction, ETriggerEvent::Completed, this, &ThisClass::ShiftUp);
-    }
     if (MassInputConfig) Input->BindAbilityActions(MassInputConfig, this, &ThisClass::Pressed, &ThisClass::Released, &ThisClass::Held);
 }
 
@@ -126,7 +96,6 @@ void APureMassPlayerController::UpdateCursor()
     const auto Target = PureMassCombat::Sweep(GetWorld(), GetPawn(), Origin, End, 0.f, Time, WorldHit);
     HoveredEntity = FMath::Max(0, Target.EntityId);
     HoveredActor = Target.Actor;
-    if (WorldHit.bBlockingHit) MoveDestination = WorldHit.ImpactPoint;
 }
 
 void APureMassPlayerController::PlayerTick(float DeltaTime)
@@ -134,17 +103,12 @@ void APureMassPlayerController::PlayerTick(float DeltaTime)
     Super::PlayerTick(DeltaTime);
     if (!IsLocalController()) return;
     UpdateCursor();
-    if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputHeld)) { MovePath.Reset(); return; }
-    APawn* ControlledPawn = GetPawn();
-    if (!ControlledPawn || !MovePath.IsValidIndex(PathIndex)) return;
-    if (FVector::DistSquared2D(ControlledPawn->GetActorLocation(), MovePath[PathIndex]) < FMath::Square(55.f)) ++PathIndex;
-    if (MovePath.IsValidIndex(PathIndex)) ControlledPawn->AddMovementInput((MovePath[PathIndex] - ControlledPawn->GetActorLocation()).GetSafeNormal2D());
+
 }
 
 void APureMassPlayerController::MoveMass(const FInputActionValue& Value)
 {
     if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputPressed)) return;
-    MovePath.Reset();
     if (APawn* ControlledPawn = GetPawn())
     {
         const FVector2D Axis = Value.Get<FVector2D>();
@@ -160,27 +124,12 @@ void APureMassPlayerController::Pressed(FGameplayTag Tag)
     if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputPressed)) return;
     if (Tag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Pickup)) { ServerRequestPickup(); return; }
     UpdateCursor();
-    if (Tag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB))
-    {
-        bLMBCombat = HoveredEntity != 0 || HoveredActor.IsValid() || bMassShift;
-        if (!bLMBCombat) return;
-    }
-    MovePath.Reset();
     if (auto* ASC = MassASC()) ASC->AbilityInputTagPressed(Tag);
 }
 
 void APureMassPlayerController::Held(FGameplayTag Tag)
 {
     if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputHeld)) return;
-    if (Tag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB) && !bLMBCombat)
-    {
-        if (APawn* ControlledPawn = GetPawn())
-        {
-            if (auto* Path = UNavigationSystemV1::FindPathToLocationSynchronously(this, ControlledPawn->GetActorLocation(), MoveDestination, ControlledPawn))
-            { MovePath = Path->PathPoints; PathIndex = MovePath.Num() > 1 ? 1 : 0; }
-        }
-        return;
-    }
     if (auto* ASC = MassASC()) ASC->AbilityInputTagHeld(Tag);
 }
 
@@ -188,6 +137,5 @@ void APureMassPlayerController::Released(FGameplayTag Tag)
 {
     // Release must still reach GAS when UI opens or a block tag appears during a channel.
     if (auto* ASC = MassASC()) ASC->AbilityInputTagReleased(Tag);
-    if (Tag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB)) bLMBCombat = false;
 }
 

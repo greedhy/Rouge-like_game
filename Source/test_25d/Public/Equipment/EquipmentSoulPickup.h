@@ -55,5 +55,9 @@ public:
  AEquipmentEntranceSamples();
  virtual void Tick(float DeltaSeconds) override;
  UPROPERTY(EditAnywhere, Category="Equipment") TArray<FName> EquipmentNames;
+ /** Additional weapon samples for a Stander trial; ignored for other characters. */
+ UPROPERTY(EditAnywhere, Category="Equipment") TArray<FName> StanderWeaponNames;
  UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 SpawnedCount = 0;
+private:
+ bool bBaseSamplesSpawned = false;
 };

@@ -50,6 +50,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Mass Monsters")
 	FName MonsterRoomId;
 
+	// Runtime Actor Tags do not replicate. Clients need encounter membership for
+	// target acquisition; the server still validates the active room and damage.
+	UPROPERTY(Replicated, BlueprintReadOnly, Category="Dungeon")
+	bool bDungeonEncounter = false;
+
 	// APawn ownership changes to its controller on possession. Keep summon provenance separate.
 	UPROPERTY(Transient, BlueprintReadOnly, Category="Summon")
 	TWeakObjectPtr<AEnemyCharacter> SummoningSource;

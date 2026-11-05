@@ -104,6 +104,12 @@ bool FDungeonActiveCombatBoundary::RunTest(const FString&)
     TestTrue(TEXT("Active room permits enemy target assignment"), F.Target->GetCombatTarget_Implementation() == F.Source);
     TestTrue(TEXT("Active room permits mixed Actor target resolution"), PureMassCombat::Resolve(F.World, F.Source, FPureMassCombatTarget::FromActor(F.Target), Position));
     TestTrue(TEXT("Active room permits damage-effect creation"), UMyAbilitySystemLibrary::ApplyDamageEffect(F.Damage).IsValid());
+    F.Target->Tags.Remove(TEXT("DungeonEncounter"));
+    TestFalse(TEXT("Unmanaged enemy remains rejected"), PureMassCombat::Resolve(F.World,F.Source,FPureMassCombatTarget::FromActor(F.Target),Position));
+    F.Target->bDungeonEncounter = true;
+    TestTrue(TEXT("Replicated membership works without server-only Actor tag"), PureMassCombat::Resolve(F.World,F.Source,FPureMassCombatTarget::FromActor(F.Target),Position));
+    const FProperty* Membership = FindFProperty<FProperty>(AEnemyCharacter::StaticClass(),GET_MEMBER_NAME_CHECKED(AEnemyCharacter,bDungeonEncounter));
+    TestTrue(TEXT("Encounter membership is replicated"), Membership && Membership->HasAnyPropertyFlags(CPF_Net));
     F.Source->SetActorLocation(FVector(0, 0, 80));
     F.Target->SetCombatTarget_Implementation(F.Source);
     TestNull(TEXT("Player leaving room clears enemy target"), F.Target->GetCombatTarget_Implementation());

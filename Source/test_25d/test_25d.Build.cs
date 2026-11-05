@@ -19,6 +19,8 @@ public class test_25d : ModuleRules
         PublicDependencyModuleNames.Add("MassEntity");
         PublicDependencyModuleNames.Add("MassCore");
         PrivateDependencyModuleNames.Add("MassSimulation");
+        if (Target.bBuildEditor)
+            PrivateDependencyModuleNames.AddRange(new string[] { "MeshDescription", "StaticMeshDescription", "SkeletalMeshDescription", "AnimationCore" });
         // Uncomment if you are using Slate UI
         // PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 

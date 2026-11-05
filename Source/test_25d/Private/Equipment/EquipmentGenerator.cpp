@@ -1,5 +1,5 @@
-#include "Equipment/EquipmentStats.h"
 #include "Equipment/EquipmentGenerator.h"
+#include "Equipment/EquipmentStats.h"
 #include "Backpack/ItemDefinition.h"
 namespace
 {

@@ -161,6 +161,7 @@ void AEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AEnemyCharacter, DungeonPoolLife);
+	DOREPLIFETIME(AEnemyCharacter, bDungeonEncounter);
 	DOREPLIFETIME(AEnemyCharacter, bDungeonPoolCorpse);
 	DOREPLIFETIME(AEnemyCharacter, DungeonPoolDeathImpulse);
 }

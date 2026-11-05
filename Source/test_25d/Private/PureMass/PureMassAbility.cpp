@@ -141,7 +141,7 @@ void UPureMassAbility::ExecuteMass(const FVector& Point, FPureMassCombatTarget T
     if (!IsValid(MassRuntime)) { AbortMass(); return; }
     PrototypeFacing::Apply(Avatar, Point, Prototype->bTargetSelf);
     if (Prototype->Kind != K::Orbit) APureMassRuntime::NotifyCommittedAttack(Avatar, this, Target);
-    if (Prototype->Kind == K::Beam || Prototype->Kind == K::Orbit)
+    if (Prototype->Kind == K::Beam || IsInputToggleAbility())
         MassRuntime->OnDestroyed.AddDynamic(this, &ThisClass::RuntimeDestroyed);
     else
     {

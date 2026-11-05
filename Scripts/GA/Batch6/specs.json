@@ -1,0 +1,302 @@
+{
+  "nodes": [
+    {
+      "id": "SolarBlast",
+      "name": "熔日爆炸",
+      "prototype": {
+        "kind": {
+          "kind": "BURST"
+        },
+        "damage": 60,
+        "damage_per_level": 2.0,
+        "mana_cost": 0.0,
+        "cooldown": 0.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 380.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Fire"
+        },
+        "impact_vfx": {
+          "asset": "/Game/CompositionBatch6/NS_SolarExplosionFlame"
+        },
+        "use_authored_vfx_scale": true,
+        "impact_vfx_scale": {
+          "vector": [
+            1.5,
+            1.5,
+            1.5
+          ]
+        }
+      },
+      "node_only": true,
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    },
+    {
+      "id": "FrostField",
+      "name": "极寒风暴区域",
+      "prototype": {
+        "kind": {
+          "kind": "FIELD"
+        },
+        "damage": 12,
+        "damage_per_level": 2.0,
+        "mana_cost": 0.0,
+        "cooldown": 0.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 450.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Magic"
+        },
+        "loop_vfx": {
+          "asset": "/Game/CompositionBatch6/NS_GlacialStorm"
+        },
+        "slow_multiplier": 0.5,
+        "slow_duration": 1.25,
+        "loop_vfx_scale": {
+          "vector": [
+            2.25,
+            2.25,
+            1.0
+          ]
+        },
+        "ground_presentation": true,
+        "use_authored_vfx_scale": true,
+        "show_area_disc": true,
+        "area_material": {
+          "asset": "/Game/CompositionBatch6/M_GlacialArea"
+        },
+        "snowfall": true
+      },
+      "node_only": true,
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    }
+  ],
+  "abilities": [
+    {
+      "id": "StarFlameHalo",
+      "name": "星焰护环",
+      "prototype": {
+        "kind": {
+          "kind": "FIELD"
+        },
+        "damage": 14,
+        "damage_per_level": 2.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 300.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Fire"
+        },
+        "target_self": true,
+        "mana_per_second": 5.0,
+        "follow_caster_toggle": true,
+        "loop_vfx": {
+          "asset": "/Game/CompositionBatch6/NS_StarFlameHalo"
+        },
+        "loop_vfx_scale": {
+          "vector": [
+            3.0,
+            3.0,
+            1.0
+          ]
+        },
+        "ground_presentation": true,
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.Batch6FieldAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__02",
+      "icon_reviewed": true,
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype",
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png"
+    },
+    {
+      "id": "PetrifyingGaze",
+      "name": "石化凝视",
+      "prototype": {
+        "kind": {
+          "kind": "BURST"
+        },
+        "damage": 0,
+        "damage_per_level": 0.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 3.0,
+        "period": 1.0,
+        "radius": 650.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Magic"
+        },
+        "target_self": true,
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.Batch6PetrifyAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__44",
+      "icon_reviewed": true,
+      "ability": {
+        "radius": 650.0,
+        "duration": 3.0,
+        "stone_material": {
+          "asset": "/Game/CompositionBatch6/M_PetrifiedStone"
+        }
+      },
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png",
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    },
+    {
+      "id": "SolarFireball",
+      "name": "熔日火球",
+      "prototype": {
+        "kind": {
+          "kind": "PROJECTILE"
+        },
+        "damage": 15,
+        "damage_per_level": 2.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 380.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Fire"
+        },
+        "speed": 750.0,
+        "collision_radius": 35.0,
+        "on_hit": {
+          "asset": "/Game/CompositionBatch6/DA_SolarBlast"
+        },
+        "loop_vfx": {
+          "asset": "/Game/CompositionBatch6/NS_SolarFireballFlame"
+        },
+        "loop_vfx_scale": {
+          "vector": [
+            5.0,
+            5.0,
+            5.0
+          ]
+        },
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.PureMassAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__03",
+      "icon_reviewed": true,
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png",
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    },
+    {
+      "id": "GlacialStorm",
+      "name": "极寒风暴",
+      "prototype": {
+        "kind": {
+          "kind": "DELAY"
+        },
+        "damage": 0,
+        "damage_per_level": 2.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 450.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Magic"
+        },
+        "arm_delay": 0.8,
+        "on_expire": {
+          "asset": "/Game/CompositionBatch6/DA_FrostField"
+        },
+        "loop_vfx": {
+          "asset": "/Game/Art/CompositionEffects/NS_Bramble_Warning"
+        },
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.PureMassAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__17",
+      "icon_reviewed": true,
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png",
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    },
+    {
+      "id": "FissionChain",
+      "name": "裂变雷链",
+      "prototype": {
+        "kind": {
+          "kind": "CHAIN"
+        },
+        "damage": 24,
+        "damage_per_level": 2.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 300.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Thunder"
+        },
+        "damage_falloff": 0.8,
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.Batch6ChainAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__11",
+      "icon_reviewed": true,
+      "ability": {
+        "max_targets": 12,
+        "max_depth": 3,
+        "branches_per_target": 2,
+        "jump_radius": 400.0,
+        "cast_range": 1200.0,
+        "beam_system": {
+          "asset": "/Game/Assets/Effects/Shock/NS_Sparks"
+        }
+      },
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png",
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype"
+    },
+    {
+      "id": "EarthShockwave",
+      "name": "大地震波",
+      "prototype": {
+        "kind": {
+          "kind": "WAVE"
+        },
+        "damage": 40,
+        "damage_per_level": 2.0,
+        "mana_cost": 15.0,
+        "cooldown": 5.0,
+        "duration": 5.0,
+        "period": 1.0,
+        "radius": 800.0,
+        "range": 1200.0,
+        "damage_type": {
+          "tag": "Damage.Physics"
+        },
+        "target_self": true,
+        "wave_front_only": true,
+        "speed": 450.0,
+        "loop_vfx": {
+          "asset": "/Game/CompositionBatch6/NS_EarthShockwave"
+        },
+        "use_authored_vfx_scale": true
+      },
+      "parent": "/Script/test_25d.Batch6FieldAbility",
+      "icon": "/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__08",
+      "icon_reviewed": true,
+      "prototype_class": "/Script/test_25d.Batch6FieldPrototype",
+      "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png"
+    }
+  ],
+  "catalogs": [
+    "/Game/BluePrints/AbilitySystem/Data/DA_AbilityInfo",
+    "/Game/PureMass/DA_MassAbilityInfo",
+    "/Game/PrototypeExtensions/Batch5/DA_AbilityInfo"
+  ]
+}

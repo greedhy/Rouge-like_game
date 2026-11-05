@@ -2,6 +2,7 @@
 #include "UI/WidgetController/SpellMenuWidgetController.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/SizeBox.h"
 #include "Components/VerticalBox.h"
@@ -13,6 +14,9 @@
 #include "AbilitySystem/Data/AbilityInfo.h"
 #include "AbilitySystem/Prototypes/PrototypeAbility.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
+#include "Equipment/WeaponSetConfig.h"
+#include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
+#include "Player/StanderWeaponActionConfig.h"
 
 void UPrototypeSpellEntry::NativeOnInitialized()
 {
@@ -21,7 +25,17 @@ void UPrototypeSpellEntry::NativeOnInitialized()
     auto* Text = WidgetTree->ConstructWidget<UTextBlock>();
     Text->SetText(Label);
     FSlateFontInfo Font = Text->GetFont(); Font.Size = 14; Text->SetFont(Font);
-    Button->AddChild(Text);
+    auto* Content = WidgetTree->ConstructWidget<UHorizontalBox>();
+    if (Icon)
+    {
+        auto* Image = WidgetTree->ConstructWidget<UImage>();
+        Image->SetBrushFromTexture(Icon);
+        auto* IconBounds = WidgetTree->ConstructWidget<USizeBox>();
+        IconBounds->SetWidthOverride(32.f); IconBounds->SetHeightOverride(32.f);
+        IconBounds->AddChild(Image); Content->AddChild(IconBounds);
+    }
+    Content->AddChild(Text);
+    Button->AddChild(Content);
     Button->OnClicked.AddDynamic(this, &ThisClass::Select);
     WidgetTree->RootWidget = Button;
 }
@@ -53,6 +67,13 @@ void UPrototypeSpellTree::NativeConstruct()
     OriginalButton->OnClicked.AddDynamic(this, &ThisClass::ShowOriginal);
     PrototypeButton->OnClicked.AddDynamic(this, &ThisClass::ShowPrototypes);
     Tabs->AddChild(OriginalButton); Tabs->AddChild(PrototypeButton);
+    auto* WeaponButton = WidgetTree->ConstructWidget<UButton>();
+    auto* WeaponText = WidgetTree->ConstructWidget<UTextBlock>();
+    WeaponText->SetText(FText::FromString(TEXT("  Weapon Skills  ")));
+    FSlateFontInfo WeaponFont = WeaponText->GetFont(); WeaponFont.Size = 14; WeaponText->SetFont(WeaponFont);
+    WeaponButton->AddChild(WeaponText);
+    WeaponButton->OnClicked.AddDynamic(this, &ThisClass::ShowWeapons);
+    Tabs->AddChild(WeaponButton);
     Pages->AddChild(OriginalPage);
     auto* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>();
     Grid->SetMinDesiredSlotHeight(42.f); Grid->SetSlotPadding(FMargin(3.f));
@@ -70,22 +91,77 @@ void UPrototypeSpellTree::NativeConstruct()
         // NewObject + Initialize lets us supply the label before NativeOnInitialized builds its button.
         auto* Entry = NewObject<UPrototypeSpellEntry>(this);
         Entry->Tree = this; Entry->Label = GA->Prototype->DisplayName;
-        Entry->AbilityTag = Row.AbilityTag;
+        Entry->AbilityTag = Row.AbilityTag; Entry->Icon = const_cast<UTexture2D*>(Row.Icon.Get());
         Entry->Initialize();
         Grid->AddChildToUniformGrid(Entry, Index / 2, Index % 2);
         ++Index;
     }
-    ShowOriginal();
+    WeaponGrid = WidgetTree->ConstructWidget<UUniformGridPanel>();
+    WeaponGrid->SetMinDesiredSlotHeight(42.f); WeaponGrid->SetSlotPadding(FMargin(3.f));
+    auto* WeaponScroll = WidgetTree->ConstructWidget<UScrollBox>();
+    auto* WeaponBounds = WidgetTree->ConstructWidget<USizeBox>();
+    WeaponBounds->SetHeightOverride(215.f); WeaponBounds->AddChild(WeaponScroll); WeaponScroll->AddChild(WeaponGrid);
+    WeaponPage = WeaponBounds; Pages->AddChild(WeaponBounds);
+    RefreshWeapons();
+    if (ListedWeaponSet) ShowWeapons(); else ShowOriginal();
 }
 void UPrototypeSpellTree::ShowOriginal()
 {
     if (auto* Controller = Cast<USpellMenuWidgetController>(WidgetController)) Controller->GlobeDeselect();
     if (OriginalPage) OriginalPage->SetVisibility(ESlateVisibility::Visible);
     if (PrototypePage) PrototypePage->SetVisibility(ESlateVisibility::Collapsed);
+    if (WeaponPage) WeaponPage->SetVisibility(ESlateVisibility::Collapsed);
 }
 void UPrototypeSpellTree::ShowPrototypes()
 {
     if (auto* Controller = Cast<USpellMenuWidgetController>(WidgetController)) Controller->GlobeDeselect();
     if (OriginalPage) OriginalPage->SetVisibility(ESlateVisibility::Collapsed);
     if (PrototypePage) PrototypePage->SetVisibility(ESlateVisibility::Visible);
+    if (WeaponPage) WeaponPage->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UPrototypeSpellTree::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+    Super::NativeTick(MyGeometry, InDeltaTime);
+    WeaponRefreshTime += InDeltaTime;
+    if (WeaponRefreshTime < .25f) return;
+    WeaponRefreshTime = 0.f;
+    const auto* Controller = Cast<USpellMenuWidgetController>(WidgetController);
+    if (Controller && (ListedController != Controller || ListedWeaponSet != const_cast<USpellMenuWidgetController*>(Controller)->GetCurrentWeaponSet())) RefreshWeapons();
+}
+
+void UPrototypeSpellTree::RefreshWeapons()
+{
+    if (!WeaponGrid) return;
+    auto* Controller = Cast<USpellMenuWidgetController>(WidgetController);
+    ListedController = Controller;
+    ListedWeaponSet = Controller ? Controller->GetCurrentWeaponSet() : nullptr;
+    WeaponGrid->ClearChildren();
+    if (Controller) Controller->GlobeDeselect();
+    const auto* Catalog = Controller ? Controller->GetAbilityCatalog() : nullptr;
+    int32 Index = 0;
+    if (ListedWeaponSet && Catalog) for (const auto& Ability : ListedWeaponSet->Abilities)
+    {
+        const auto* GA = Ability.Ability ? Cast<UStanderWeaponActionAbility>(Ability.Ability->GetDefaultObject()) : nullptr;
+        if (!GA || !GA->ActionConfig) continue;
+        const auto Row = Catalog->FindAbilityInfoForTag(GA->ActionConfig->ActionTag);
+        auto* Entry = NewObject<UPrototypeSpellEntry>(this);
+        Entry->Tree = this; Entry->Label = GA->ActionConfig->DisplayName;
+        Entry->AbilityTag = GA->ActionConfig->ActionTag; Entry->Icon = const_cast<UTexture2D*>(Row.Icon.Get());
+        Entry->Initialize(); WeaponGrid->AddChildToUniformGrid(Entry, Index / 2, Index % 2); ++Index;
+    }
+    if (Index == 0)
+    {
+        auto* Empty = WidgetTree->ConstructWidget<UTextBlock>();
+        Empty->SetText(FText::FromString(TEXT("Equip a Stander weapon to choose its skills.")));
+        Empty->SetAutoWrapText(true); WeaponGrid->AddChildToUniformGrid(Empty, 0, 0);
+    }
+}
+
+void UPrototypeSpellTree::ShowWeapons()
+{
+    RefreshWeapons();
+    if (OriginalPage) OriginalPage->SetVisibility(ESlateVisibility::Collapsed);
+    if (PrototypePage) PrototypePage->SetVisibility(ESlateVisibility::Collapsed);
+    if (WeaponPage) WeaponPage->SetVisibility(ESlateVisibility::Visible);
 }

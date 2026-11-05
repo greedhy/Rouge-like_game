@@ -4,8 +4,64 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerState.h"
 #include "Game/MyGameInstance.h"
+#include "Engine/Engine.h"
+#include "Game/MyGameModeBase.h"
+#include "CheckPoint/TravelPlayerStart.h"
+#include "Player/MyPlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSwordTrialArrival,"test_25d.Rooms.SwordTrialOverridesLegacySaveArrival",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSwordTrialArrival::RunTest(const FString&)
+{
+    auto* GI=NewObject<UMyGameInstance>(GEngine);GI->InitializeStandalone();
+    auto* W=GI->GetWorld();auto* Context=GI->GetWorldContext();
+    GI->LoadSlotName=TEXT("SwordShield_Automation");GI->PlayerStartTag=TEXT("Dungeon1PlayerStart1");
+    auto* Rooms=GI->GetSubsystem<URoomSubsystem>();
+    Rooms->ConfigureSelection(TEXT("NewSave"),TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/RoguelikeGeneration/Maps/L_RoguelikeRun.L_RoguelikeRun"))));
+    Rooms->StartSwordShieldTrial();
+    const FString TrialURL=Context->TravelURL;
+    AddInfo(FString::Printf(TEXT("Selection=%d State=%d Error=%s URL=%s"),Rooms->HasSelection(),int32(Rooms->State),*Rooms->LastError.ToString(),*TrialURL));
+    const FURL ParsedTrial(nullptr,*TrialURL,TRAVEL_Absolute);
+    TestEqual(TEXT("Trial requests destination entry despite legacy save tag"),FString(ParsedTrial.GetOption(TEXT("ArrivalGroup="),TEXT(""))),FString(TEXT("RG_Entrance")));
+    auto* Mode=W->SpawnActor<AMyGameModeBase>();
+    // InitGame receives the option suffix, not the complete map URL.
+    const int32 Query=TrialURL.Find(TEXT("?"));Mode->OptionsString=Query==INDEX_NONE?FString():TrialURL.Mid(Query);
+    auto* PC=W->SpawnActor<APlayerController>();PC->PlayerState=W->SpawnActor<AMyPlayerState>();
+    auto* Start=W->SpawnActor<ATravelPlayerStart>();Start->PlayerStartTag=TEXT("RG_Entrance");Start->bDefaultEntryGroup=true;
+    TestEqual(TEXT("Real arrival resolver finds player zero"),Mode->FindPlayerStart_Implementation(PC,TEXT("")),static_cast<AActor*>(Start));
+    TestEqual(TEXT("Trial does not overwrite selected save arrival"),GI->PlayerStartTag,FName(TEXT("Dungeon1PlayerStart1")));
+    Rooms->State=ERoomFlowState::Idle;Rooms->StartSinglePlayer();
+    TestFalse(TEXT("Original single-player retains legacy save spawn selection"),FURL(nullptr,*Context->TravelURL,TRAVEL_Absolute).HasOption(TEXT("ArrivalGroup=")));
+    Context->TravelURL.Empty();GI->Shutdown();GEngine->DestroyWorldContext(W);W->DestroyWorld(false);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStanderTrialArrival,"test_25d.Rooms.StanderTrialOverridesLegacySaveArrival",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FStanderTrialArrival::RunTest(const FString&)
+{
+    auto* GI=NewObject<UMyGameInstance>(GEngine);GI->InitializeStandalone();
+    auto* W=GI->GetWorld();auto* Context=GI->GetWorldContext();
+    GI->LoadSlotName=TEXT("Stander_Automation");GI->PlayerStartTag=TEXT("Dungeon1PlayerStart1");
+    auto* Rooms=GI->GetSubsystem<URoomSubsystem>();
+    Rooms->ConfigureSelection(TEXT("NewSave"),TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/RoguelikeGeneration/Maps/L_RoguelikeRun.L_RoguelikeRun"))));
+    Rooms->StartStanderTrial();
+    const FString TrialURL=Context->TravelURL;
+    AddInfo(FString::Printf(TEXT("Selection=%d State=%d Error=%s URL=%s"),Rooms->HasSelection(),int32(Rooms->State),*Rooms->LastError.ToString(),*TrialURL));
+    const FURL ParsedTrial(nullptr,*TrialURL,TRAVEL_Absolute);
+    TestEqual(TEXT("Trial requests destination entry despite legacy save tag"),FString(ParsedTrial.GetOption(TEXT("ArrivalGroup="),TEXT(""))),FString(TEXT("RG_Entrance")));
+    auto* Mode=W->SpawnActor<AMyGameModeBase>();
+    // InitGame receives the option suffix, not the complete map URL.
+    const int32 Query=TrialURL.Find(TEXT("?"));Mode->OptionsString=Query==INDEX_NONE?FString():TrialURL.Mid(Query);
+    auto* PC=W->SpawnActor<APlayerController>();PC->PlayerState=W->SpawnActor<AMyPlayerState>();
+    auto* Start=W->SpawnActor<ATravelPlayerStart>();Start->PlayerStartTag=TEXT("RG_Entrance");Start->bDefaultEntryGroup=true;
+    TestEqual(TEXT("Real arrival resolver finds player zero"),Mode->FindPlayerStart_Implementation(PC,TEXT("")),static_cast<AActor*>(Start));
+    TestEqual(TEXT("Trial does not overwrite selected save arrival"),GI->PlayerStartTag,FName(TEXT("Dungeon1PlayerStart1")));
+    Rooms->State=ERoomFlowState::Idle;Rooms->StartSinglePlayer();
+    TestFalse(TEXT("Original single-player retains legacy save spawn selection"),FURL(nullptr,*Context->TravelURL,TRAVEL_Absolute).HasOption(TEXT("ArrivalGroup=")));
+    Context->TravelURL.Empty();GI->Shutdown();GEngine->DestroyWorldContext(W);W->DestroyWorld(false);
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRoomPasswordRules,"test_25d.Rooms.PasswordValidationAndFingerprint",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FRoomPasswordRules::RunTest(const FString&)
 {

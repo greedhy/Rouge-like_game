@@ -5,6 +5,8 @@
 #include "PureMass/PureMassCombatTarget.h"
 #include "PureMassRuntime.generated.h"
 class UNiagaraComponent;
+class UStaticMeshComponent;
+class UInstancedStaticMeshComponent;
 class UGameplayAbility;
 
 USTRUCT(BlueprintType)
@@ -40,6 +42,8 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly) TArray<FPureMassOrbitBolt> OrbitBolts;
 private:
     UPROPERTY() TObjectPtr<UNiagaraComponent> Visual;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Batch6Area;
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Batch6Snow;
     UPROPERTY() TArray<TObjectPtr<UNiagaraComponent>> BoltVisuals;
     UPROPERTY() TObjectPtr<ATerrainSurface> Surface;
     UPROPERTY(ReplicatedUsing=RefreshVisual) bool bFinished = false;
@@ -51,7 +55,9 @@ private:
     int32 Depth = 0, Emissions = 0;
     TSet<FPureMassCombatTarget> HitTargets;
     float Age = 0.f, PeriodClock = 0.f, Travel = 0.f, LaunchClock = 0.f;
+    float PreviousWaveRadius = 0.f;
     UFUNCTION() void RefreshVisual();
+    void UpdateBatch6Presentation();
     UFUNCTION(NetMulticast, Unreliable) void Impact(FVector Position);
     bool Visible(FVector Origin, const FPureMassCombatTarget& Candidate) const;
     bool Hit(FPureMassCombatTarget Candidate, float Scale = 1.f);

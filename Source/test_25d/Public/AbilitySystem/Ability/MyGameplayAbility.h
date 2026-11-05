@@ -19,6 +19,7 @@ public:
 	// Toggle abilities use a single press routed to authority, never held activation.
 	virtual bool IsInputToggleAbility() const { return false; }
     virtual bool ShouldCancelOnEquipChange() const { return IsInputToggleAbility(); }
+    virtual bool IsEquipmentGrantedOnly() const { return false; }
 
 	virtual void InputPressed(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) override;
 	virtual void InputReleased(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) override;

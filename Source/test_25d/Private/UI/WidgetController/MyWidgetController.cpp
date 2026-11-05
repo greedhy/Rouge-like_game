@@ -9,6 +9,8 @@
 #include "AbilitySystem/Data/AbilityInfo.h"
 void UMyWidgetController::SetWidgetControllerParams(const FWidgetControllerParams& WCParams)
 {
+    UnbindCallbacksFromDependencies();
+    MyPlayerController=nullptr; MyPlayerState=nullptr; MyASC=nullptr; MyAttributeSet=nullptr;
     PlayerController = WCParams.PlayerController;
     PlayerState = WCParams.PlayerState;
     ASC = WCParams.AbilitySystemComponent;
@@ -73,3 +75,6 @@ UMyAttributeSet* UMyWidgetController::GetMyAS()
 	}
 	return MyAttributeSet;
 }
+
+void UMyWidgetController::BeginDestroy()
+{ UnbindCallbacksFromDependencies(); Super::BeginDestroy(); }

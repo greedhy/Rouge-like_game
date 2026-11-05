@@ -96,6 +96,21 @@ void URoomSubsystem::StartSinglePlayer()
 {
     if(IsBusy()) return;
     if(!HasSelection()){ Fail(LOCTEXT("SelectSave","请先选择一个有效存档。")); return; }
+    bSwordShieldTrial=false;bStanderTrial=false;
+    ClearError(); DestroyThen(EAfterDestroy::Single);
+}
+void URoomSubsystem::StartSwordShieldTrial()
+{
+    if(IsBusy() || State==ERoomFlowState::InLobby) return;
+    if(!HasSelection()){ Fail(LOCTEXT("SelectSwordSave","请先选择一个有效存档。")); return; }
+    bSwordShieldTrial=true;bStanderTrial=false;
+    ClearError(); DestroyThen(EAfterDestroy::Single);
+}
+void URoomSubsystem::StartStanderTrial()
+{
+    if(IsBusy() || State==ERoomFlowState::InLobby) return;
+    if(!HasSelection()){ Fail(LOCTEXT("SelectStanderSave","请先选择一个有效存档。")); return; }
+    bSwordShieldTrial=false;bStanderTrial=true;
     ClearError(); DestroyThen(EAfterDestroy::Single);
 }
 void URoomSubsystem::CreateRoom()
@@ -256,10 +271,16 @@ void URoomSubsystem::LeaveRoom()
 }
 void URoomSubsystem::OpenSinglePlayer()
 {
-    const FString Package=GetDefaultMapPackage();
+    const FString Package=(bSwordShieldTrial || bStanderTrial)?TEXT("/Game/RoguelikeGeneration/Maps/L_RoguelikeRun"):GetDefaultMapPackage();
     if(!FPackageName::DoesPackageExist(Package)){ Fail(LOCTEXT("MissingMap","默认游戏地图不存在，请检查地图配置。")); return; }
     bReturnToMode=false; SetState(ERoomFlowState::Starting,30);
-    UGameplayStatics::OpenLevel(this,FName(*Package),true);
+    // The menu seeds GI->PlayerStartTag from the selected save's original map.
+    // This trial always enters the generated map; its explicit arrival option must
+    // win over that legacy tag without modifying the selected save's spawn state.
+    const FString Options=bStanderTrial?TEXT("game=/Game/BluePrints/Characters/Stander/BP_StanderGameMode.BP_StanderGameMode_C?ArrivalGroup=RG_Entrance"):
+        bSwordShieldTrial?TEXT("game=/Game/BluePrints/Characters/SwordShield/BP_SwordShieldGameMode.BP_SwordShieldGameMode_C?ArrivalGroup=RG_Entrance"):TEXT("");
+    bSwordShieldTrial=false;bStanderTrial=false;
+    UGameplayStatics::OpenLevel(this,FName(*Package),true,Options);
 }
 void URoomSubsystem::OpenLoadMenu()
 {

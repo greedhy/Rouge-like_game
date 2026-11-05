@@ -37,28 +37,18 @@ public:
 protected:
     virtual void SetupInputComponent() override;
 private:
+    friend class FPlayerBasicInputTest;
     void FlushMassDamageNumbers();
     UFUNCTION(Client, Unreliable) void ClientShowMassDamageNumbers(const TArray<FPureMassDamageNumber>& Numbers);
     TArray<FPureMassDamageNumber> PendingDamageNumbers;
-    TArray<TWeakObjectPtr<UDamageTextComponent>> ActiveDamageNumbers;
-    // Screen-space WidgetComponent refuses to render when its owning Actor is hidden.
-    // Controllers are hidden; one local, visible anchor owns all transient numbers instead.
-    UPROPERTY(Transient) TObjectPtr<AActor> DamageNumberAnchor;
     FTimerHandle DamageNumberTimer;
     UMyAbilitySystemComponent* MassASC() const;
     void MoveMass(const FInputActionValue& Value);
     void Pressed(FGameplayTag Tag);
     void Released(FGameplayTag Tag);
     void Held(FGameplayTag Tag);
-    void ShiftDown() { bMassShift = true; }
-    void ShiftUp() { bMassShift = false; }
     void UpdateCursor();
     bool IsBlocked(FGameplayTag Tag) const;
-    bool bMassShift = false;
-    bool bLMBCombat = false;
     int32 HoveredEntity = 0;
     TWeakObjectPtr<AActor> HoveredActor;
-    FVector MoveDestination = FVector::ZeroVector;
-    TArray<FVector> MovePath;
-    int32 PathIndex = 0;
 };

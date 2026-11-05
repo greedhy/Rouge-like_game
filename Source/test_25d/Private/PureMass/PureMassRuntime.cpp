@@ -1,4 +1,6 @@
 #include "PureMass/PureMassRuntime.h"
+#include "AbilitySystem/Batch6/Batch6Slow.h"
+#include "AbilitySystem/Batch6/Batch6FieldAbility.h"
 #include "PureMass/PureMassAbility.h"
 #include "PureMass/PureMassSubsystem.h"
 #include "AbilitySystem/Prototypes/PrototypeRuntime.h"
@@ -9,6 +11,7 @@
 #include "AbilitySystemComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Terrain/TerrainSurface.h"
 #include "Interface/CombatInterface.h"
 #include "NiagaraComponent.h"
@@ -39,6 +42,8 @@ APureMassRuntime* APureMassRuntime::Spawn(UPrototypeCastContext* InContext, UAbi
     if (Config->Kind == EAbilityPrototypeKind::Surface && !APrototypeRuntime::ProjectSurfaceToGround(Caster, Position, Position)) return nullptr;
     if (!InContext->ReserveSpawn(InDepth)) return nullptr;
     InDirection = InDirection.GetSafeNormal(SMALL_NUMBER, FVector::ForwardVector);
+    if (Config->Kind == EAbilityPrototypeKind::Beam)
+        Position = Caster->GetActorLocation() + FVector(0, 0, 30);
     const FTransform Transform(InDirection.Rotation(), Position);
     auto* R = Caster->GetWorld()->SpawnActorDeferred<APureMassRuntime>(StaticClass(), Transform, Caster,
         Cast<APawn>(Caster), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
@@ -51,6 +56,8 @@ APureMassRuntime* APureMassRuntime::Spawn(UPrototypeCastContext* InContext, UAbi
     R->Depth = InDepth;
     R->bSingle = bInSingle;
     R->BeamEnd = Position + InDirection * Config->Range;
+    if (Config->Kind == EAbilityPrototypeKind::Beam || Config->Kind == EAbilityPrototypeKind::Chain)
+        PureMassCombat::Resolve(Caster->GetWorld(), Caster, InTarget, R->BeamEnd);
     R->FinishSpawning(Transform);
     return R;
 }
@@ -103,6 +110,8 @@ bool APureMassRuntime::Visible(FVector Origin, const FPureMassCombatTarget& Cand
     return PureMassCombat::Visible(GetWorld(), GetOwner(), Origin, Candidate, const_cast<APureMassRuntime*>(this));
 }
 
+
+
 bool APureMassRuntime::Hit(FPureMassCombatTarget Candidate, float Scale)
 {
     if (!HasAuthority() || !Context || Context->bCancelled || bFinished || !Prototype) return false;
@@ -142,6 +151,8 @@ bool APureMassRuntime::Hit(FPureMassCombatTarget Candidate, float Scale)
         }
         Mass->ApplyDamage(Candidate.EntityId, Damage);
     }
+    if (const auto* Field = Cast<UBatch6FieldPrototype>(Prototype); Field && Field->SlowMultiplier < 1.f)
+        UBatch6SlowComponent::Apply(GetWorld(), Caster, Candidate, Field->SlowMultiplier, Field->SlowDuration);
     Impact(Position);
     Emit(Prototype->OnHit, Position, Candidate);
     return true;
@@ -190,6 +201,8 @@ void APureMassRuntime::Pulse()
             if (Along < 0.f || Along > Prototype->Range || FMath::Abs(FVector::DotProduct(Right, Offset)) > Prototype->Width * .5f) continue;
         }
         if (Kind == K::Wave && (HitTargets.Contains(Candidate) || Offset.SizeSquared() > FMath::Square(WaveRadius))) continue;
+        if (const auto* Config = Cast<UBatch6FieldPrototype>(Prototype); Config && Config->bWaveFrontOnly && Kind == K::Wave
+            && !UBatch6FieldPrototype::IsInWaveFront(Offset.Size(), PreviousWaveRadius, WaveRadius)) continue;
         if (!Visible(GetActorLocation(), Candidate)) continue;
         Hit(Candidate);
         if (Kind == K::Wave) HitTargets.Add(Candidate);
@@ -332,6 +345,21 @@ void APureMassRuntime::Tick(float Delta)
     Super::Tick(Delta);
     if (Prototype && GetNetMode() != NM_DedicatedServer)
     {
+        if (const auto* Config = Cast<UBatch6FieldPrototype>(Prototype); Config && Config->bFollowCasterToggle && !bFinished)
+            UpdateBatch6Presentation();
+        if (Batch6Snow && !bFinished && Batch6Area)
+        {
+            // A bounded instanced flurry supplements existing Niagara assets; presentation only.
+            const float Time = GetWorld()->GetTimeSeconds();
+            for (int32 I=0; I<64; ++I)
+            {
+                const float Angle = I * 2.39996323f + Time * .35f;
+                const float Radius = Prototype->Radius * FMath::Sqrt((I+.5f)/64.f);
+                const FVector Offset(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius,
+                    30.f + 260.f * (1.f-FMath::Frac(Time*.6f+I*.618034f)));
+                Batch6Snow->UpdateInstanceTransform(I,FTransform(FRotator::ZeroRotator,Offset,FVector(.035f+(I%4)*.015f)),false,I==63,true);
+            }
+        }
         Visual->SetVariableVec3(TEXT("BeamEnd"), BeamEnd);
         Visual->SetVariableVec3(TEXT("User.BeamEnd"), BeamEnd);
         Visual->SetVariableVec3(TEXT("Beam Start"), GetActorLocation());
@@ -352,12 +380,17 @@ void APureMassRuntime::Tick(float Delta)
     if (!HasAuthority() || bFinished) return;
     if (!Context || Context->bCancelled || !Prototype || !IsValid(GetOwner())
         || (GetOwner()->Implements<UCombatInterface>() && ICombatInterface::Execute_IsDead(GetOwner()))) { Finish(true); return; }
-    Age += Delta;
     using K = EAbilityPrototypeKind;
     const auto Kind = Prototype->Kind;
-    if ((Kind == K::Beam || Kind == K::Orbit) && !UPureMassAbility::SpendMana(GetOwner(), Prototype->ManaPerSecond * Delta)) { Finish(true); return; }
+    const auto* FieldConfig = Cast<UBatch6FieldPrototype>(Prototype);
+    const bool bFollowToggle = FieldConfig && FieldConfig->bFollowCasterToggle && Kind == K::Field && Depth == 0;
+    const bool bFinalBoundary = FieldConfig && !bFollowToggle && (Kind == K::Wave || Kind == K::Field);
+    if (bFinalBoundary) Delta = FMath::Min(Delta, FMath::Max(0.f, Prototype->Duration - Age));
+    Age += Delta;
+    if (bFollowToggle) SetActorLocation(GetOwner()->GetActorLocation());
+    if ((Kind == K::Beam || Kind == K::Orbit || bFollowToggle) && !UPureMassAbility::SpendMana(GetOwner(), Prototype->ManaPerSecond * Delta)) { Finish(true); return; }
     // Orbit is a toggle, finite kinds honor their configured duration.
-    if ((Kind != K::Orbit || Depth > 0) && Age >= Prototype->Duration) { Finish(false); return; }
+    if (!bFinalBoundary && !bFollowToggle && (Kind != K::Orbit || Depth > 0) && Age >= Prototype->Duration) { Finish(false); return; }
     if (Kind != K::Orbit && Kind != K::Beam && Kind != K::Field && Kind != K::Chain && Kind != K::Emitter)
     {
         PeriodClock += Delta;
@@ -372,9 +405,10 @@ void APureMassRuntime::Tick(float Delta)
     if (Kind == K::Orbit) { Orbit(Delta); return; }
     if (Kind == K::Wave)
     {
+        PreviousWaveRadius = WaveRadius;
         WaveRadius = FMath::Min(Prototype->Radius, WaveRadius + Prototype->Speed * Delta);
         Pulse();
-        if (WaveRadius >= Prototype->Radius) Finish(false);
+        if (WaveRadius >= Prototype->Radius || (bFinalBoundary && Age >= Prototype->Duration)) Finish(false);
         return;
     }
     if (Kind == K::Delay) { if (Age >= Prototype->ArmDelay) Finish(false); return; }
@@ -410,6 +444,7 @@ void APureMassRuntime::Tick(float Delta)
         }
         else Emit(Prototype->OnPeriod, GetActorLocation(), Target);
     }
+    if (bFinalBoundary && Age >= Prototype->Duration && !bFinished) Finish(false);
 }
 
 void APureMassRuntime::Finish(bool bCancelled)
@@ -438,22 +473,86 @@ void APureMassRuntime::RefreshVisual()
     if (!Prototype || GetNetMode() == NM_DedicatedServer) return;
     if (bFinished)
     {
+        if (Batch6Area) Batch6Area->SetVisibility(false);
+        if (Batch6Snow) Batch6Snow->SetVisibility(false);
         Visual->DeactivateImmediate();
         for (const auto& V : BoltVisuals) if (V) V->DeactivateImmediate();
-        if (!bPresented && Prototype->ImpactVFX) UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Prototype->ImpactVFX, GetActorLocation());
+        if (!bPresented && Prototype->ImpactVFX)
+        {
+            const auto* Config = Cast<UBatch6FieldPrototype>(Prototype);
+            const FVector Scale = Config && Config->bUseAuthoredVFXScale ? Prototype->ImpactVFXScale : FVector::OneVector;
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Prototype->ImpactVFX, GetActorLocation(), FRotator::ZeroRotator, Scale);
+        }
         bPresented = true;
         return;
     }
     if (Prototype->LoopVFX && Prototype->Kind != EAbilityPrototypeKind::Orbit && (Prototype->Kind != EAbilityPrototypeKind::Multishot || bSingle))
-    { Visual->SetAsset(Prototype->LoopVFX); Visual->Activate(true); }
-    if (Prototype->Kind == EAbilityPrototypeKind::Ring || Prototype->Kind == EAbilityPrototypeKind::Field)
+    {
+        Visual->SetAsset(Prototype->LoopVFX);
+        // Beam emitters read their endpoints during particle spawn. Tick is too late:
+        // the first particles otherwise retain the asset's authored world origin.
+        Visual->SetVariableVec3(TEXT("Beam Start"), GetActorLocation());
+        Visual->SetVariableVec3(TEXT("Beam End"), BeamEnd);
+        Visual->SetVariableVec3(TEXT("BeamEnd"), BeamEnd);
+        Visual->SetVariableVec3(TEXT("User.BeamEnd"), BeamEnd);
+        Visual->Activate(true);
+    }
+    if (const auto* Config = Cast<UBatch6FieldPrototype>(Prototype); Config && Config->bUseAuthoredVFXScale)
+        Visual->SetRelativeScale3D(Prototype->LoopVFXScale);
+    else if (Prototype->Kind == EAbilityPrototypeKind::Ring || Prototype->Kind == EAbilityPrototypeKind::Field)
         Visual->SetRelativeScale3D(FVector(Prototype->Radius / 100.f, Prototype->Radius / 100.f, .25f));
+    UpdateBatch6Presentation();
+}
+
+void APureMassRuntime::UpdateBatch6Presentation()
+{
+    const auto* Config = Cast<UBatch6FieldPrototype>(Prototype);
+    if (!Config || bFinished || GetNetMode() == NM_DedicatedServer) return;
+    FVector Ground = GetActorLocation();
+    if (Config->bGroundPresentation || Config->bShowAreaDisc)
+        APrototypeRuntime::ProjectSurfaceToGround(GetOwner() ? GetOwner() : this, GetActorLocation(), Ground);
+    if (Config->bGroundPresentation) Visual->SetWorldLocation(Ground);
+    if (!Config->bShowAreaDisc || Config->Kind != EAbilityPrototypeKind::Field || !Config->AreaMaterial) return;
+    if (!Batch6Area)
+    {
+        Batch6Area = NewObject<UStaticMeshComponent>(this);
+        Batch6Area->SetupAttachment(RootComponent);
+        Batch6Area->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));
+        Batch6Area->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Batch6Area->SetCastShadow(false);
+        Batch6Area->SetMaterial(0, Config->AreaMaterial);
+        Batch6Area->RegisterComponent();
+    }
+    Batch6Area->SetWorldLocation(Ground + FVector(0,0,1));
+    Batch6Area->SetWorldRotation(FRotator::ZeroRotator);
+    Batch6Area->SetWorldScale3D(FVector(Config->Radius / 50.f, Config->Radius / 50.f, .01f));
+    if (Config->bSnowfall && !Batch6Snow)
+    {
+        Batch6Snow = NewObject<UInstancedStaticMeshComponent>(this);
+        Batch6Snow->SetupAttachment(RootComponent);
+        Batch6Snow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+        Batch6Snow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Batch6Snow->SetCastShadow(false);
+        Batch6Snow->SetMaterial(0,Config->AreaMaterial);
+        Batch6Snow->RegisterComponent();
+        for (int32 I=0; I<64; ++I) Batch6Snow->AddInstance(FTransform(FRotator::ZeroRotator,FVector(0,0,150),FVector(.035f)),false);
+    }
+    if (Batch6Snow)
+    {
+        Batch6Snow->SetWorldLocation(Ground);
+        Batch6Snow->SetWorldRotation(FRotator::ZeroRotator);
+        Batch6Snow->SetWorldScale3D(FVector::OneVector);
+    }
 }
 
 void APureMassRuntime::Impact_Implementation(FVector Position)
 {
     if (Prototype && Prototype->ImpactVFX && GetNetMode() != NM_DedicatedServer)
-        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Prototype->ImpactVFX, Position);
+    {
+        const auto* Config = Cast<UBatch6FieldPrototype>(Prototype);
+        const FVector Scale = Config && Config->bUseAuthoredVFXScale ? Prototype->ImpactVFXScale : FVector::OneVector;
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Prototype->ImpactVFX, Position, FRotator::ZeroRotator, Scale);
+    }
 }
 
 void APureMassRuntime::EndPlay(EEndPlayReason::Type Reason)

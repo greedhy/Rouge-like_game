@@ -92,6 +92,7 @@ private:
         FGuid Run;
         int32 Room;
         bool PoolEligible;
+        bool IsMass = false;
     };
     TArray<FPendingEnemy> SpawnQueue;
     TSharedPtr<FStreamableHandle> EnemyLoadHandle;

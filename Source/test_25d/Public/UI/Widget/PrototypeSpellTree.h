@@ -6,6 +6,7 @@
 
 class UPrototypeSpellTree;
 class UWidget;
+class UTexture2D;
 
 UCLASS()
 class TEST_25D_API UPrototypeSpellEntry : public UUserWidget
@@ -14,6 +15,7 @@ class TEST_25D_API UPrototypeSpellEntry : public UUserWidget
 public:
     FGameplayTag AbilityTag;
     FText Label;
+    UPROPERTY() TObjectPtr<UTexture2D> Icon;
     UPROPERTY() TObjectPtr<UPrototypeSpellTree> Tree;
 protected:
     virtual void NativeOnInitialized() override;
@@ -27,9 +29,17 @@ class TEST_25D_API UPrototypeSpellTree : public UMyUserWidget
     GENERATED_BODY()
 protected:
     virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 private:
     UPROPERTY() TObjectPtr<UWidget> OriginalPage;
     UPROPERTY() TObjectPtr<UWidget> PrototypePage;
     UFUNCTION() void ShowOriginal();
     UFUNCTION() void ShowPrototypes();
+    UFUNCTION() void ShowWeapons();
+    void RefreshWeapons();
+    UPROPERTY() TObjectPtr<UWidget> WeaponPage;
+    UPROPERTY() TObjectPtr<class UUniformGridPanel> WeaponGrid;
+    UPROPERTY() TObjectPtr<class UWeaponSetConfig> ListedWeaponSet;
+    UPROPERTY() TObjectPtr<UObject> ListedController;
+    float WeaponRefreshTime = 0.f;
 };

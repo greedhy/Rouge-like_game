@@ -39,17 +39,20 @@ public:
     UFUNCTION(BlueprintPure) bool IsEnabled() const { return bEnabled; }
     bool BeginUpdate(float DeltaSeconds);
     void UpdateMonster(FPureMassFragment& Fragment);
+    bool ApplyPetrify(int32 Id, float Duration, AActor* Source);
+    bool ApplySlow(int32 Id, float Multiplier, float Duration, AActor* Source);
     void FinishUpdate();
     FMassEntityHandle GetEntity(int32 Id) const;
     UFUNCTION(BlueprintPure) int64 GetDeathCount() const { return DeathCount; }
 private:
+    friend class FPureMassMovementIntegrationTest;
     bool IsAuthority() const;
-    bool RemoveMonsterInternal(int32 Id, EPureMassRemovalReason Reason);
+    bool RemoveMonsterInternal(int32 Id, EPureMassRemovalReason Reason, FVector DeathImpulse = FVector::ZeroVector);
     bool IsInsideRoom(FName Room, FVector Location, float Radius = 0.f) const;
     bool IsRoomDamageSourceAllowed(FName Room, const AActor* Source) const;
     FVector ConstrainToRoom(FName Room, FVector Location, float Radius) const;
     void Publish(const FPureMassFragment& Fragment);
-    float DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked = false, bool bCritical = false);
+    float DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked = false, bool bCritical = false, FVector DeathImpulse = FVector::ZeroVector);
     float EvaluateDamage(const FPureMassFragment& Fragment, const FPureMassDamage& Damage, bool& bBlocked, bool& bCritical) const;
     void AttackPlayer(FPureMassFragment& Fragment, APawn* Player);
     float UpdateTerrain(FPureMassFragment& Fragment);

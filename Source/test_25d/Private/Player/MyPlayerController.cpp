@@ -31,6 +31,7 @@
 #include "UI/ViewModel/MVVM_Backpack.h"
 #include "test_25d/test_25d.h"
 #include "TimerManager.h"
+#include "UI/Widget/DamageNumberPool.h"
 
 AMyPlayerController::AMyPlayerController()
 {
@@ -62,21 +63,15 @@ void AMyPlayerController::PlayerTick(float DeltaTime)
  }
 	CursorTrace();
 
-	AutoRun();
+
 	UpdateMagicCircleLocation();
 }
 void AMyPlayerController::ShowDamageNumber_Implementation(float DamageAccount, ACharacter* TargetCharacter, bool bBlockHit, bool bCriticalHit)
 {
 	if (IsValid(TargetCharacter)&& DamageTextComponentClass&&IsLocalController())
 	{
-		UDamageTextComponent* DamageText = NewObject<UDamageTextComponent>(TargetCharacter, DamageTextComponentClass);
-		DamageText->RegisterComponent();
-		DamageText->AttachToComponent(TargetCharacter->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-
-
-		DamageText->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-		DamageText->SetDamageText(DamageAccount, bBlockHit, bCriticalHit);
-		
+        GetWorld()->GetSubsystem<UDamageNumberPool>()->QueueActor(this,DamageTextComponentClass,
+            TargetCharacter,DamageAccount,bBlockHit,bCriticalHit);
 	}
 }
 
@@ -222,29 +217,6 @@ void AMyPlayerController::ServerRequestUse_Implementation(int32 SlotIndex)
 		MyPlayerState->GetBackpackComponent()->TryUseItemForPawn(SlotIndex, GetPawn());
 	}
 }
-void AMyPlayerController::AutoRun()
-{
-	if (!bAutoRunning)
-		return;
-	APawn* ControlledPawn = GetPawn();
-	if (ControlledPawn)
-	{
-		const FVector LocationOnSpline = Spline->FindLocationClosestToWorldLocation
-		(ControlledPawn->GetActorLocation(), ESplineCoordinateSpace::World);
-
-		const FVector Direction = Spline->FindDirectionClosestToWorldLocation
-		(LocationOnSpline, ESplineCoordinateSpace::World);
-
-		ControlledPawn->AddMovementInput(Direction);
-		const float DistanceToDestination = (LocationOnSpline - CachedDestination).Length();
-		if (DistanceToDestination <= AutoRunAcceptanceRadius)
-		{
-			bAutoRunning = false;
-		}
-	}
-}
-
-
 void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -261,8 +233,6 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
 	MyAbilitySystemComponent=nullptr;
-	bAutoRunning=false; FollowTime=0.f; bShiftKeyDown=false;
-	TargetingStatus=ETargetingStatus::NotTargeting;
 	LastActor=nullptr; ThisActor=nullptr;
 	Spline->ClearSplinePoints();
 	InitializeLocalInput();
@@ -289,8 +259,6 @@ void AMyPlayerController::SetupInputComponent()
 	UMyInputComponent* MyInputComponent = CastChecked<UMyInputComponent>(InputComponent);
 
 	MyInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMyPlayerController::Move);
-	MyInputComponent->BindAction(ShiftAction, ETriggerEvent::Started, this, &AMyPlayerController::ShiftPressed);
-	MyInputComponent->BindAction(ShiftAction, ETriggerEvent::Completed, this, &AMyPlayerController::ShiftReleased);
 
 	MyInputComponent->BindAbilityActions(InputConfig, this,
 		&ThisClass::AbilityInputTagPressed, &ThisClass::AbilityInputTagReleased, &ThisClass::AbilityInputTagHeld);
@@ -299,7 +267,7 @@ void AMyPlayerController::SetupInputComponent()
 
 void AMyPlayerController::Move(const FInputActionValue& InputActionValue)
 {
-	if (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))
+	if (IsBackpackUIOpen() || (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed)))
 	{
 		return;
 	}
@@ -353,31 +321,12 @@ void AMyPlayerController::CursorTrace()
 
 void AMyPlayerController::AbilityInputTagPressed(FGameplayTag InputTag)
 {
-	if (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))
-	{
-		return;
-	}
-	if (InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Backpack))
-	{
-		ToggleBackpackUI();
-		return;
-	}
+    if (InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Backpack)) { ToggleBackpackUI(); return; }
+    if (IsBackpackUIOpen() || (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))) return;
 	if (InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Pickup))
 	{
 		RequestPickupFocusedActor();
 		return;
-	}
-	if (InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB))
-	{
-		if (IsValid(ThisActor))
-		{
-			TargetingStatus = ThisActor->Implements<UEnemyInterface>() ? ETargetingStatus::TargetingEnemy : ETargetingStatus::TargetingNonEnemy;
-		}
-		else
-		{
-			TargetingStatus = ETargetingStatus::NotTargeting;
-		}
-		bAutoRunning = false;
 	}
 	if (GetASC()) GetASC()->AbilityInputTagPressed(InputTag);
 }
@@ -434,89 +383,14 @@ int32 AMyPlayerController::GetOverlappingInteractPickupCount() const
 
 void AMyPlayerController::AbilityInputTagReleased(FGameplayTag InputTag)
 {
-	if (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputReleased))
-	{
-		return;
-	}
-
-	if (!InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB))
-	{
-
-		if (GetASC())
-			GetASC()->AbilityInputTagReleased(InputTag);
-		return;
-	}
-
-	if (GetASC())
-		GetASC()->AbilityInputTagReleased(InputTag);
-	if (TargetingStatus != ETargetingStatus::TargetingEnemy && !bShiftKeyDown)
-	{
-		APawn* ControlledPawn = GetPawn();
-		if (FollowTime <= ShortPressThreshold && ControlledPawn)
-		{
-			if (IsValid(ThisActor) && ThisActor->Implements<UHighLightInterface>())
-			{
-				IHighLightInterface::Execute_SetMoveToLocation(ThisActor, CachedDestination);
-			}
-			else {
-
-				if (GetASC() && !GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))
-				{
-					UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ClickNiagaraSystem, CachedDestination);
-				}
-			}
-			UNavigationPath* NavPath = UNavigationSystemV1::FindPathToLocationSynchronously(this,
-				ControlledPawn->GetActorLocation(), CachedDestination);
-			if (NavPath)
-			{
-				Spline->ClearSplinePoints();
-				for (const FVector& PointLoc : NavPath->PathPoints)
-				{
-					Spline->AddSplinePoint(PointLoc, ESplineCoordinateSpace::World);
-				}
-				//与示例不同，示例中多次无效目标会导致数组越界
-				if (NavPath->PathPoints.Num())
-					CachedDestination = NavPath->PathPoints.Last();
-				else
-					CachedDestination = ControlledPawn->GetActorLocation();
-				bAutoRunning = true;
-			}
-
-		}
-		FollowTime = 0.f;
-		TargetingStatus = ETargetingStatus::NotTargeting;
-	}
-
-
+    // Always release an active ability, even when UI or a stun blocks new input.
+    if (GetASC()) GetASC()->AbilityInputTagReleased(InputTag);
 }
 
 void AMyPlayerController::AbilityInputTagHeld(FGameplayTag InputTag)
 {
-	if (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputHeld))
-	{
-		return;
-	}
-	if (!InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_LMB))
-	{
-		if (GetASC()) GetASC()->AbilityInputTagHeld(InputTag);
-		return;
-	}
-
-	if (TargetingStatus == ETargetingStatus::TargetingEnemy || bShiftKeyDown)
-	{
-		if (GetASC()) GetASC()->AbilityInputTagHeld(InputTag);
-	}
-	else
-	{
-		FollowTime += GetWorld()->GetDeltaSeconds();
-		if (CursorHit.bBlockingHit) CachedDestination = CursorHit.ImpactPoint;
-
-		if (APawn* ControlledPawn = GetPawn())
-		{
-			const FVector WorldDirection = (CachedDestination - ControlledPawn->GetActorLocation()).GetSafeNormal();
-			ControlledPawn->AddMovementInput(WorldDirection);
-		}
-	}
+    if (IsBackpackUIOpen() || (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputHeld))) return;
+    if (GetASC()) GetASC()->AbilityInputTagHeld(InputTag);
 }
 
 UMyAbilitySystemComponent* AMyPlayerController::GetASC()

@@ -1,4 +1,8 @@
 #include "PureMass/PureMassSubsystem.h"
+#include "PureMassMovement.h"
+#include "PureMass/PureMassCrowd.h"
+#include "EngineUtils.h"
+#include "Performance/MonsterPerf.h"
 #include "PureMass/PureMassIncomingDamageEffect.h"
 #include "PureMass/PureMassPlayerController.h"
 #include "PureMass/PureMassLegacyProjectile.h"
@@ -124,11 +128,12 @@ int32 UPureMassSubsystem::SpawnMonster(UPureMassMonsterType* Type, FVector Locat
 }
 void UPureMassSubsystem::Publish(const FPureMassFragment& Fragment)
 {
+    MONSTER_PERF_SCOPE(SpatialPublish);
     if (Fragment.Health <= 0) return;
     FPureMassView& View = Views.FindOrAdd(Fragment.Id);
     View.Id = Fragment.Id; View.Location = Fragment.Location; View.Velocity = Fragment.Velocity;
     View.Health = Fragment.Health; View.MaxHealth = Fragment.MaxHealth;
-    View.State = Fragment.State; View.Type = Fragment.Type.Get();
+    View.bPetrified = Fragment.PetrifyRemaining > 0; View.State = Fragment.State; View.Type = Fragment.Type.Get();
     Grid.Update(Fragment.Id, Fragment.Location, Fragment.Room);
 }
 bool UPureMassSubsystem::Resolve(int32 Id, FPureMassView& OutView) const
@@ -141,6 +146,7 @@ bool UPureMassSubsystem::Resolve(int32 Id, FPureMassView& OutView) const
 }
 TArray<int32> UPureMassSubsystem::QueryRadius(FVector Center, float Radius) const
 {
+    MONSTER_PERF_SCOPE(RadiusQuery);
     TArray<int32> Result;
     if (!bEnabled || Center.ContainsNaN() || !FMath::IsFinite(Radius) || Radius < 0) return Result;
     for (uint64 Id : Grid.Query(Center, Radius))
@@ -171,6 +177,7 @@ int32 UPureMassSubsystem::Sweep(FVector Start, FVector End, float Radius, float&
 }
 TArray<FPureMassView> UPureMassSubsystem::GetSnapshots() const
 {
+    MONSTER_PERF_SCOPE(SnapshotCopy);
     TArray<FPureMassView> Result;
     if (bEnabled) Views.GenerateValueArray(Result);
     Result.Sort([](const FPureMassView& A, const FPureMassView& B) { return A.Id < B.Id; });
@@ -226,7 +233,7 @@ float UPureMassSubsystem::EvaluateDamage(const FPureMassFragment& Fragment, cons
     const float EffectiveArmor = FinitePositive(Type->Armor)*(1.f - Penetration*.01f);
     return FinitePositive(Value * FMath::Clamp(1.f - EffectiveArmor*ArmorCoefficient*.01f, 0.f, 1.f));
 }
-float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked, bool bCritical)
+float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked, bool bCritical, FVector DeathImpulse)
 {
     if (Fragment.Health <= 0 || !IsRoomDamageSourceAllowed(Fragment.Room, Source)) return 0;
     const float Removed = FMath::Min(Fragment.Health, FinitePositive(Amount));
@@ -243,7 +250,7 @@ float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amou
     Fragment.State = 3; Fragment.Velocity = FVector::ZeroVector;
     const int32 Id = Fragment.Id;
     const int32 XP = Fragment.Type.IsValid() ? FMath::Max(0, Fragment.Type->XPReward) : 0;
-    RemoveMonsterInternal(Id, EPureMassRemovalReason::Killed);
+    RemoveMonsterInternal(Id, EPureMassRemovalReason::Killed, DeathImpulse);
     // Removal tombstones the target before callbacks or XP; reentrant damage cannot award twice.
     if (IsValid(Source) && XP > 0 && UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Source))
     {
@@ -253,6 +260,32 @@ float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amou
         UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Source, Payload.EventTag, Payload);
     }
     return Removed;
+}
+bool UPureMassSubsystem::ApplyPetrify(int32 Id, float Duration, AActor* Source)
+{
+    if (!bEnabled || !IsAuthority() || !Mass || !FMath::IsFinite(Duration) || Duration <= 0 || !Views.Contains(Id)) return false;
+    auto& Manager = Mass->GetMutableEntityManager();
+    const auto Handle = GetEntity(Id);
+    if (!Manager.IsEntityValid(Handle)) return false;
+    auto& Fragment = Manager.GetFragmentDataChecked<FPureMassFragment>(Handle);
+    if (Fragment.Health <= 0 || !IsRoomDamageSourceAllowed(Fragment.Room, Source)) return false;
+    Fragment.PetrifyRemaining = FMath::Max(Fragment.PetrifyRemaining, Duration);
+    Fragment.AttackVisualRemaining = 0;
+    Fragment.State = 0;
+    Fragment.Velocity = FVector::ZeroVector;
+    Publish(Fragment);
+    return true;
+}
+bool UPureMassSubsystem::ApplySlow(int32 Id,float Multiplier,float Duration,AActor* Source)
+{
+    if(!bEnabled || !IsAuthority() || !Mass || !Views.Contains(Id) || !FMath::IsFinite(Multiplier) || !FMath::IsFinite(Duration) || Multiplier<=0 || Multiplier>1 || Duration<=0) return false;
+    auto& Manager=Mass->GetMutableEntityManager(); const auto Handle=GetEntity(Id);
+    if(!Manager.IsEntityValid(Handle)) return false;
+    auto& Fragment=Manager.GetFragmentDataChecked<FPureMassFragment>(Handle);
+    if(Fragment.Health<=0 || !IsRoomDamageSourceAllowed(Fragment.Room,Source)) return false;
+    for(auto& Slow:Fragment.SpellSlows) if(FMath::IsNearlyEqual(Slow.X,static_cast<double>(Multiplier))) { Slow.Y=FMath::Max(Slow.Y,static_cast<double>(Duration)); return true; }
+    if(Fragment.SpellSlows.Num()>=32) return false;
+    Fragment.SpellSlows.Add(FVector2D(Multiplier,Duration)); return true;
 }
 float UPureMassSubsystem::ApplyDamage(int32 Id, const FPureMassDamage& Damage)
 {
@@ -274,11 +307,12 @@ float UPureMassSubsystem::ApplyDamage(int32 Id, const FPureMassDamage& Damage)
     }
     bool bBlocked = false, bCritical = false;
     const float Evaluated = EvaluateDamage(Fragment, Damage, bBlocked, bCritical);
-    return DamageFragment(Fragment, Evaluated, Damage.Source.Get(), bBlocked, bCritical);
+    return DamageFragment(Fragment, Evaluated, Damage.Source.Get(), bBlocked, bCritical, Damage.DeathImpulse);
 }
 
 bool UPureMassSubsystem::BeginUpdate(float DeltaSeconds)
 {
+    MONSTER_PERF_SCOPE(MassBegin);
     check(IsInGameThread());
     if (!bEnabled || !IsAuthority() || !Mass || !FMath::IsFinite(DeltaSeconds) || DeltaSeconds <= 0) return false;
     DeltaTime = FMath::Min(DeltaSeconds, .25f);
@@ -299,6 +333,7 @@ bool UPureMassSubsystem::BeginUpdate(float DeltaSeconds)
 
 float UPureMassSubsystem::UpdateTerrain(FPureMassFragment& Fragment)
 {
+    MONSTER_PERF_SCOPE(TerrainQuery);
     const UPureMassMonsterType* Type = Fragment.Type.Get();
     if (!Type) return 1.f;
     for (auto& Contact : Fragment.TerrainContacts) Contact.Remaining -= DeltaTime;
@@ -382,8 +417,10 @@ void UPureMassSubsystem::AttackPlayer(FPureMassFragment& Fragment, APawn* Player
 
 void UPureMassSubsystem::Move(FPureMassFragment& Fragment, FVector Delta)
 {
+    MONSTER_PERF_SCOPE(MonsterMove);
     const UPureMassMonsterType* Type = Fragment.Type.Get();
     if (!Type) return;
+    Delta.Z = 0;
     Delta = ConstrainToRoom(Fragment.Room, Fragment.Location + Delta, Type->Radius) - Fragment.Location;
     if (Delta.IsNearlyZero()) return;
     FCollisionQueryParams Params(SCENE_QUERY_STAT(PureMassMovement), false);
@@ -395,19 +432,38 @@ void UPureMassSubsystem::Move(FPureMassFragment& Fragment, FVector Delta)
     FHitResult Hit;
     if (GetWorld()->SweepSingleByChannel(Hit, Position, Position + Delta, FQuat::Identity, ECC_Pawn, Shape, Params, Responses))
     {
-        if (Hit.bStartPenetrating) Position += Hit.Normal * (Hit.PenetrationDepth + .5f);
+        // Characters are lateral obstacles, never ramps. Static slopes retain
+        // their full normal so sliding still climbs walkable terrain.
+        const FVector ContactNormal = Cast<APawn>(Hit.GetActor()) ? Hit.Normal.GetSafeNormal2D() : Hit.Normal;
+        if (Hit.bStartPenetrating) Position += ContactNormal * FMath::Min(Hit.PenetrationDepth + .5f, Type->Radius);
         else Position += Delta * FMath::Max(0.f, Hit.Time - .001f);
-        const FVector Slide = FVector::VectorPlaneProject(Delta * (1.f - Hit.Time), Hit.Normal);
+        const FVector Slide = FVector::VectorPlaneProject(Delta * (1.f - Hit.Time), ContactNormal);
         FHitResult SlideHit;
         if (GetWorld()->SweepSingleByChannel(SlideHit, Position, Position + Slide, FQuat::Identity, ECC_Pawn, Shape, Params, Responses))
             Position += Slide * FMath::Max(0.f, SlideHit.Time - .001f);
         else Position += Slide;
     }
     else Position += Delta;
+    // Mass entities have no physics bodies. Enforce their exclusion explicitly,
+    // using swept discs so a long frame cannot tunnel through the front row.
+    const FVector CandidateDelta = Position - Fragment.Location;
+    float Fraction = 1.f;
+    for (const uint64 Id : Grid.Query(Fragment.Location, CandidateDelta.Size2D() + Type->Radius + LargestRadius + 2.f))
+    {
+        const FPureMassView* Other = Views.Find(int32(Id));
+        if (Id == uint64(Fragment.Id) || !Other || !Other->Type || Other->Health <= 0) continue;
+        if (FMath::Abs(Fragment.Location.Z - Other->Location.Z) >= Type->HalfHeight + Other->Type->HalfHeight) continue;
+        Fraction = FMath::Min(Fraction, PureMassMovement::ContactFraction(
+            Fragment.Location - Other->Location, CandidateDelta, Type->Radius + Other->Type->Radius + 1.f));
+    }
+    Position = Fragment.Location + CandidateDelta*Fraction;
     // Keep capsule bottoms on walkable world geometry without owning a movement component.
     FHitResult Ground;
     const FVector Foot = Position - FVector(0,0,Type->HalfHeight);
-    if (GetWorld()->LineTraceSingleByChannel(Ground, Foot + FVector(0,0,45), Foot - FVector(0,0,90), ECC_WorldStatic, Params, Responses)
+    // ECC_WorldStatic as a trace channel also hits Pawns that block that channel.
+    // Object filtering prevents characters/corpses from becoming a walkable floor.
+    if (GetWorld()->LineTraceSingleByObjectType(Ground, Foot + FVector(0,0,45), Foot - FVector(0,0,90),
+        FCollisionObjectQueryParams(ECC_WorldStatic), Params)
         && Ground.Normal.Z >= .65f)
     {
         const FVector Grounded(Position.X, Position.Y, Ground.ImpactPoint.Z + Type->HalfHeight + 1.f);
@@ -423,11 +479,13 @@ void UPureMassSubsystem::Move(FPureMassFragment& Fragment, FVector Delta)
 
 void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
 {
+    MONSTER_PERF_SCOPE(MonsterUpdate);
     UPureMassMonsterType* Type = Fragment.Type.Get();
     if (!Type || Fragment.Health <= 0) return;
     Fragment.Location = ConstrainToRoom(Fragment.Room, Fragment.Location, Type->Radius);
     Fragment.AttackRemaining = FMath::Max(0.f, Fragment.AttackRemaining - DeltaTime);
     Fragment.AttackVisualRemaining = FMath::Max(0.f, Fragment.AttackVisualRemaining - DeltaTime);
+    Fragment.AttackWindupRemaining = FMath::Max(0.f, Fragment.AttackWindupRemaining - DeltaTime);
     Fragment.RootRemaining = FMath::Max(0.f, Fragment.RootRemaining - DeltaTime);
     Fragment.RootRecovery = FMath::Max(0.f, Fragment.RootRecovery - DeltaTime);
     if (Fragment.StatusRemaining > 0)
@@ -439,10 +497,16 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
     }
     if (Fragment.StatusRemaining <= 0)
     { Fragment.StatusDPS = 0; Fragment.StatusSlow = 1; Fragment.StatusSource.Reset(); }
-    const float TerrainSlow = UpdateTerrain(Fragment);
+    float SpellSlow=1.f;
+    for(auto& Slow:Fragment.SpellSlows) { if(Slow.Y>0) SpellSlow=FMath::Min(SpellSlow,static_cast<float>(Slow.X)); Slow.Y-=DeltaTime; }
+    Fragment.SpellSlows.RemoveAll([](const FVector2D& Slow){return Slow.Y<=0;});
+    const float TerrainSlow = FMath::Min(UpdateTerrain(Fragment),SpellSlow);
     if (Fragment.Health <= 0) return;
     Fragment.Velocity = FVector::ZeroVector;
     Fragment.State = 0;
+    if (Fragment.PetrifyRemaining > 0) { Fragment.PendingAttackTarget.Reset(); Fragment.AttackWindupRemaining=0; Fragment.AttackVisualRemaining=0; Fragment.PetrifyRemaining = FMath::Max(0.f, Fragment.PetrifyRemaining - DeltaTime); Publish(Fragment); return; }
+    // Finish the strike/follow-through even if the target moves away after impact.
+    if (Fragment.AttackVisualRemaining > 0) { Fragment.State=2; Publish(Fragment); return; }
     APawn* Target = nullptr;
     double Nearest = TNumericLimits<double>::Max();
     for (const auto& Weak : Players)
@@ -453,6 +517,7 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
         }
     if (!Target)
     {
+        Fragment.PendingAttackTarget.Reset(); Fragment.AttackWindupRemaining=0;
         if (RoomBounds.Contains(Fragment.Room)) { Fragment.Path.Reset(); Fragment.PathPoint = 0; }
         Publish(Fragment); return;
     }
@@ -465,8 +530,19 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
         {
             if (Fragment.AttackRemaining <= 0)
             {
+                if (Type->AttackWindupSeconds > 0)
+                {
+                    if (Fragment.PendingAttackTarget.Get()!=Target)
+                    {
+                        Fragment.PendingAttackTarget=Target;
+                        Fragment.AttackWindupRemaining=FMath::Clamp(Type->AttackWindupSeconds,.1f,3.f);
+                    }
+                    if (Fragment.AttackWindupRemaining > 0)
+                    { Fragment.State=4; Publish(Fragment); return; }
+                }
+                Fragment.PendingAttackTarget.Reset();
                 Fragment.AttackRemaining = FMath::Max(.1f, FinitePositive(Type->AttackPeriod, 1.5f));
-                Fragment.AttackVisualRemaining = FMath::Min(.35f, Fragment.AttackRemaining*.6f);
+                Fragment.AttackVisualRemaining = FMath::Min(Type->AttackRecoverySeconds(), FMath::Max(.01f, Fragment.AttackRemaining-.01f));
                 AttackPlayer(Fragment, Target);
             }
             Fragment.State = Fragment.AttackVisualRemaining > 0 ? 2 : 0;
@@ -474,12 +550,14 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
         }
         // Range alone is insufficient: a blocked target still requires a path around the obstacle.
     }
+    Fragment.PendingAttackTarget.Reset(); Fragment.AttackWindupRemaining=0;
     if (Fragment.RootRemaining > 0) { Publish(Fragment); return; }
     const float Now = GetWorld()->GetTimeSeconds();
     const bool bNeedsPath = Now >= Fragment.NextPathTime
         || (Goal - Fragment.PathGoal).SizeSquared2D() > FMath::Square(200.f);
     if (bNeedsPath && PathsRemaining > 0)
     {
+        MONSTER_PERF_SCOPE(NavigationRequest);
         --PathsRemaining;
         Fragment.NextPathTime = Now + .6f + .02f*(Fragment.Id % 11);
         Fragment.PathGoal = Goal;
@@ -510,14 +588,19 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
     {
         FVector Desired = (Fragment.Path[Fragment.PathPoint] - Fragment.Location).GetSafeNormal2D();
         FVector Separation = FVector::ZeroVector;
-        for (const uint64 Id : Grid.Query(Fragment.Location, Type->Radius + LargestRadius + 40))
+        bool bBlocked = false;
+        for (const uint64 Id : Grid.Query(Fragment.Location, Type->Radius + LargestRadius + 60))
         {
             if (Id == uint64(Fragment.Id)) continue;
             const FPureMassView* Other = Views.Find(int32(Id));
-            if (!Other || !Other->Type) continue;
+            if (!Other || !Other->Type || Other->Health <= 0
+                || FMath::Abs(Fragment.Location.Z - Other->Location.Z) >= Type->HalfHeight + Other->Type->HalfHeight) continue;
             FVector Offset = Fragment.Location - Other->Location; Offset.Z = 0;
             const float Distance = Offset.Size();
             const float Clearance = Type->Radius + Other->Type->Radius + 10;
+            const float Ahead = -FVector::DotProduct(Offset, Desired);
+            const float Side = FMath::Abs(Offset.X*Desired.Y - Offset.Y*Desired.X);
+            bBlocked |= Ahead > 0 && Ahead < Clearance + 40 && Side < Clearance;
             if (Distance < Clearance)
             {
                 if (Distance < .1f)
@@ -525,16 +608,17 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
                 Separation += Offset.GetSafeNormal() * (1.f - FMath::Min(Distance / Clearance, 1.f));
             }
         }
-        Desired = (Desired + Separation*1.5f).GetSafeNormal2D();
+        Desired = PureMassMovement::Steer(Desired, Separation*1.5f, bBlocked);
         const float Speed = FinitePositive(Type->Speed)*FMath::Min(TerrainSlow, Fragment.StatusSlow);
         const float DistanceToCorner = FVector::Dist2D(Fragment.Location, Fragment.Path[Fragment.PathPoint]);
         Move(Fragment, Desired*FMath::Min(Speed*DeltaTime, DistanceToCorner));
-        if (!Fragment.Velocity.IsNearlyZero(1.f)) Fragment.State = 1;
+        if (Fragment.Velocity.SizeSquared2D() > FMath::Square(10.f)) Fragment.State = 1;
     }
     Publish(Fragment);
 }
 void UPureMassSubsystem::FinishUpdate()
 {
+    MONSTER_PERF_SCOPE(MassFinish);
     if (!Mass || !IsAuthority()) return;
     FMassEntityManager& Manager = Mass->GetMutableEntityManager();
     TArray<int32> Unexpected;
@@ -578,7 +662,7 @@ bool UPureMassSubsystem::RemoveMonster(int32 Id, EPureMassRemovalReason Reason)
     return RemoveMonsterInternal(Id, Reason);
 }
 
-bool UPureMassSubsystem::RemoveMonsterInternal(int32 Id, EPureMassRemovalReason Reason)
+bool UPureMassSubsystem::RemoveMonsterInternal(int32 Id, EPureMassRemovalReason Reason, FVector DeathImpulse)
 {
     if (!bEnabled || !IsAuthority() || !Mass || !Views.Contains(Id)) return false;
     const FName Room = EntityRooms.FindRef(Id);
@@ -592,6 +676,9 @@ bool UPureMassSubsystem::RemoveMonsterInternal(int32 Id, EPureMassRemovalReason 
         Fragment.Velocity = FVector::ZeroVector;
         Fragment.Path.Reset();
     }
+    if (Reason == EPureMassRemovalReason::Killed)
+        for (TActorIterator<APureMassCrowd> It(GetWorld()); It; ++It)
+            It->NotifyKilled(Views.FindChecked(Id), DeathImpulse);
     Views.Remove(Id);
     Grid.Remove(Id);
     EntityRooms.Remove(Id);

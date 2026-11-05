@@ -9,6 +9,8 @@
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "Interface/CombatInterface.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ScopeExit.h"
+#include "AbilitySystem/Ability/SwordShieldAbility.h"
 
 
 struct MyDamageStatics
@@ -205,9 +207,17 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
 			continue;
 		if (UMyAbilitySystemLibrary::IsRadialDamage(EffectContextHandle))
 		{
+			FDelegateHandle RadialHandle;
+            TWeakObjectPtr<AActor> RadialTarget = TargetAvatar;
+            ON_SCOPE_EXIT
+            {
+                if (auto* ValidTarget = RadialTarget.Get())
+                    if (auto* Combat = Cast<ICombatInterface>(ValidTarget))
+                        Combat->GetOnDamageSignature().Remove(RadialHandle);
+            };
 			if (ICombatInterface*CombatInterface = Cast<ICombatInterface>(TargetAvatar))
 			{
-				CombatInterface->GetOnDamageSignature().AddLambda([&DamageTypeValue](float DamageAmount)
+				RadialHandle = CombatInterface->GetOnDamageSignature().AddLambda([&DamageTypeValue](float DamageAmount)
 				{
 						DamageTypeValue = DamageAmount;
 				});
@@ -246,7 +256,8 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().BlockChanceDef, EvaluateParameters, TargetBlockChance);
 	TargetBlockChance=FMath::Max(0.f, TargetBlockChance);
 
-	const bool bBlocked = FMath::RandRange(0, 100) < TargetBlockChance;
+	const bool bBlocked = (TargetSC && TargetSC->HasMatchingGameplayTag(USwordGuardEffect::StateTag()))
+		|| FMath::RandRange(0, 100) < TargetBlockChance;
 	if (bBlocked)
 		Damage *= 0.5f;
 

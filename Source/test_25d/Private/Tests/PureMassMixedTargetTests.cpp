@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "PureMass/PureMassAbility.h"
 #include "PureMass/PureMassCombatTarget.h"
 #include "PureMass/PureMassRuntime.h"
@@ -311,6 +312,13 @@ bool FPureMassMixedLifetime::RunTest(const FString&)
         if (!TestNotNull(TEXT("Targeted Actor"), Enemy)) return false;
         auto* R = F.Start(F.Config(Kind), FTarget::FromActor(Enemy));
         if (!TestNotNull(TEXT("Actor-targeted runtime"), R)) return false;
+        if (Kind == K::Beam)
+        {
+            TestTrue(TEXT("Beam starts at caster before its first tick"),
+                R->GetActorLocation().Equals(F.Caster->GetActorLocation() + FVector(0, 0, 30), .01f));
+            TestTrue(TEXT("Beam endpoint resolves actual target before its first tick"),
+                R->BeamEnd.Equals(Enemy->GetActorLocation(), .01f));
+        }
         R->Tick(.15f);
         TestEqual(TEXT("Actor target takes one GAS hit"), F.Health(Enemy), 975.f);
         auto* Lost = F.Character(FVector(600, 0, 0));
@@ -591,5 +599,57 @@ bool FPureMassMixedSweepEndpoint::RunTest(const FString&)
         }
     }
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLifecycleRadialSubscriptionTest, "test_25d.Lifecycle.RadialSubscriptionScope",
+ EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLifecycleRadialSubscriptionTest::RunTest(const FString&)
+{
+ PureMassMixedTests::FFixture F;
+ if(!F.Ready(*this)) return false;
+ auto* Target=F.Character(FVector::ZeroVector);
+ if(!TestNotNull(TEXT("Target"),Target))return false;
+ for(int32 Iteration=0;Iteration<3;++Iteration)
+ {
+  auto Params=F.Context()->DamageParams;
+  Params.TargetAbilitySystemComponent=Target->GetAbilitySystemComponent();
+  Params.BaseDamage=10;Params.DamageType=FMyGameplayTags::Get().Damage_Fire;
+  Params.bIsRadialDamage=true;Params.RadialDamageInnerRadius=100;Params.RadialDamageOuterRadius=200;
+  Params.RadialDamageOrigin=FVector::ZeroVector;
+  const float Before=F.Health(Target);
+  UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
+  TestTrue(TEXT("Actual GE applied damage"),F.Health(Target)<Before);
+  TestFalse(TEXT("No stack-capturing delegate survives synchronous damage"),Target->GetOnDamageSignature().IsBound());
+  // Old implementation leaves a dangling stack reference. Remove it WITHOUT broadcasting.
+  Target->GetOnDamageSignature().Clear();
+ }
+ return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPureMassMovementIntegrationTest, "test_25d.PureMass.Movement.WorldConstraint",
+ EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FPureMassMovementIntegrationTest::RunTest(const FString&)
+{
+ PureMassMixedTests::FFixture F;
+ if(!F.Ready(*this)) return false;
+ F.Mass->BeginUpdate(1.f/60.f);
+ FPureMassFragment Front;
+ Front.Id=10001; Front.Type=F.Type; Front.Health=100; Front.Location=FVector(100,0,200);
+ F.Mass->Publish(Front);
+ FPureMassFragment Back=Front;
+ Back.Id=10002; Back.Location=FVector(0,0,200);
+ F.Mass->Publish(Back);
+ // Exercise the production movement + spatial-index integration, not just geometry.
+ F.Mass->Move(Back,FVector(200,0,0));
+ TestNearlyEqual(TEXT("Cannot tunnel through front entity"),float(Back.Location.X),59.f,.01f);
+ TestNearlyEqual(TEXT("Crowd contact does not raise capsule"),float(Back.Location.Z),200.f,.01f);
+ F.Mass->Publish(Back);
+ F.Mass->Move(Back,FVector(20,0,0));
+ TestNearlyEqual(TEXT("Repeated push remains outside neighbour"),float(Back.Location.X),59.f,.01f);
+ F.Mass->Move(Back,FVector(0,80,0));
+ TestTrue(TEXT("Can move laterally around blocked row"),Back.Location.Y>79.f);
+ Back.Location=FVector(0,0,400);
+ F.Mass->Move(Back,FVector(200,0,0));
+ TestNearlyEqual(TEXT("Other floor does not block XY"),float(Back.Location.X),200.f,.01f);
+ return true;
 }
 #endif
