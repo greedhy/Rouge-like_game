@@ -12,12 +12,12 @@
 UCLASS()
 class TEST_25D_API UExecCalc_Damage : public UGameplayEffectExecutionCalculation
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UExecCalc_Damage();
-	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, 
-		FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
-	void DetermineDebuff(const FGameplayEffectCustomExecutionParameters& ExecutionParams, const FGameplayEffectSpec& Spec, FAggregatorEvaluateParameters EvaluationParameters,
-		const TMap<FGameplayTag, FGameplayEffectAttributeCaptureDefinition>& InTagsToDefs) const;
-
+    UExecCalc_Damage();
+    virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
+                                        FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
+    void DetermineDebuff(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
+                         const FGameplayEffectSpec& Spec, FAggregatorEvaluateParameters EvaluationParameters,
+                         const TMap<FGameplayTag, FGameplayEffectAttributeCaptureDefinition>& InTagsToDefs) const;
 };

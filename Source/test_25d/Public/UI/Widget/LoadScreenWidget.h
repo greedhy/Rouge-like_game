@@ -12,9 +12,9 @@
 UCLASS()
 class TEST_25D_API ULoadScreenWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
-	void BlueprintInitializeWidget();
+    UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+    void BlueprintInitializeWidget();
 };

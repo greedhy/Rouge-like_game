@@ -18,26 +18,28 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCooldownChangeSignature, float, Tim
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = "AsyncTask"))
 class TEST_25D_API UWaitCooldownChange : public UBlueprintAsyncActionBase
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintAssignable)
-	FCooldownChangeSignature CooldownStart;
+    UPROPERTY(BlueprintAssignable)
+    FCooldownChangeSignature CooldownStart;
 
-	UPROPERTY(BlueprintAssignable)
-	FCooldownChangeSignature CooldownEnd;
+    UPROPERTY(BlueprintAssignable)
+    FCooldownChangeSignature CooldownEnd;
 
-	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true"))
-	static UWaitCooldownChange* WaitForCooldownChange(UAbilitySystemComponent* AbilitySystemComponent, const FGameplayTag& InCooldownTag);
+    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true"))
+    static UWaitCooldownChange* WaitForCooldownChange(UAbilitySystemComponent* AbilitySystemComponent,
+                                                      const FGameplayTag& InCooldownTag);
 
-	UFUNCTION(BlueprintCallable)
-	void EndTask();
+    UFUNCTION(BlueprintCallable)
+    void EndTask();
+
 protected:
+    UPROPERTY()
+    TObjectPtr<UAbilitySystemComponent> ASC;
 
-	UPROPERTY()
-	TObjectPtr<UAbilitySystemComponent> ASC;
+    FGameplayTag CooldownTag;
 
-	FGameplayTag CooldownTag;
-
-	void CooldownTagChanged(const FGameplayTag InCooldownTag, int32 NewCount);
-	void OnActiveEffectAdded(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& SpecApplied, FActiveGameplayEffectHandle ActiveEffectHandle);
+    void CooldownTagChanged(const FGameplayTag InCooldownTag, int32 NewCount);
+    void OnActiveEffectAdded(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& SpecApplied,
+                             FActiveGameplayEffectHandle ActiveEffectHandle);
 };

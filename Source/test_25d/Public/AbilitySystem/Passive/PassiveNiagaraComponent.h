@@ -14,15 +14,15 @@ class UMyAbilitySystemComponent;
 UCLASS()
 class TEST_25D_API UPassiveNiagaraComponent : public UNiagaraComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UPassiveNiagaraComponent();
+    UPassiveNiagaraComponent();
 
-	UPROPERTY(EditDefaultsOnly)
-	FGameplayTag PassiveSpellTag;
+    UPROPERTY(EditDefaultsOnly)
+    FGameplayTag PassiveSpellTag;
 
 protected:
-	virtual void BeginPlay() override;
-	void OnPassiveActivate(const FGameplayTag& AbilityTag, bool bActivate);
-	void ActivateIfEquipped(UMyAbilitySystemComponent* AuraASC);
+    virtual void BeginPlay() override;
+    void OnPassiveActivate(const FGameplayTag& AbilityTag, bool bActivate);
+    void ActivateIfEquipped(UMyAbilitySystemComponent* AuraASC);
 };

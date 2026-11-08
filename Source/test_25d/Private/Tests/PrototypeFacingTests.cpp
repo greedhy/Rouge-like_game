@@ -1,3 +1,9 @@
+/**
+ * 自动化回归入口：Automation RunTests -> 注册用例的 RunTest -> 被测模块 -> Test 系列断言。
+ * 本文件注册的验收范围（可用这些路径单独执行）：
+ * - test_25d.Abilities.PrototypeFacing
+ * 测试夹具与生产入口分离；此文件不由正常游戏 Tick 调用。
+ */
 #include "Misc/AutomationTest.h"
 #include "AbilitySystem/Prototypes/PrototypeFacing.h"
 #include "Roguelike/DungeonPlayerCharacter.h"
@@ -6,7 +12,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPrototypeFacingTest, "test_25d.Abilities.PrototypeFacing",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+/** 执行 test_25d.Abilities.PrototypeFacing 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FPrototypeFacingTest::RunTest(const FString& Parameters)
 {
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);

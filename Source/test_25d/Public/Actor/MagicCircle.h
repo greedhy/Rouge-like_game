@@ -9,18 +9,15 @@
 UCLASS()
 class TEST_25D_API AMagicCircle : public AActor
 {
-	GENERATED_BODY()
-	
-public:
-	AMagicCircle();
-	virtual void Tick(float DeltaTime) override;
+    GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UDecalComponent> MagicCircleDecal;
+public:
+    AMagicCircle();
+    virtual void Tick(float DeltaTime) override;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+    TObjectPtr<UDecalComponent> MagicCircleDecal;
 
 protected:
-	virtual void BeginPlay() override;
-
-
-
+    virtual void BeginPlay() override;
 };

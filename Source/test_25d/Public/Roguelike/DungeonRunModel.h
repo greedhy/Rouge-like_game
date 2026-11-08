@@ -2,7 +2,12 @@
 #include "CoreMinimal.h"
 #include "Roguelike/DungeonRunTypes.h"
 
-enum class EDungeonTargetResolution : uint8 { Killed, Recycled, Unexpected };
+enum class EDungeonTargetResolution : uint8
+{
+    Killed,
+    Recycled,
+    Unexpected
+};
 
 /** Pure server ledger: a missing entity is never evidence of a kill. */
 struct TEST_25D_API FDungeonEncounterLedger
@@ -15,12 +20,16 @@ struct TEST_25D_API FDungeonEncounterLedger
     bool IsClear() const;
     bool CanSpawnNextWave() const;
     int32 NumRequired() const;
-    int32 NumLiving() const { return Living.Num(); }
+    int32 NumLiving() const
+    {
+        return Living.Num();
+    }
     int32 PendingWaves = 0;
     int32 Wave = 0;
     bool bSpawning = false;
     FString Error;
     TMap<FName, bool> Living;
+
 private:
     bool bStarted = false;
     int32 WaveRegistrations = 0;
@@ -44,6 +53,7 @@ struct TEST_25D_API FDungeonRunModel
     int32 GatheringRoom = INDEX_NONE;
     int32 ActiveRoom = INDEX_NONE;
     FString Error;
+
 private:
     FDungeonLayout Layout;
     TArray<int32> Parents;

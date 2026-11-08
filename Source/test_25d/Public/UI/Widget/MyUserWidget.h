@@ -12,7 +12,7 @@
 UCLASS()
 class TEST_25D_API UMyUserWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
     //蓝图调用方法，可以设置WidgetController
     UFUNCTION(BlueprintCallable)
@@ -20,9 +20,8 @@ public:
     //WidgetController
     UPROPERTY(BlueprintReadOnly)
     TObjectPtr<UObject> WidgetController;
+
 protected:
     UFUNCTION(BlueprintImplementableEvent)
     void WidgetControllerSet();
-
-	
 };

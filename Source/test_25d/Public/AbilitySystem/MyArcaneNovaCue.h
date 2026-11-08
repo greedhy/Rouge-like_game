@@ -11,15 +11,15 @@ class USoundBase;
 UCLASS()
 class TEST_25D_API UMyArcaneNovaCue : public UGameplayCueNotify_Static
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	virtual bool OnExecute_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) const override;
+    virtual bool OnExecute_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) const override;
 
 protected:
-	UPROPERTY(EditDefaultsOnly, Category = "Arcane Nova")
-	TObjectPtr<UNiagaraSystem> BurstSystem;
+    UPROPERTY(EditDefaultsOnly, Category = "Arcane Nova")
+    TObjectPtr<UNiagaraSystem> BurstSystem;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Arcane Nova")
-	TObjectPtr<USoundBase> BurstSound;
+    UPROPERTY(EditDefaultsOnly, Category = "Arcane Nova")
+    TObjectPtr<USoundBase> BurstSound;
 };

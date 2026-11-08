@@ -12,11 +12,11 @@
 UCLASS()
 class TEST_25D_API UMMC_MaxMana : public UGameplayModMagnitudeCalculation
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UMMC_MaxMana();
-	virtual float CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const override;
+    UMMC_MaxMana();
+    virtual float CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const override;
 
 private:
-	FGameplayEffectAttributeCaptureDefinition IntelligenceDef;
+    FGameplayEffectAttributeCaptureDefinition IntelligenceDef;
 };

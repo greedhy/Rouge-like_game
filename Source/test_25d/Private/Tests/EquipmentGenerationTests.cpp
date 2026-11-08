@@ -1,12 +1,19 @@
+/**
+ * 自动化回归入口：Automation RunTests -> 注册用例的 RunTest -> 被测模块 -> Test 系列断言。
+ * 本文件注册的验收范围（可用这些路径单独执行）：
+ * - test_25d.Equipment.Random.Generation
+ * 测试夹具与生产入口分离；此文件不由正常游戏 Tick 调用。
+ */
 #include "Equipment/EquipmentGenerator.h"
 #include "Backpack/ItemDefinition.h"
 #include "Misc/AutomationTest.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquipmentGenerationTest, "test_25d.Equipment.Random.Generation",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FEquipmentGenerationTest::RunTest(const FString &)
+/** 执行 test_25d.Equipment.Random.Generation 回归，失败信息由下方断言交给自动化框架收集。 */
+bool FEquipmentGenerationTest::RunTest(const FString&)
 {
-    auto *C = NewObject<UBackpackItemDefinitions>();
+    auto* C = NewObject<UBackpackItemDefinitions>();
     C->GenerationProfiles = NewObject<UDataTable>(C);
     C->GenerationProfiles->RowStruct = FEquipmentGenerationProfileRow::StaticStruct();
     C->Rarities = NewObject<UDataTable>(C);

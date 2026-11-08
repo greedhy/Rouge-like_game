@@ -59,3 +59,11 @@
 接入后在 `L_RoguelikeRun` 新局普通房间观察：三种怪物均能移动、显示血条；每次攻击先出现感叹号。长矛和手爪的动作应与扣血一致；脱离近身距离或躲到侧后方应免伤。弹弓应先发射可见石弹，侧移可躲开，墙体应阻挡，击杀来源后剩余石弹消失。连续进入后续房间确认复用后的武器、动画、血条和攻击正常，清场开门正常。
 
 用户最终手感/可读性、多人远端表现、打包版及所有复杂地形组合仍单列待验收。
+
+## 2026-10-31 Development 委托断点修复
+
+用户报告 `Unable to bind delegate to 'WorldStopped'`。该函数已有UFUNCTION且UHT正确生成反射；问题在于BeginPlay内设置碰撞响应会同步更新重叠并触发游戏回调，石弹可能在此期间销毁，后续仍绑定停止委托，触发IsBound Ensure。
+
+专属石弹现在在父类BeginPlay返回后及碰撞响应更新后检查对象有效性和销毁状态；已销毁时退出，不再绑定委托或设置Tick依赖。不修改公共投射物和其他GA。
+
+新增 `test_25d.LegacyMonsters.ProjectileBeginPlayReentrancy`，用同步碰撞设置回调销毁石弹，稳定复现同一Ensure；同时检查反射注册、正常石弹绑定、移动Tick依赖和停止销毁。该用例模拟回调销毁边界，不依赖地图初始重叠顺序。修复前证据为 `Saved/GAAuthoring/LegacyMonsterDesign/BeginPlayRed`。首次修复验证的正常停止分支因测试世界缺少FEditorScriptExecutionGuard失败，补齐夹具后最终报告为 `BeginPlayGreenFinal`：Development Editor构建成功，本批与对象池9项通过（4项无警告、5项夹具警告），0失败、0未运行；最终日志未出现该Ensure。用户原始调试场景仍需PIE复核。

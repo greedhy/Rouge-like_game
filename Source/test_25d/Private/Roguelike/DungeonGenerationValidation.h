@@ -4,5 +4,5 @@
 class UDungeonGenerationProfile;
 namespace DungeonGeneration
 {
-bool CheckProfile(const UDungeonGenerationProfile* Profile, FString& Error);
+    bool CheckProfile(const UDungeonGenerationProfile* Profile, FString& Error);
 }

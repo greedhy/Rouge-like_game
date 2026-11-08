@@ -12,10 +12,11 @@
 UCLASS()
 class TEST_25D_API UMyPassiveAbility : public UMyGameplayAbility
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+                                 const FGameplayAbilityActivationInfo ActivationInfo,
+                                 const FGameplayEventData* TriggerEventData) override;
 
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-
-	void ReceiveDeactivate(const FGameplayTag& AbilityTag);
+    void ReceiveDeactivate(const FGameplayTag& AbilityTag);
 };

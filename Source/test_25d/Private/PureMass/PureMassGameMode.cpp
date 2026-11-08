@@ -25,7 +25,8 @@ APureMassSpawnRegion::APureMassSpawnRegion()
 void APureMassSpawnRegion::BeginPlay()
 {
     Super::BeginPlay();
-    if (!HasAuthority() || !MonsterType) return;
+    if (!HasAuthority() || !MonsterType)
+        return;
     auto* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>();
     const int32 SafeCount = FMath::Clamp(Count, 1, 1000);
     const int32 Columns = FMath::CeilToInt(FMath::Sqrt(float(SafeCount)));

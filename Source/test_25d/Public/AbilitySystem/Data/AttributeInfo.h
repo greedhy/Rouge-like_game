@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include"GameplayTagContainer.h"
+#include "GameplayTagContainer.h"
 #include "Containers/Array.h"
 #include "AttributeInfo.generated.h"
 
@@ -15,32 +15,27 @@
 USTRUCT(BlueprintType)
 struct FMyAttributeInfo
 {
-	GENERATED_BODY()
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FGameplayTag AttributeTag= FGameplayTag();
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FGameplayTag AttributeTag = FGameplayTag();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FText AttributeName = FText();
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FText AttributeName = FText();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FText AttributeDescription = FText();
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FText AttributeDescription = FText();
 
-	UPROPERTY(BlueprintReadOnly)
-	float AttributeValue = 0.f;
+    UPROPERTY(BlueprintReadOnly)
+    float AttributeValue = 0.f;
 };
-
 
 UCLASS()
 class TEST_25D_API UAttributeInfo : public UDataAsset
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	FMyAttributeInfo FindAttributeInfoForTag(const FGameplayTag& AttributeTag,bool bLogNotFound = false) const;
+    FMyAttributeInfo FindAttributeInfoForTag(const FGameplayTag& AttributeTag, bool bLogNotFound = false) const;
 
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	TArray<FMyAttributeInfo> AttributeInfomation;
-
-
-
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    TArray<FMyAttributeInfo> AttributeInfomation;
 };

@@ -4,23 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include"GameplayTagContainer.h"
-#include"Containers/Array.h"
+#include "GameplayTagContainer.h"
+#include "Containers/Array.h"
 #include "MyInputConfig.generated.h"
-
 
 class UInputAction;
 USTRUCT(BlueprintType)
 struct FMyInputAction
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-	UPROPERTY(EditDefaultsOnly)
-	UInputAction* InputAction = nullptr;
+    UPROPERTY(EditDefaultsOnly)
+    UInputAction* InputAction = nullptr;
 
-
-	UPROPERTY(EditDefaultsOnly)
-	FGameplayTag InputTag = FGameplayTag();
+    UPROPERTY(EditDefaultsOnly)
+    FGameplayTag InputTag = FGameplayTag();
 };
 
 /**
@@ -29,9 +27,9 @@ struct FMyInputAction
 UCLASS()
 class TEST_25D_API UMyInputConfig : public UDataAsset
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	const UInputAction* FindAbilityInputActionForTag(const FGameplayTag& InputTag,bool bLogNotFound = false) const;
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly)
-	TArray<FMyInputAction> AbilityInputActions;
+    const UInputAction* FindAbilityInputActionForTag(const FGameplayTag& InputTag, bool bLogNotFound = false) const;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    TArray<FMyInputAction> AbilityInputActions;
 };

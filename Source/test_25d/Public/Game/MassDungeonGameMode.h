@@ -12,6 +12,6 @@ class TEST_25D_API AMassDungeonGameMode : public AMyGameModeBase
     GENERATED_BODY()
 public:
     virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Mass Monsters")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Mass Monsters")
     TObjectPtr<UMonsterManagementConfig> MonsterManagementConfig;
 };

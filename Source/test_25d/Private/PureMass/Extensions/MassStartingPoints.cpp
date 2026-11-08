@@ -8,7 +8,8 @@
 
 int32 UMassStartingPointsSession::EnterPlayer(int32 Slot)
 {
-    if (const int32* Points = RemainingPoints.Find(Slot)) return *Points;
+    if (const int32* Points = RemainingPoints.Find(Slot))
+        return *Points;
     RemainingPoints.Add(Slot, 999);
     return 999;
 }
@@ -18,7 +19,8 @@ void UMassStartingPointsSession::RememberPlayer(int32 Slot, int32 Points)
 }
 void UMassStartingPointsSession::ObservePlayer(AMyPlayerState* State)
 {
-    if (!IsValid(State) || !IsValid(State->GetPawn())) return;
+    if (!IsValid(State) || !IsValid(State->GetPawn()))
+        return;
     const int32 Slot = State->GetTravelPlayerSlot();
     const auto* PreviousPawn = InitializedPlayers.Find(State);
     if (!PreviousPawn || PreviousPawn->Get() != State->GetPawn())
@@ -27,14 +29,19 @@ void UMassStartingPointsSession::ObservePlayer(AMyPlayerState* State)
         InitializedPlayers.Add(State, State->GetPawn());
         const TWeakObjectPtr<AMyPlayerState> WeakState(State);
         const TWeakObjectPtr<APawn> Pawn(State->GetPawn());
-        State->OnSpellPointsChangedDelegate.AddWeakLambda(this, [this, Slot, WeakState, Pawn](int32 Points)
-        {
-            // Ignore save restoration during possession of a replacement pawn.
-            if (WeakState.IsValid() && Pawn.IsValid() && WeakState->GetPawn() == Pawn.Get()) RememberPlayer(Slot, Points);
-        });
+        State->OnSpellPointsChangedDelegate.AddWeakLambda(this,
+                                                          [this, Slot, WeakState, Pawn](int32 Points)
+                                                          {
+                                                              // Ignore save restoration during possession of a replacement pawn.
+                                                              if (WeakState.IsValid() && Pawn.IsValid() &&
+                                                                  WeakState->GetPawn() == Pawn.Get())
+                                                                  RememberPlayer(Slot, Points);
+                                                          });
     }
     RememberPlayer(Slot, State->GetSpellPoints());
-    for (auto It=InitializedPlayers.CreateIterator(); It; ++It) if (!It.Key().IsValid()) It.RemoveCurrent();
+    for (auto It = InitializedPlayers.CreateIterator(); It; ++It)
+        if (!It.Key().IsValid())
+            It.RemoveCurrent();
 }
 bool UMassStartingPointsWorld::DoesSupportWorldType(EWorldType::Type Type) const
 {
@@ -47,17 +54,21 @@ TStatId UMassStartingPointsWorld::GetStatId() const
 void UMassStartingPointsWorld::Tick(float DeltaTime)
 {
     UWorld* World = GetWorld();
-    if (!World || !World->HasBegunPlay() || !Cast<APureMassGameMode>(World->GetAuthGameMode())) return;
+    if (!World || !World->HasBegunPlay() || !Cast<APureMassGameMode>(World->GetAuthGameMode()))
+        return;
     auto* GameState = World->GetGameState();
     auto* GI = World->GetGameInstance();
     auto* Session = GI ? GI->GetSubsystem<UMassStartingPointsSession>() : nullptr;
-    if (!GameState || !Session) return;
+    if (!GameState || !Session)
+        return;
     for (APlayerState* BaseState : GameState->PlayerArray)
     {
         auto* State = Cast<AMyPlayerState>(BaseState);
-        if (!State || !State->GetPawn() || State->GetTravelPlayerSlot() == INDEX_NONE) continue;
+        if (!State || !State->GetPawn() || State->GetTravelPlayerSlot() == INDEX_NONE)
+            continue;
         const auto* ASC = Cast<UMyAbilitySystemComponent>(State->GetAbilitySystemComponent());
-        if (!ASC || !ASC->bStartupAbilityGiven) continue;
+        if (!ASC || !ASC->bStartupAbilityGiven)
+            continue;
         Session->ObservePlayer(State);
     }
 }

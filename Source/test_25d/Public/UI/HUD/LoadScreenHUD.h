@@ -15,24 +15,29 @@ class URoomMenuWidget;
 UCLASS()
 class TEST_25D_API ALoadScreenHUD : public AHUD
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UFUNCTION(BlueprintCallable) void ShowModeSelection();
-	UFUNCTION(BlueprintCallable) void ShowSaveSelection();
-	UPROPERTY(EditDefaultsOnly, Category="Rooms") TSubclassOf<URoomMenuWidget> RoomMenuWidgetClass;
-	UPROPERTY(BlueprintReadOnly, Category="Rooms") TObjectPtr<URoomMenuWidget> RoomMenuWidget;
+    UFUNCTION(BlueprintCallable)
+    void ShowModeSelection();
+    UFUNCTION(BlueprintCallable)
+    void ShowSaveSelection();
+    UPROPERTY(EditDefaultsOnly, Category = "Rooms")
+    TSubclassOf<URoomMenuWidget> RoomMenuWidgetClass;
+    UPROPERTY(BlueprintReadOnly, Category = "Rooms")
+    TObjectPtr<URoomMenuWidget> RoomMenuWidget;
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<UUserWidget> LoadScreenWidgetClass;
+    UPROPERTY(EditDefaultsOnly)
+    TSubclassOf<UUserWidget> LoadScreenWidgetClass;
 
-	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<ULoadScreenWidget> LoadScreenWidget;
+    UPROPERTY(BlueprintReadOnly)
+    TObjectPtr<ULoadScreenWidget> LoadScreenWidget;
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<UMVVM_LoadScreen> LoadScreenViewModelClass;
+    UPROPERTY(EditDefaultsOnly)
+    TSubclassOf<UMVVM_LoadScreen> LoadScreenViewModelClass;
 
-	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<UMVVM_LoadScreen> LoadScreenViewModel;
+    UPROPERTY(BlueprintReadOnly)
+    TObjectPtr<UMVVM_LoadScreen> LoadScreenViewModel;
+
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 };

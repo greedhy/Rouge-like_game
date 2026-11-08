@@ -13,6 +13,7 @@ public:
     int32 EnterPlayer(int32 Slot);
     void RememberPlayer(int32 Slot, int32 Points);
     void ObservePlayer(class AMyPlayerState* State);
+
 private:
     TMap<int32, int32> RemainingPoints;
     TMap<TWeakObjectPtr<class AMyPlayerState>, TWeakObjectPtr<class APawn>> InitializedPlayers;

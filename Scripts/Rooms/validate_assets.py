@@ -14,11 +14,12 @@ def main():
     assert lobby and lobby.get_path_name()=='/Game/levels/RoomLobby.RoomLobby'
     assert lobby.get_world_settings().get_editor_property('default_game_mode')==u.RoomLobbyGameMode.static_class()
     gm=u.get_default_object(u.EditorAssetLibrary.load_blueprint_class('/Game/BluePrints/Game/BP_LoadScreenGameMode'))
-    assert gm.get_editor_property('default_map').get_path_name()=='/Game/levels/Dungeon.Dungeon'
+    assert gm.get_editor_property('default_map').get_path_name()=='/Game/RoguelikeGeneration/Maps/L_RoguelikeRun.L_RoguelikeRun'
+    assert str(gm.get_editor_property('default_player_start_tag'))=='RG_Entrance'
     dirty=list(u.EditorLoadingAndSavingUtils.get_dirty_map_packages())+list(u.EditorLoadingAndSavingUtils.get_dirty_content_packages())
     assert not dirty,[p.get_name() for p in dirty]
     world=u.get_editor_subsystem(u.UnrealEditorSubsystem).get_editor_world()
-    result={'run_id':uuid.uuid4().hex,'widget':widget_path,'lobby':lobby.get_path_name(),'default_map':'/Game/levels/Dungeon','editor_map':world.get_path_name(),'dirty_packages':[],'passed':True}
+    result={'run_id':uuid.uuid4().hex,'widget':widget_path,'lobby':lobby.get_path_name(),'default_map':'/Game/RoguelikeGeneration/Maps/L_RoguelikeRun','editor_map':world.get_path_name(),'dirty_packages':[],'passed':True}
     (root/'Saved/Rooms/asset_validation.json').write_text(json.dumps(result,indent=2))
     u.log('ROOM_ASSETS_VALIDATED '+json.dumps(result))
 main()

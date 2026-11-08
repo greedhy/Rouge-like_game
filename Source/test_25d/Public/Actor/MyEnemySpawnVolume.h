@@ -12,33 +12,34 @@
 UCLASS()
 class TEST_25D_API AMyEnemySpawnVolume : public AActor, public ISaveInterface
 {
-	GENERATED_BODY()
-	
+    GENERATED_BODY()
+
 public:
-	AMyEnemySpawnVolume();
-	static bool ShouldSpawnForOverlap(bool bHasAuthority, bool bIsPlayer)
-	{
-		return bHasAuthority && bIsPlayer;
-	}
+    AMyEnemySpawnVolume();
+    static bool ShouldSpawnForOverlap(bool bHasAuthority, bool bIsPlayer)
+    {
+        return bHasAuthority && bIsPlayer;
+    }
 
-	/* Save Interface */
-	virtual void LoadActor_Implementation() override;
-	/* end Save Interface */
+    /* Save Interface */
+    virtual void LoadActor_Implementation() override;
+    /* end Save Interface */
 
-	UPROPERTY(BlueprintReadOnly, SaveGame)
-	bool bReached = false;
+    UPROPERTY(BlueprintReadOnly, SaveGame)
+    bool bReached = false;
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
-	UFUNCTION()
-	virtual void OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+    UFUNCTION()
+    virtual void OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+                              UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+                              const FHitResult& SweepResult);
 
-	UPROPERTY(EditAnywhere)
-	TArray<AMyEnemySpawnPoint*> SpawnPoints;
+    UPROPERTY(EditAnywhere)
+    TArray<AMyEnemySpawnPoint*> SpawnPoints;
+
 private:
-
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBoxComponent> Box;
-
+    UPROPERTY(VisibleAnywhere)
+    TObjectPtr<UBoxComponent> Box;
 };
