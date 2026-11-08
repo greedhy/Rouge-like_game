@@ -179,9 +179,9 @@
 
 **Interfaces:**
 - `UAbilityTask_RunGraph::RunAbilityGraph(UGameplayAbility*, UAbilityGraphDefinition*, FAbilitySourceToken, FAbilityTargetToken)` 原生工厂；任务 TickTask 调 Advance，OnDestroy 先取消再清引用；动态 OnFinished(bool bCancelled)。
-- `UUnifiedGraphAbility : UMyGameplayAbility`：EditDefaultsOnly Graph 与 CastRange=1200；沿用标准 GAS CostGameplayEffectClass/CooldownGameplayEffectClass，首包不继承旧 Prototype 的 Kind/伤害类校验。
+- `UUnifiedGraphAbility : UMyGameplayAbility`：EditDefaultsOnly Graph 与 CastRange=1200；每 Actor 实例化，入口 LocalPredicted 以运行本地目标任务，但只有服务器回调 Commit/Start 图。客户端发送目标后等待服务器结束；不能改成只在服务器激活却仍等待未创建的客户端目标任务。沿用标准 GAS CostGameplayEffectClass/CooldownGameplayEffectClass，首包不继承旧 Prototype 的 Kind/伤害类校验。
 - `ActivateAbility` 创建 UPureMassTargetData，三秒超时；服务器回调验证混合目标/距离/可见性与 Graph，捕获令牌后 Commit 一次，启动 RunGraph；正常/异常完成均 EndAbility。结束清超时及任务，不保留图实例。
-- 样例 Graph：Delay=0.25，Petrify Duration=1.0，材质 `/Game/CompositionBatch6/M_PetrifiedStone`；费用 GE=Mana -10，冷却 GE=2 秒，稳定独立冷却 Tag；技能身份使用 `Abilities.Unified.DelayedPetrify`，不得占用现有 GA Tag。
+- 样例 Graph：Delay=0.25，Petrify Duration=1.0，材质 `/Game/CompositionBatch6/M_PetrifiedStone`；费用 GE=Mana -10，冷却 GE=2 秒，冷却 Tag=`Cooldown.Unified.DelayedPetrify`；技能身份使用 `Abilities.Unified.DelayedPetrify`，两者在 `UnifiedGraphAbility.cpp` 原生注册，不得占用现有 GA Tag。
 
 - [ ] 写 `test_25d.UnifiedGA.Integration.*`：通过 ASC 激活测试 GA，以真实目标任务数据路径送达服务器；费用只减 10、冷却一次、0.25 秒后石化、1 秒后解除；GA 结束后无活动图/任务/超时。
 - [ ] 增加取消、Actor 回收复用、同 ASC Avatar 变更、Mass 移除、世界退出的端到端测试；运行红测试再实现入口/任务。
