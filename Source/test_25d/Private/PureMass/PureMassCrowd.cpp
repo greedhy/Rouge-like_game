@@ -1,3 +1,10 @@
+/**
+ * 调用链、网络与生命周期契约（2026-11-06）
+ * 主链路：服务器Tick -> 周期PublishSnapshots -> NetEntities FastArray -> 客户端复制回调ApplyReplicatedSnapshot -> 子系统查询快照与ReconcileInstances -> 本地表现插值。
+ * 同步时机：快照由SnapshotInterval调度；变化项MarkItemDirty、移除项MarkArrayDirty，变化后ForceNetUpdate。60Hz NetUpdateFrequency是网络更新配置，不保证每个客户端每帧收到快照。Actor本身关闭ReplicateMovement。
+ * 初始属性可能先于BeginPlay到达，因此BeginPlay补应用客户端快照。死亡表现由服务器Tick消费PendingDeaths并调用多播，与活体快照删除是不同路径，不依赖客户端自行推算致死。
+ * 生命周期：此Actor拥有本地渲染组件和死亡表现资源；世界EndPlay清理表现与客户端快照。不要把客户端渲染组件当作权威怪物Actor，也不要在子系统退出后继续使用旧快照。
+ */
 #include "PureMass/PureMassCrowd.h"
 #include "PureMassMovement.h"
 #include "Performance/MonsterPerf.h"
@@ -27,11 +34,10 @@ namespace
 
     FVector QuantizeVector(const FVector& Vector)
     {
-        return FVector(FMath::RoundToDouble(Vector.X * 10.0) * 0.1,
-            FMath::RoundToDouble(Vector.Y * 10.0) * 0.1,
-            FMath::RoundToDouble(Vector.Z * 10.0) * 0.1);
+        return FVector(FMath::RoundToDouble(Vector.X * 10.0) * 0.1, FMath::RoundToDouble(Vector.Y * 10.0) * 0.1,
+                       FMath::RoundToDouble(Vector.Z * 10.0) * 0.1);
     }
-}
+} // namespace
 
 FPureMassView FPureMassNetEntity::ToView() const
 {
@@ -41,7 +47,8 @@ FPureMassView FPureMassNetEntity::ToView() const
     View.Velocity = Velocity;
     View.Health = Health;
     View.MaxHealth = MaxHealth;
-    View.bPetrified = bPetrified; View.State = State;
+    View.bPetrified = bPetrified;
+    View.State = State;
     View.Type = Type;
     return View;
 }
@@ -50,22 +57,26 @@ bool FPureMassNetEntity::SetFromView(const FPureMassView& View)
 {
     const FVector NewLocation = QuantizeVector(View.Location);
     const FVector NewVelocity = QuantizeVector(View.Velocity);
-    const bool bChanged = Id != View.Id || Location != NewLocation || Velocity != NewVelocity
-        || Health != View.Health || MaxHealth != View.MaxHealth || State != View.State || bPetrified != View.bPetrified || Type != View.Type;
+    const bool bChanged = Id != View.Id || Location != NewLocation || Velocity != NewVelocity ||
+                          Health != View.Health || MaxHealth != View.MaxHealth || State != View.State ||
+                          bPetrified != View.bPetrified || Type != View.Type;
     Id = View.Id;
     Location = NewLocation;
     Velocity = NewVelocity;
     Health = View.Health;
     MaxHealth = View.MaxHealth;
-    bPetrified = View.bPetrified; State = View.State;
+    bPetrified = View.bPetrified;
+    State = View.State;
     Type = View.Type;
     return bChanged;
 }
 
-void FPureMassNetEntities::PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
+void FPureMassNetEntities::PostReplicatedReceive(
+    const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
 {
     // Also called when an initially unmapped type asset becomes available.
-    if (APureMassCrowd* Crowd = Owner.Get()) Crowd->ApplyReplicatedSnapshot();
+    if (APureMassCrowd* Crowd = Owner.Get())
+        Crowd->ApplyReplicatedSnapshot();
 }
 
 APureMassCrowd::APureMassCrowd()
@@ -86,7 +97,8 @@ void APureMassCrowd::BeginPlay()
     Super::BeginPlay();
     NetEntities.Owner = this;
     // Initial property replication can precede BeginPlay.
-    if (!HasAuthority()) ApplyReplicatedSnapshot();
+    if (!HasAuthority())
+        ApplyReplicatedSnapshot();
 }
 
 void APureMassCrowd::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -110,7 +122,8 @@ void APureMassCrowd::Tick(float DeltaSeconds)
             MulticastDeaths(Deaths);
         }
         UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>();
-        if (!Mass) return;
+        if (!Mass)
+            return;
         TimeUntilPublish -= DeltaSeconds;
         // Dedicated servers only collect copies when a network update is due.
         if (GetNetMode() != NM_DedicatedServer || TimeUntilPublish <= 0.f)
@@ -122,7 +135,8 @@ void APureMassCrowd::Tick(float DeltaSeconds)
                 // Preserve fractional remainder rather than slipping to every second frame near 60 FPS.
                 TimeUntilPublish = FMath::Max(0.f, TimeUntilPublish + SnapshotInterval);
             }
-            if (GetNetMode() != NM_DedicatedServer) ReconcileInstances(Views);
+            if (GetNetMode() != NM_DedicatedServer)
+                ReconcileInstances(Views);
         }
     }
     if (GetNetMode() != NM_DedicatedServer)
@@ -135,19 +149,22 @@ void APureMassCrowd::Tick(float DeltaSeconds)
                 DeathMeshes[Index]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
                 DeathMeshes[Index]->SetVisibility(false);
                 DeathMeshes[Index]->SetComponentTickEnabled(false);
-                if (DeathWeapons.IsValidIndex(Index) && DeathWeapons[Index]) DeathWeapons[Index]->SetVisibility(false);
+                if (DeathWeapons.IsValidIndex(Index) && DeathWeapons[Index])
+                    DeathWeapons[Index]->SetVisibility(false);
                 DeathExpiry[Index] = 0.f;
             }
     }
 }
 
+// 服务器把活体快照差量写入FastArray；移除使用MarkArrayDirty，新增/更新使用MarkItemDirty。只有变化时ForceNetUpdate，不为每个实体创建网络Actor。
 void APureMassCrowd::PublishSnapshots(const TArray<FPureMassView>& Views)
 {
     MONSTER_PERF_SCOPE(NetSnapshotPublish);
     TSet<int32> Living;
     Living.Reserve(Views.Num());
     for (const FPureMassView& View : Views)
-        if (View.Id != INDEX_NONE && View.Health > 0.f && View.State != 3) Living.Add(View.Id);
+        if (View.Id != INDEX_NONE && View.Health > 0.f && View.State != 3)
+            Living.Add(View.Id);
 
     bool bChanged = false;
     for (int32 Index = NetEntities.Items.Num() - 1; Index >= 0; --Index)
@@ -166,7 +183,8 @@ void APureMassCrowd::PublishSnapshots(const TArray<FPureMassView>& Views)
 
     for (const FPureMassView& View : Views)
     {
-        if (!Living.Contains(View.Id)) continue;
+        if (!Living.Contains(View.Id))
+            continue;
         int32* Existing = Indices.Find(View.Id);
         const int32 Index = Existing ? *Existing : NetEntities.Items.AddDefaulted();
         FPureMassNetEntity& Item = NetEntities.Items[Index];
@@ -175,52 +193,68 @@ void APureMassCrowd::PublishSnapshots(const TArray<FPureMassView>& Views)
             NetEntities.MarkItemDirty(Item);
             bChanged = true;
         }
-        if (!Existing) Indices.Add(View.Id, Index);
+        if (!Existing)
+            Indices.Add(View.Id, Index);
     }
-    if (bChanged) ForceNetUpdate();
+    if (bChanged)
+        ForceNetUpdate();
 }
 
+// 仅客户端执行：过滤无效或死亡条目，重建本地查询快照并刷新渲染实例；不在客户端重新运行服务器伤害与AI。
 void APureMassCrowd::ApplyReplicatedSnapshot()
 {
-    if (HasAuthority() || !GetWorld()) return;
+    if (HasAuthority() || !GetWorld())
+        return;
     TArray<FPureMassView> Views;
     Views.Reserve(NetEntities.Items.Num());
     for (const FPureMassNetEntity& Item : NetEntities.Items)
-        if (Item.Id != INDEX_NONE && Item.Type && Item.Health > 0.f && Item.State != 3) Views.Add(Item.ToView());
-    if (UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>()) Mass->SetClientSnapshots(Views);
-    if (GetNetMode() != NM_DedicatedServer) ReconcileInstances(Views);
+        if (Item.Id != INDEX_NONE && Item.Type && Item.Health > 0.f && Item.State != 3)
+            Views.Add(Item.ToView());
+    if (UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
+        Mass->SetClientSnapshots(Views);
+    if (GetNetMode() != NM_DedicatedServer)
+        ReconcileInstances(Views);
 }
 
 int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrified)
 {
     for (int32 Index = 0; Index < RenderBatches.Num(); ++Index)
-        if (RenderBatches[Index].Type == Type && RenderBatches[Index].bPetrified == bPetrified) return Index;
-    if (!Type || RejectedTypes.Contains(Type)) return INDEX_NONE;
+        if (RenderBatches[Index].Type == Type && RenderBatches[Index].bPetrified == bPetrified)
+            return Index;
+    if (!Type || RejectedTypes.Contains(Type))
+        return INDEX_NONE;
 
     // Registering original meshes can trigger material usage edits in the editor.
     // Rendering is deliberately restricted to the new cloned asset tree.
     bool bValid = IsPureMassAsset(Type->Mesh) && IsPureMassAsset(Type->AnimationProvider);
     if (bValid)
     {
-        bValid = Type->AnimationProvider->GetSkinnedAsset() == Type->Mesh
-            && !Type->AnimationProvider->GetLayers().IsEmpty()
-            && Type->AnimationProvider->GetSequences().IsValidIndex(Type->IdleAnimation)
-            && Type->AnimationProvider->GetSequences().IsValidIndex(Type->RunAnimation)
-            && Type->AnimationProvider->GetSequences().IsValidIndex(Type->AttackAnimation);
+        bValid = Type->AnimationProvider->GetSkinnedAsset() == Type->Mesh &&
+                 !Type->AnimationProvider->GetLayers().IsEmpty() &&
+                 Type->AnimationProvider->GetSequences().IsValidIndex(Type->IdleAnimation) &&
+                 Type->AnimationProvider->GetSequences().IsValidIndex(Type->RunAnimation) &&
+                 Type->AnimationProvider->GetSequences().IsValidIndex(Type->AttackAnimation);
         for (const FSkeletalMaterial& Material : Type->Mesh->GetMaterials())
             bValid &= IsPureMassAsset(Material.MaterialInterface);
     }
     if (!bValid)
     {
         RejectedTypes.Add(Type);
-        UE_LOG(LogPureMassCrowd, Error, TEXT("Cannot render %s: use matching /Game/PureMass/ cloned mesh, materials and animation provider with valid state indices."), *GetNameSafe(Type));
+        UE_LOG(
+            LogPureMassCrowd, Error,
+            TEXT(
+                "Cannot render %s: use matching /Game/PureMass/ cloned mesh, materials and animation provider with valid state indices."),
+            *GetNameSafe(Type));
         return INDEX_NONE;
     }
 
     if (bPetrified && !PetrifyMaterial)
     {
-        PetrifyMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CompositionBatch6/M_PetrifiedStone.M_PetrifiedStone"));
-        if (!PetrifyMaterial) PetrifyMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+        PetrifyMaterial =
+            LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CompositionBatch6/M_PetrifiedStone.M_PetrifiedStone"));
+        if (!PetrifyMaterial)
+            PetrifyMaterial = LoadObject<UMaterialInterface>(
+                nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
     }
     FPureMassRenderBatch Batch;
     Batch.Type = Type;
@@ -228,8 +262,9 @@ int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrif
     Batch.Component = NewObject<UInstancedSkinnedMeshComponent>(this);
     // UE 5.8 exposes this as an editor property, but has no public setter and
     // does not export all virtuals for subclassing. Configure before registration.
-    if (FBoolProperty* Sockets = FindFProperty<FBoolProperty>(UInstancedSkinnedMeshComponent::StaticClass(),TEXT("bForceAnimateSockets")))
-        Sockets->SetPropertyValue_InContainer(Batch.Component,true);
+    if (FBoolProperty* Sockets =
+            FindFProperty<FBoolProperty>(UInstancedSkinnedMeshComponent::StaticClass(), TEXT("bForceAnimateSockets")))
+        Sockets->SetPropertyValue_InContainer(Batch.Component, true);
     Batch.Component->SetupAttachment(RootComponent);
     Batch.Component->SetMobility(EComponentMobility::Movable);
     Batch.Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -237,7 +272,9 @@ int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrif
     Batch.Component->SetCanEverAffectNavigation(false);
     Batch.Component->SetSkinnedAssetAndUpdate(Type->Mesh);
     Batch.Component->SetAnimationMinScreenSize(-1.f);
-    if (bPetrified && PetrifyMaterial) for (int32 Slot = 0; Slot < Type->Mesh->GetMaterials().Num(); ++Slot) Batch.Component->SetMaterial(Slot, PetrifyMaterial);
+    if (bPetrified && PetrifyMaterial)
+        for (int32 Slot = 0; Slot < Type->Mesh->GetMaterials().Num(); ++Slot)
+            Batch.Component->SetMaterial(Slot, PetrifyMaterial);
     Batch.Playback = UAnimSequenceTransformProviderDataInstance::CreateAnimSequenceTransformProviderDataInstance(
         Type->AnimationProvider, Batch.Component);
     if (!Batch.Playback)
@@ -258,7 +295,8 @@ int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrif
         Batch.Weapons->SetGenerateOverlapEvents(false);
         Batch.Weapons->SetCanEverAffectNavigation(false);
         if (bPetrified && PetrifyMaterial)
-            for (int32 Slot=0; Slot<Type->WeaponMesh->GetMaterials().Num(); ++Slot) Batch.Weapons->SetMaterial(Slot,PetrifyMaterial);
+            for (int32 Slot = 0; Slot < Type->WeaponMesh->GetMaterials().Num(); ++Slot)
+                Batch.Weapons->SetMaterial(Slot, PetrifyMaterial);
         AddInstanceComponent(Batch.Weapons);
         Batch.Weapons->RegisterComponent();
     }
@@ -267,15 +305,22 @@ int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrif
 
 void APureMassCrowd::SetAnimation(FPureMassRenderInstance& Instance, uint8 State)
 {
-    if (Instance.State == State) return;
+    if (Instance.State == State)
+        return;
     const FPureMassRenderBatch& Batch = RenderBatches[Instance.BatchIndex];
-    const bool bWindupClip = Batch.Type->AttackContactTime>0.f && Batch.Type->AttackWindupSeconds>0.f;
+    const bool bWindupClip = Batch.Type->AttackContactTime > 0.f && Batch.Type->AttackWindupSeconds > 0.f;
     // The warning and impact are phases of one clip, not two animation restarts.
-    if (bWindupClip && Instance.State==4 && State==2) { Instance.State=State; return; }
-    const bool bAttack = State==2 || (State==4 && bWindupClip);
+    if (bWindupClip && Instance.State == 4 && State == 2)
+    {
+        Instance.State = State;
+        return;
+    }
+    const bool bAttack = State == 2 || (State == 4 && bWindupClip);
     FAnimSequenceTrackAutoPlayData Play;
-    Play.SequenceIndex = bAttack ? Batch.Type->AttackAnimation : State == 1 ? Batch.Type->RunAnimation : Batch.Type->IdleAnimation;
-    Play.Position = State==2 && bWindupClip ? Batch.Type->AttackContactTime : 0.f;
+    Play.SequenceIndex = bAttack      ? Batch.Type->AttackAnimation
+                         : State == 1 ? Batch.Type->RunAnimation
+                                      : Batch.Type->IdleAnimation;
+    Play.Position = State == 2 && bWindupClip ? Batch.Type->AttackContactTime : 0.f;
     Play.PlayRate = Batch.bPetrified ? 0.f : bAttack ? Batch.Type->AttackPlayRate() : 1.f;
     Play.BlendTime = Instance.State == 255 ? 0.f : 0.1f;
     Play.LoopMode = bAttack ? EAnimSequenceTrackLoopMode::Clamp : EAnimSequenceTrackLoopMode::Loop;
@@ -291,9 +336,11 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
     bool bTopologyChanged = false;
     for (const FPureMassView& View : Views)
     {
-        if (View.Id == INDEX_NONE || !View.Type || View.Health <= 0.f || View.State == 3) continue;
+        if (View.Id == INDEX_NONE || !View.Type || View.Health <= 0.f || View.State == 3)
+            continue;
         const int32 BatchIndex = FindOrCreateBatch(View.Type, View.bPetrified);
-        if (BatchIndex == INDEX_NONE) continue;
+        if (BatchIndex == INDEX_NONE)
+            continue;
         Present.Add(View.Id);
         FPureMassRenderInstance* Existing = RenderInstances.Find(View.Id);
         if (Existing && Existing->BatchIndex != BatchIndex)
@@ -309,7 +356,8 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
             FPureMassRenderInstance NewInstance;
             NewInstance.BatchIndex = BatchIndex;
             NewInstance.Track = RenderBatches[BatchIndex].Playback->AllocateTrack();
-            if (NewInstance.Track == INDEX_NONE) continue;
+            if (NewInstance.Track == INDEX_NONE)
+                continue;
             NewInstance.DisplayLocation = View.Location;
             NewInstance.StartLocation = View.Location;
             NewInstance.TargetLocation = View.Location;
@@ -318,7 +366,8 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
             NewInstance.TargetFacing = NewInstance.Facing;
             SetAnimation(NewInstance, View.State);
             const FTransform WorldTransform = View.Type->MeshOffset * FTransform(NewInstance.Facing, View.Location);
-            NewInstance.Instance = RenderBatches[BatchIndex].Component->AddInstance(WorldTransform, NewInstance.Track, true);
+            NewInstance.Instance =
+                RenderBatches[BatchIndex].Component->AddInstance(WorldTransform, NewInstance.Track, true);
             if (!NewInstance.Instance.IsValid())
             {
                 RenderBatches[BatchIndex].Playback->DeallocateTrack(NewInstance.Track);
@@ -327,7 +376,7 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
             if (auto* Weapons = RenderBatches[BatchIndex].Weapons.Get())
             {
                 // The reference-pose provider has exactly one valid animation slot.
-                NewInstance.WeaponInstance=Weapons->AddInstance(View.Type->WeaponOffset,0,false);
+                NewInstance.WeaponInstance = Weapons->AddInstance(View.Type->WeaponOffset, 0, false);
             }
             Existing = &RenderInstances.Add(View.Id, NewInstance);
         }
@@ -353,20 +402,22 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
         // FPrimitiveInstanceId parameter. Rebuild only after add/remove/swap.
         TArray<TMap<int32, int32>> DenseIndices;
         DenseIndices.SetNum(RenderBatches.Num());
-        for (int32 BatchIndex=0; BatchIndex<RenderBatches.Num(); ++BatchIndex)
+        for (int32 BatchIndex = 0; BatchIndex < RenderBatches.Num(); ++BatchIndex)
         {
-            const auto* Body=RenderBatches[BatchIndex].Component.Get();
-            for (int32 Index=0; Index<Body->GetInstanceCount(); ++Index)
-                DenseIndices[BatchIndex].Add(Body->GetInstanceId(Index).GetAsIndex(),Index);
+            const auto* Body = RenderBatches[BatchIndex].Component.Get();
+            for (int32 Index = 0; Index < Body->GetInstanceCount(); ++Index)
+                DenseIndices[BatchIndex].Add(Body->GetInstanceId(Index).GetAsIndex(), Index);
         }
         for (const auto& Entry : RenderInstances)
         {
-            const auto& Instance=Entry.Value;
-            const auto& Batch=RenderBatches[Instance.BatchIndex];
-            if (!Batch.Weapons || !Instance.WeaponInstance.IsValid()) continue;
+            const auto& Instance = Entry.Value;
+            const auto& Batch = RenderBatches[Instance.BatchIndex];
+            if (!Batch.Weapons || !Instance.WeaponInstance.IsValid())
+                continue;
             FPrimitiveInstanceId ParentIndex;
-            ParentIndex.Id=DenseIndices[Instance.BatchIndex].FindChecked(Instance.Instance.GetAsIndex());
-            Batch.Weapons->SetInstanceBoneAttachment(Instance.WeaponInstance,ParentIndex,Batch.Component,Batch.Type->WeaponSocket);
+            ParentIndex.Id = DenseIndices[Instance.BatchIndex].FindChecked(Instance.Instance.GetAsIndex());
+            Batch.Weapons->SetInstanceBoneAttachment(Instance.WeaponInstance, ParentIndex, Batch.Component,
+                                                     Batch.Type->WeaponSocket);
         }
     }
 }
@@ -374,7 +425,8 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
 void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
 {
     MONSTER_PERF_SCOPE(InstanceTransforms);
-    if (WarningInstances) WarningInstances->ClearInstances();
+    if (WarningInstances)
+        WarningInstances->ClearInstances();
     for (TPair<int32, FPureMassRenderInstance>& Entry : RenderInstances)
     {
         FPureMassRenderInstance& Instance = Entry.Value;
@@ -383,7 +435,8 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
         const float Alpha = HasAuthority() ? 1.f : FMath::Clamp(Instance.InterpolationAge / SnapshotInterval, 0.f, 1.f);
         Instance.DisplayLocation = FMath::Lerp(Instance.StartLocation, Instance.TargetLocation, Alpha);
         const FPureMassRenderBatch& Batch = RenderBatches[Instance.BatchIndex];
-        const FTransform WorldTransform = Batch.Type->MeshOffset * FTransform(Instance.Facing, Instance.DisplayLocation);
+        const FTransform WorldTransform =
+            Batch.Type->MeshOffset * FTransform(Instance.Facing, Instance.DisplayLocation);
         Batch.Component->SetInstanceTransform(Instance.Instance, WorldTransform, true);
         if (Instance.State == 4 && !Batch.bPetrified)
         {
@@ -391,7 +444,8 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
             {
                 WarningInstances = NewObject<UInstancedStaticMeshComponent>(this);
                 WarningInstances->SetupAttachment(RootComponent);
-                WarningInstances->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+                WarningInstances->SetStaticMesh(
+                    LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
                 WarningInstances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
                 WarningInstances->SetCanEverAffectNavigation(false);
                 AddInstanceComponent(WarningInstances);
@@ -407,26 +461,35 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
 
 void APureMassCrowd::RemoveRenderInstance(FPureMassRenderInstance& Instance)
 {
-    if (!RenderBatches.IsValidIndex(Instance.BatchIndex)) return;
+    if (!RenderBatches.IsValidIndex(Instance.BatchIndex))
+        return;
     const FPureMassRenderBatch& Batch = RenderBatches[Instance.BatchIndex];
-    if (Batch.Weapons && Instance.WeaponInstance.IsValid()) Batch.Weapons->RemoveInstance(Instance.WeaponInstance);
-    if (Batch.Component) Batch.Component->RemoveInstance(Instance.Instance);
-    if (Batch.Playback && Instance.Track != INDEX_NONE) Batch.Playback->DeallocateTrack(Instance.Track);
+    if (Batch.Weapons && Instance.WeaponInstance.IsValid())
+        Batch.Weapons->RemoveInstance(Instance.WeaponInstance);
+    if (Batch.Component)
+        Batch.Component->RemoveInstance(Instance.Instance);
+    if (Batch.Playback && Instance.Track != INDEX_NONE)
+        Batch.Playback->DeallocateTrack(Instance.Track);
     Instance.Track = INDEX_NONE;
 }
 
+// 释放本Actor创建的表现资源；清客户端快照和待播死亡队列，并解除FastArray回指，避免旅行后的旧表现残留。
 void APureMassCrowd::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    for (TPair<int32, FPureMassRenderInstance>& Entry : RenderInstances) RemoveRenderInstance(Entry.Value);
+    for (TPair<int32, FPureMassRenderInstance>& Entry : RenderInstances)
+        RemoveRenderInstance(Entry.Value);
     RenderInstances.Empty();
     for (FPureMassRenderBatch& Batch : RenderBatches)
     {
-        if (Batch.Weapons) Batch.Weapons->DestroyComponent();
-        if (Batch.Component) Batch.Component->DestroyComponent();
+        if (Batch.Weapons)
+            Batch.Weapons->DestroyComponent();
+        if (Batch.Component)
+            Batch.Component->DestroyComponent();
     }
     RenderBatches.Empty();
     if (!HasAuthority() && GetWorld())
-        if (UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>()) Mass->SetClientSnapshots({});
+        if (UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
+            Mass->SetClientSnapshots({});
     PendingDeaths.Reset();
     NetEntities.Owner.Reset();
     Super::EndPlay(EndPlayReason);
@@ -436,30 +499,45 @@ int32 APureMassCrowd::GetRenderedInstanceCount() const
 {
     int32 Count = 0;
     for (const FPureMassRenderBatch& Batch : RenderBatches)
-        if (Batch.Component) Count += Batch.Component->GetInstanceCount();
+        if (Batch.Component)
+            Count += Batch.Component->GetInstanceCount();
     return Count;
 }
 
-int32 APureMassCrowd::GetReplicatedEntityCount() const { return NetEntities.Items.Num(); }
-int32 APureMassCrowd::GetRenderComponentCount() const { return RenderBatches.Num(); }
-int32 APureMassCrowd::GetAnimationTrackCount() const { return RenderInstances.Num(); }
+int32 APureMassCrowd::GetReplicatedEntityCount() const
+{
+    return NetEntities.Items.Num();
+}
+int32 APureMassCrowd::GetRenderComponentCount() const
+{
+    return RenderBatches.Num();
+}
+int32 APureMassCrowd::GetAnimationTrackCount() const
+{
+    return RenderInstances.Num();
+}
 int32 APureMassCrowd::GetWeaponInstanceCount() const
 {
-    int32 Count=0;
-    for (const auto& Batch:RenderBatches) if (Batch.Weapons) Count+=Batch.Weapons->GetInstanceCount();
+    int32 Count = 0;
+    for (const auto& Batch : RenderBatches)
+        if (Batch.Weapons)
+            Count += Batch.Weapons->GetInstanceCount();
     return Count;
 }
 
 UAnimSequenceTransformProviderData* APureMassCrowd::CreateAnimationProvider(UAnimBank* Bank)
 {
 #if WITH_EDITOR
-    if (!IsPureMassAsset(Bank) || !IsPureMassAsset(Bank->Asset)) return nullptr;
+    if (!IsPureMassAsset(Bank) || !IsPureMassAsset(Bank->Asset))
+        return nullptr;
     const FString NewName = Bank->GetName() + TEXT("_ASTP");
     const FString NewPackage = FPackageName::GetLongPackagePath(Bank->GetOutermost()->GetName()) / NewName;
     // The engine helper does not reliably check an existing on-disk asset. Never overwrite one.
-    if (FPackageName::DoesPackageExist(NewPackage) || FindObject<UPackage>(nullptr, *NewPackage)) return nullptr;
+    if (FPackageName::DoesPackageExist(NewPackage) || FindObject<UPackage>(nullptr, *NewPackage))
+        return nullptr;
     UAnimSequenceTransformProviderData* Provider = UAnimSequenceTransformProviderData::CreateFromAnimBank(Bank);
-    if (Provider) Provider->PostEditChange();
+    if (Provider)
+        Provider->PostEditChange();
     return Provider;
 #else
     return nullptr;
@@ -468,7 +546,8 @@ UAnimSequenceTransformProviderData* APureMassCrowd::CreateAnimationProvider(UAni
 
 void APureMassCrowd::NotifyKilled(const FPureMassView& View, FVector DeathImpulse)
 {
-    if (!HasAuthority() || !View.Type || PendingDeaths.Num() >= 12) return;
+    if (!HasAuthority() || !View.Type || PendingDeaths.Num() >= 12)
+        return;
     FPureMassDeathPresentation& Death = PendingDeaths.AddDefaulted_GetRef();
     Death.Type = View.Type;
     Death.Location = View.Location;
@@ -483,13 +562,16 @@ void APureMassCrowd::MulticastDeaths_Implementation(const TArray<FPureMassDeathP
         PresentDeath(Deaths[Index].Type, Deaths[Index].Location, Deaths[Index].Yaw, Deaths[Index].DeathImpulse);
 }
 
-void APureMassCrowd::PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantize10 Location, float Yaw, FVector DeathImpulse)
+void APureMassCrowd::PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantize10 Location, float Yaw,
+                                  FVector DeathImpulse)
 {
-    if (GetNetMode() == NM_DedicatedServer || !Type || !Type->Mesh || !Type->Mesh->GetPhysicsAsset()) return;
+    if (GetNetMode() == NM_DedicatedServer || !Type || !Type->Mesh || !Type->Mesh->GetPhysicsAsset())
+        return;
     int32 Slot = DeathExpiry.IndexOfByKey(0.f);
     if (Slot == INDEX_NONE)
     {
-        if (DeathMeshes.Num() >= 12) return; // Cosmetic overload drops, never allocates unbounded bodies.
+        if (DeathMeshes.Num() >= 12)
+            return; // Cosmetic overload drops, never allocates unbounded bodies.
         USkeletalMeshComponent* Mesh = NewObject<USkeletalMeshComponent>(this);
         Mesh->SetupAttachment(RootComponent);
         Mesh->SetCanEverAffectNavigation(false);
@@ -519,17 +601,21 @@ void APureMassCrowd::PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantiz
     {
         if (!DeathWeapons[Slot])
         {
-            auto* Weapon=NewObject<USkeletalMeshComponent>(this);
+            auto* Weapon = NewObject<USkeletalMeshComponent>(this);
             Weapon->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             Weapon->SetCanEverAffectNavigation(false);
-            AddInstanceComponent(Weapon); Weapon->RegisterComponent(); DeathWeapons[Slot]=Weapon;
+            AddInstanceComponent(Weapon);
+            Weapon->RegisterComponent();
+            DeathWeapons[Slot] = Weapon;
         }
-        auto* Weapon=DeathWeapons[Slot].Get();
-        Weapon->AttachToComponent(Mesh,FAttachmentTransformRules::SnapToTargetNotIncludingScale,Type->WeaponSocket);
+        auto* Weapon = DeathWeapons[Slot].Get();
+        Weapon->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Type->WeaponSocket);
         Weapon->SetRelativeTransform(Type->WeaponOffset);
-        Weapon->SetSkeletalMesh(Type->WeaponMesh); Weapon->SetVisibility(true);
+        Weapon->SetSkeletalMesh(Type->WeaponMesh);
+        Weapon->SetVisibility(true);
     }
-    else if (DeathWeapons[Slot]) DeathWeapons[Slot]->SetVisibility(false);
+    else if (DeathWeapons[Slot])
+        DeathWeapons[Slot]->SetVisibility(false);
     if (!DeathImpulse.ContainsNaN() && !DeathImpulse.IsNearlyZero())
         Mesh->AddImpulse(DeathImpulse, NAME_None, true);
     DeathExpiry[Slot] = GetWorld()->GetTimeSeconds() + 1.5f;
@@ -538,7 +624,9 @@ void APureMassCrowd::PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantiz
 int32 APureMassCrowd::GetActiveDeathCount() const
 {
     int32 Count = 0;
-    for (float Expiry : DeathExpiry) if (Expiry > 0.f) ++Count;
+    for (float Expiry : DeathExpiry)
+        if (Expiry > 0.f)
+            ++Count;
     return Count;
 }
 

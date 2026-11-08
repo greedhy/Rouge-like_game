@@ -10,7 +10,7 @@
 UINTERFACE(MinimalAPI, BlueprintType)
 class UHighLightInterface : public UInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 };
 
 /**
@@ -18,18 +18,17 @@ class UHighLightInterface : public UInterface
  */
 class TEST_25D_API IHighLightInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
+    // Add interface functions to this class. This is the class that will be inherited to implement this interface.
 
 public:
+    UFUNCTION(BlueprintNativeEvent)
+    void HighLightActor();
 
-	UFUNCTION(BlueprintNativeEvent)
-	void HighLightActor();
+    UFUNCTION(BlueprintNativeEvent)
+    void UnHighLightActor();
 
-	UFUNCTION(BlueprintNativeEvent)
-	void UnHighLightActor();
-
-	UFUNCTION(BlueprintNativeEvent)
-	void SetMoveToLocation(FVector& OutDestination);
+    UFUNCTION(BlueprintNativeEvent)
+    void SetMoveToLocation(FVector& OutDestination);
 };

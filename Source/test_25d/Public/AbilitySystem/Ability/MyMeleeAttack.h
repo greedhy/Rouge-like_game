@@ -12,6 +12,5 @@
 UCLASS()
 class TEST_25D_API UMyMeleeAttack : public UMyDamageGameplayAbility
 {
-	GENERATED_BODY()
-	
+    GENERATED_BODY()
 };

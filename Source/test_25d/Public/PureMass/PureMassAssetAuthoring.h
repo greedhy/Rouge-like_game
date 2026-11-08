@@ -12,7 +12,7 @@ class TEST_25D_API UPureMassAssetAuthoring : public UBlueprintFunctionLibrary
     GENERATED_BODY()
 public:
     /** Destination must be a new copy in /Game/PureMass/Rendering/Merged/. Does not save packages. */
-    UFUNCTION(BlueprintCallable, Category="PureMass|Authoring", meta=(DevelopmentOnly))
+    UFUNCTION(BlueprintCallable, Category = "PureMass|Authoring", meta = (DevelopmentOnly))
     static FString BakeRigidWeapon(USkeletalMesh* Destination, USkeletalMesh* Body, USkeletalMesh* Weapon,
-        FName SocketName, FTransform WeaponOffset);
+                                   FName SocketName, FTransform WeaponOffset);
 };

@@ -4,8 +4,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPureMassNetworkQuantizationTest,
-    "test_25d.PureMass.Network.QuantizationSuppressesSubWireMotion",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "test_25d.PureMass.Network.QuantizationSuppressesSubWireMotion",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FPureMassNetworkQuantizationTest::RunTest(const FString&)
 {
@@ -23,9 +23,9 @@ bool FPureMassNetworkQuantizationTest::RunTest(const FString&)
     View.Velocity += FVector(0.01, -0.01, 0.01);
     TestFalse(TEXT("Motion smaller than the wire precision must not dirty the fast array"), Item.SetFromView(View));
     TestTrue(TEXT("Negative and positive positions use the same 0.1 cm grid"),
-        FVector(Item.Location).Equals(FVector(10.0, -20.0, 30.0), 1.e-6));
+             FVector(Item.Location).Equals(FVector(10.0, -20.0, 30.0), 1.e-6));
     TestTrue(TEXT("Velocity is quantized independently"),
-        FVector(Item.Velocity).Equals(FVector(40.0, -50.0, 0.0), 1.e-6));
+             FVector(Item.Velocity).Equals(FVector(40.0, -50.0, 0.0), 1.e-6));
 
     View.Location.X = 10.08;
     TestTrue(TEXT("Crossing a position quantization boundary sends a change"), Item.SetFromView(View));
@@ -37,8 +37,8 @@ bool FPureMassNetworkQuantizationTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPureMassNetworkCombatStateTest,
-    "test_25d.PureMass.Network.CombatChangesAndClientView",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "test_25d.PureMass.Network.CombatChangesAndClientView",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FPureMassNetworkCombatStateTest::RunTest(const FString&)
 {
@@ -64,8 +64,10 @@ bool FPureMassNetworkCombatStateTest::RunTest(const FString&)
 
     const FPureMassView ClientView = Item.ToView();
     TestEqual(TEXT("Stable entity ID survives the client projection"), ClientView.Id, View.Id);
-    TestTrue(TEXT("Client queries receive the quantized network location"), ClientView.Location.Equals(FVector(Item.Location), 1.e-6));
-    TestTrue(TEXT("Client queries receive network velocity"), ClientView.Velocity.Equals(FVector(Item.Velocity), 1.e-6));
+    TestTrue(TEXT("Client queries receive the quantized network location"),
+             ClientView.Location.Equals(FVector(Item.Location), 1.e-6));
+    TestTrue(TEXT("Client queries receive network velocity"),
+             ClientView.Velocity.Equals(FVector(Item.Velocity), 1.e-6));
     TestEqual(TEXT("Client health is exactly the last server value"), ClientView.Health, View.Health);
     TestEqual(TEXT("Client maximum health is exactly the last server value"), ClientView.MaxHealth, View.MaxHealth);
     TestEqual(TEXT("Client attack state is preserved"), ClientView.State, uint8(2));

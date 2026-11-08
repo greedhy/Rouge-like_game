@@ -17,44 +17,40 @@ struct FWidgetControllerParams;
 UCLASS()
 class TEST_25D_API AMyHUD : public AHUD
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UPROPERTY()
-	TObjectPtr<UMyUserWidget> OverlayWidget;
+    UPROPERTY()
+    TObjectPtr<UMyUserWidget> OverlayWidget;
 
-	UOverlayWidgetController* GetOverlayWidgetController(const FWidgetControllerParams& WCParams);
+    UOverlayWidgetController* GetOverlayWidgetController(const FWidgetControllerParams& WCParams);
 
-	UAttributeMenuWidgetController* GetAttributeMenuWidgetController(const FWidgetControllerParams& WCParams);
+    UAttributeMenuWidgetController* GetAttributeMenuWidgetController(const FWidgetControllerParams& WCParams);
 
-	USpellMenuWidgetController* GetSpellMenuWidgetController(const FWidgetControllerParams& WCParams);
+    USpellMenuWidgetController* GetSpellMenuWidgetController(const FWidgetControllerParams& WCParams);
 
-	void InitOverlay(APlayerController* PC, APlayerState* PS,
-		UAbilitySystemComponent* ASC, UAttributeSet* AS);
+    void InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS);
 
 protected:
-
-	
 private:
-	UPROPERTY(EditAnywhere, Category = "Widgets")
-	TSubclassOf<UMyUserWidget> OverlayWidgetClass;	
+    UPROPERTY(EditAnywhere, Category = "Widgets")
+    TSubclassOf<UMyUserWidget> OverlayWidgetClass;
 
-	UPROPERTY()
-	TObjectPtr< UOverlayWidgetController> OverlayWidgetController;
+    UPROPERTY()
+    TObjectPtr<UOverlayWidgetController> OverlayWidgetController;
 
-	UPROPERTY(EditAnywhere)
-	TSubclassOf< UOverlayWidgetController> OverlayWidgetControllerClass;
+    UPROPERTY(EditAnywhere)
+    TSubclassOf<UOverlayWidgetController> OverlayWidgetControllerClass;
 
-	UPROPERTY()
-	TObjectPtr< UAttributeMenuWidgetController> AttributeMenuWidgetController;
+    UPROPERTY()
+    TObjectPtr<UAttributeMenuWidgetController> AttributeMenuWidgetController;
 
-	UPROPERTY(EditAnywhere)
-	TSubclassOf< UAttributeMenuWidgetController> AttributeMenuWidgetControllerClass;
+    UPROPERTY(EditAnywhere)
+    TSubclassOf<UAttributeMenuWidgetController> AttributeMenuWidgetControllerClass;
 
-	UPROPERTY()
-	TObjectPtr< USpellMenuWidgetController> SpellMenuWidgetController;
+    UPROPERTY()
+    TObjectPtr<USpellMenuWidgetController> SpellMenuWidgetController;
 
-	UPROPERTY(EditAnywhere)
-	TSubclassOf< USpellMenuWidgetController> SpellMenuWidgetControllerClass;
-
+    UPROPERTY(EditAnywhere)
+    TSubclassOf<USpellMenuWidgetController> SpellMenuWidgetControllerClass;
 };

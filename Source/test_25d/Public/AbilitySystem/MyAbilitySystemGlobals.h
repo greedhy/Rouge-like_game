@@ -12,7 +12,6 @@
 UCLASS()
 class TEST_25D_API UMyAbilitySystemGlobals : public UAbilitySystemGlobals
 {
-	GENERATED_BODY()
-	virtual FGameplayEffectContext* AllocGameplayEffectContext() const override;
-
+    GENERATED_BODY()
+    virtual FGameplayEffectContext* AllocGameplayEffectContext() const override;
 };

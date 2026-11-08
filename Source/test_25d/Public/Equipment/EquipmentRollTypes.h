@@ -13,7 +13,7 @@ struct TEST_25D_API FEquipmentRolledStat
     FGameplayTag StatTag;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame)
     float Value = 0;
-    bool operator==(const FEquipmentRolledStat &R) const
+    bool operator==(const FEquipmentRolledStat& R) const
     {
         return StatTag == R.StatTag && Value == R.Value;
     }
@@ -34,7 +34,7 @@ struct TEST_25D_API FEquipmentRolledAffix
     bool bPrefix = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame)
     TArray<FEquipmentRolledStat> Stats;
-    bool operator==(const FEquipmentRolledAffix &R) const
+    bool operator==(const FEquipmentRolledAffix& R) const
     {
         return ExclusiveGroup == R.ExclusiveGroup && AffixId == R.AffixId && Tier == R.Tier &&
                DisplayName.EqualTo(R.DisplayName) && bPrefix == R.bPrefix && Stats == R.Stats;
@@ -60,13 +60,13 @@ struct TEST_25D_API FEquipmentRollData
     TArray<FEquipmentRolledStat> BaseStats;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame)
     TArray<FEquipmentRolledAffix> Affixes;
-    bool operator==(const FEquipmentRollData &R) const
+    bool operator==(const FEquipmentRollData& R) const
     {
-        return ProfileId == R.ProfileId && GenerationVersion == R.GenerationVersion &&
-               ItemLevel == R.ItemLevel && RandomSeed == R.RandomSeed && RarityId == R.RarityId &&
-               RarityName.EqualTo(R.RarityName) && BaseStats == R.BaseStats && Affixes == R.Affixes;
+        return ProfileId == R.ProfileId && GenerationVersion == R.GenerationVersion && ItemLevel == R.ItemLevel &&
+               RandomSeed == R.RandomSeed && RarityId == R.RarityId && RarityName.EqualTo(R.RarityName) &&
+               BaseStats == R.BaseStats && Affixes == R.Affixes;
     }
-    bool operator!=(const FEquipmentRollData &R) const
+    bool operator!=(const FEquipmentRollData& R) const
     {
         return !(*this == R);
     }
@@ -142,4 +142,3 @@ struct TEST_25D_API FEquipmentAffixRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<FEquipmentAffixTier> Tiers;
 };
-

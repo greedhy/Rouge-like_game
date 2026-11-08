@@ -18,13 +18,20 @@ USTRUCT(BlueprintType)
 struct FMonsterManagementStats
 {
     GENERATED_BODY()
-    UPROPERTY(BlueprintReadOnly) int32 Registered = 0;
-    UPROPERTY(BlueprintReadOnly) int32 Active = 0;
-    UPROPERTY(BlueprintReadOnly) int32 Sleeping = 0;
-    UPROPERTY(BlueprintReadOnly) int32 PausedBrains = 0;
-    UPROPERTY(BlueprintReadOnly) int32 OccupiedCells = 0;
-    UPROPERTY(BlueprintReadOnly) int32 UpdateCount = 0;
-    UPROPERTY(BlueprintReadOnly) bool bEnabled = false;
+    UPROPERTY(BlueprintReadOnly)
+    int32 Registered = 0;
+    UPROPERTY(BlueprintReadOnly)
+    int32 Active = 0;
+    UPROPERTY(BlueprintReadOnly)
+    int32 Sleeping = 0;
+    UPROPERTY(BlueprintReadOnly)
+    int32 PausedBrains = 0;
+    UPROPERTY(BlueprintReadOnly)
+    int32 OccupiedCells = 0;
+    UPROPERTY(BlueprintReadOnly)
+    int32 UpdateCount = 0;
+    UPROPERTY(BlueprintReadOnly)
+    bool bEnabled = false;
 };
 
 UCLASS()
@@ -44,11 +51,11 @@ public:
     void UnregisterEnemy(AEnemyCharacter* Enemy);
     void NotifyDamaged(AEnemyCharacter* Enemy);
 
-    UFUNCTION(BlueprintCallable, Category="Mass Monsters")
+    UFUNCTION(BlueprintCallable, Category = "Mass Monsters")
     TArray<AEnemyCharacter*> FindMonstersInRadius(FVector Center, float Radius, FName RoomId = NAME_None) const;
-    UFUNCTION(BlueprintPure, Category="Mass Monsters")
+    UFUNCTION(BlueprintPure, Category = "Mass Monsters")
     FMonsterManagementStats GetStats() const;
-    UFUNCTION(BlueprintPure, Category="Mass Monsters")
+    UFUNCTION(BlueprintPure, Category = "Mass Monsters")
     bool IsMonsterActive(AEnemyCharacter* Enemy) const;
 
     // Called exclusively by the Mass processor on the game thread.
@@ -56,6 +63,7 @@ public:
     void UpdateEnemy(FMonsterFragment& Fragment);
     void FinishUpdate();
     FMassEntityHandle GetEntityForEnemy(const AEnemyCharacter* Enemy) const;
+
 private:
     struct FRecord
     {
@@ -67,8 +75,10 @@ private:
     };
     void SetActive(FRecord& Record, bool bActive);
     void RemoveRecord(uint64 Id);
-    UPROPERTY(Transient) TObjectPtr<UMonsterManagementConfig> Config;
-    UPROPERTY(Transient) TObjectPtr<UMassEntitySubsystem> Mass;
+    UPROPERTY(Transient)
+    TObjectPtr<UMonsterManagementConfig> Config;
+    UPROPERTY(Transient)
+    TObjectPtr<UMassEntitySubsystem> Mass;
     FMassArchetypeHandle Archetype;
     TMap<TWeakObjectPtr<AEnemyCharacter>, uint64> ActorIds;
     TMap<uint64, FRecord> Records;

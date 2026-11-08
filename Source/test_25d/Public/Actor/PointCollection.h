@@ -9,52 +9,50 @@
 UCLASS()
 class TEST_25D_API APointCollection : public AActor
 {
-	GENERATED_BODY()
-	
-public:
-	APointCollection();
+    GENERATED_BODY()
 
-	UFUNCTION(BlueprintPure)
-	TArray<USceneComponent*> GetGroundPoints(const FVector& GroundLocation, int32 NumPoints, float YawOverride = 0.f);
+public:
+    APointCollection();
+
+    UFUNCTION(BlueprintPure)
+    TArray<USceneComponent*> GetGroundPoints(const FVector& GroundLocation, int32 NumPoints, float YawOverride = 0.f);
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TArray<USceneComponent*> ImmutablePts;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TArray<USceneComponent*> ImmutablePts;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_0;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_0;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_1;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_1;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_2;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_2;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_3;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_3;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_4;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_4;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_5;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_5;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_6;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_6;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_7;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_7;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_8;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_8;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_9;
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_9;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TObjectPtr<USceneComponent> Pt_10;
-
-
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+    TObjectPtr<USceneComponent> Pt_10;
 };

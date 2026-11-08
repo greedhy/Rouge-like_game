@@ -7,11 +7,11 @@
 
 void UBackpackWidget::SetBackpackViewModel(UMVVM_Backpack* InBackpackViewModel)
 {
-	BackpackViewModel = InBackpackViewModel;
-	if (UMVVMView* MVVMView = UMVVMSubsystem::GetViewFromUserWidget(this))
-	{
-		MVVMView->SetViewModelByClass(InBackpackViewModel);
-	}
+    BackpackViewModel = InBackpackViewModel;
+    if (UMVVMView* MVVMView = UMVVMSubsystem::GetViewFromUserWidget(this))
+    {
+        MVVMView->SetViewModelByClass(InBackpackViewModel);
+    }
 }
 //OperateUI.cpp
 

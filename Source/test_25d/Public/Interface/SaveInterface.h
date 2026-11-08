@@ -10,7 +10,7 @@
 UINTERFACE(MinimalAPI)
 class USaveInterface : public UInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 };
 
 /**
@@ -18,14 +18,13 @@ class USaveInterface : public UInterface
  */
 class TEST_25D_API ISaveInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
+    // Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
+    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+    bool ShouldLoadTransform();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	bool ShouldLoadTransform();
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void LoadActor();
+    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+    void LoadActor();
 };

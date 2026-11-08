@@ -1,47 +1,51 @@
+// 调用链：Generate 校验目录和等级 → 固定种子抽取基础属性/稀有度/词缀 → ValidateRoll → 提交结果；展示与属性汇总只消费生成数据。
 #include "Equipment/EquipmentGenerator.h"
 #include "Equipment/EquipmentStats.h"
 #include "Backpack/ItemDefinition.h"
 namespace
 {
-bool Fail(FString *E, const TCHAR *S)
-{
-    if (E)
-        *E = S;
-    return false;
-}
-bool Ranges(const TArray<FEquipmentStatRange> &R, int32 L, FRandomStream &RNG,
-            TArray<FEquipmentRolledStat> &Out)
-{
-    if (R.Num() > EquipmentStats::All().Num())
-        return false;
-    TSet<FGameplayTag> Tags;
-    for (const auto &V : R)
+    // 统一写入可选错误输出并返回失败，供校验分支直接返回。
+    bool Fail(FString* E, const TCHAR* S)
     {
-        if (Tags.Contains(V.StatTag))
-            return false;
-        Tags.Add(V.StatTag);
-        const float A = V.MinValue.GetValueAtLevel(L), B = V.MaxValue.GetValueAtLevel(L);
-        if (!FEquipmentGenerator::IsSupportedStat(V.StatTag) || !FMath::IsFinite(A) || !FMath::IsFinite(B) ||
-            A < 0 || B < A || B > 1000000 || V.DecimalPlaces < 0 || V.DecimalPlaces > 3)
-            return false;
-        const double Scale = FMath::Pow(10.0, V.DecimalPlaces);
-        const double Low = FMath::CeilToDouble(A * Scale), High = FMath::FloorToDouble(B * Scale);
-        if (Low > High)
-            return false;
-        FEquipmentRolledStat S;
-        S.StatTag = V.StatTag;
-        S.Value = static_cast<float>(
-            (FMath::Min(High, Low + FMath::FloorToDouble(RNG.GetFraction() * (High - Low + 1)))) / Scale);
-        Out.Add(S);
+        if (E)
+            *E = S;
+        return false;
     }
-    return true;
-}
+    // 按等级解析范围并在指定小数精度的离散值中抽取；拒绝重复或不受支持的属性。
+    bool Ranges(const TArray<FEquipmentStatRange>& R, int32 L, FRandomStream& RNG, TArray<FEquipmentRolledStat>& Out)
+    {
+        if (R.Num() > EquipmentStats::All().Num())
+            return false;
+        TSet<FGameplayTag> Tags;
+        for (const auto& V : R)
+        {
+            if (Tags.Contains(V.StatTag))
+                return false;
+            Tags.Add(V.StatTag);
+            const float A = V.MinValue.GetValueAtLevel(L), B = V.MaxValue.GetValueAtLevel(L);
+            if (!FEquipmentGenerator::IsSupportedStat(V.StatTag) || !FMath::IsFinite(A) || !FMath::IsFinite(B) ||
+                A < 0 || B < A || B > 1000000 || V.DecimalPlaces < 0 || V.DecimalPlaces > 3)
+                return false;
+            const double Scale = FMath::Pow(10.0, V.DecimalPlaces);
+            const double Low = FMath::CeilToDouble(A * Scale), High = FMath::FloorToDouble(B * Scale);
+            if (Low > High)
+                return false;
+            FEquipmentRolledStat S;
+            S.StatTag = V.StatTag;
+            S.Value = static_cast<float>(
+                (FMath::Min(High, Low + FMath::FloorToDouble(RNG.GetFraction() * (High - Low + 1)))) / Scale);
+            Out.Add(S);
+        }
+        return true;
+    }
 } // namespace
+// 以装备属性注册表判定 Tag 是否支持。
 bool FEquipmentGenerator::IsSupportedStat(FGameplayTag T)
 {
     return EquipmentStats::Find(T) != nullptr;
 }
-bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData &R, FString *E)
+// 验证版本、等级、词缀身份/互斥组及聚合属性上限；旧版本只允许完全空的随机数据。
+bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData& R, FString* E)
 {
     if (R.GenerationVersion == 0)
         return (R.BaseStats.IsEmpty() && R.Affixes.IsEmpty() && R.ProfileId.IsNone() && R.RarityId.IsNone() &&
@@ -50,14 +54,15 @@ bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData &R, FString *E)
     if (R.GenerationVersion != 1 || R.ItemLevel < 1 || R.ItemLevel > 10000 || R.ProfileId.IsNone() ||
         R.RarityId.IsNone() || R.Affixes.Num() > 6 || R.BaseStats.Num() > EquipmentStats::All().Num())
         return Fail(E, TEXT("Invalid roll schema"));
-    auto Valid = [](const TArray<FEquipmentRolledStat> &S) {
+    auto Valid = [](const TArray<FEquipmentRolledStat>& S)
+    {
         if (S.Num() > EquipmentStats::All().Num())
             return false;
         TSet<FGameplayTag> Tags;
-        for (const auto &V : S)
+        for (const auto& V : S)
         {
-            if (Tags.Contains(V.StatTag) || !IsSupportedStat(V.StatTag) || !FMath::IsFinite(V.Value) ||
-                V.Value < 0 || V.Value > 1000000)
+            if (Tags.Contains(V.StatTag) || !IsSupportedStat(V.StatTag) || !FMath::IsFinite(V.Value) || V.Value < 0 ||
+                V.Value > 1000000)
                 return false;
             Tags.Add(V.StatTag);
         }
@@ -67,9 +72,9 @@ bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData &R, FString *E)
         return Fail(E, TEXT("Invalid base stats"));
     TSet<FName> IDs, Groups;
     TMap<FGameplayTag, double> Totals;
-    for (const auto &S : R.BaseStats)
+    for (const auto& S : R.BaseStats)
         Totals.FindOrAdd(S.StatTag) += S.Value;
-    for (const auto &A : R.Affixes)
+    for (const auto& A : R.Affixes)
     {
         if (A.AffixId.IsNone() || IDs.Contains(A.AffixId) || A.Tier < 1 || A.Tier > 10000 || !Valid(A.Stats))
             return Fail(E, TEXT("Invalid affix"));
@@ -80,30 +85,31 @@ bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData &R, FString *E)
                 return Fail(E, TEXT("Duplicate exclusive group"));
             Groups.Add(A.ExclusiveGroup);
         }
-        for (const auto &S : A.Stats)
+        for (const auto& S : A.Stats)
             Totals.FindOrAdd(S.StatTag) += S.Value;
     }
-    for (const auto &Total : Totals)
+    for (const auto& Total : Totals)
         if (!FMath::IsFinite(Total.Value) || Total.Value > 1000000)
             return Fail(E, TEXT("Aggregate stat exceeds cap"));
     return true;
 }
-bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBackpackItemDefEntry &D, int32 L,
-                                   int32 Seed, FEquipmentRollData &Out, FString &E)
+// 从物品定义关联的数据表生成可复现随机装备；所有检查通过后才写入最终输出。
+bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBackpackItemDefEntry& D, int32 L,
+                                   int32 Seed, FEquipmentRollData& Out, FString& E)
 {
     E.Reset();
     Out = {};
-    auto Bad = [&](const TCHAR *S) {
+    auto Bad = [&](const TCHAR* S)
+    {
         UE_LOG(LogTemp, Warning, TEXT("Equipment generation: %s"), S);
         return Fail(&E, S);
     };
-    if (!D.bEquippable || !D.bRandomizedEquipment || L < 0 || L > 10000 || !C.GenerationProfiles ||
-        !C.Rarities || !C.Affixes ||
-        C.GenerationProfiles->GetRowStruct() != FEquipmentGenerationProfileRow::StaticStruct() ||
+    if (!D.bEquippable || !D.bRandomizedEquipment || L < 0 || L > 10000 || !C.GenerationProfiles || !C.Rarities ||
+        !C.Affixes || C.GenerationProfiles->GetRowStruct() != FEquipmentGenerationProfileRow::StaticStruct() ||
         C.Rarities->GetRowStruct() != FEquipmentRarityRow::StaticStruct() ||
         C.Affixes->GetRowStruct() != FEquipmentAffixRow::StaticStruct())
         return Bad(TEXT("Invalid definition or tables"));
-    const auto *P =
+    const auto* P =
         C.GenerationProfiles->FindRow<FEquipmentGenerationProfileRow>(D.GenerationProfile, TEXT("Generate"));
     if (!P)
         return Bad(TEXT("Missing profile"));
@@ -111,6 +117,7 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
         L = P->DefaultItemLevel;
     if (L < 1 || L > 10000)
         return Bad(TEXT("Invalid default level"));
+    // 固定种子驱动本次全部抽样，临时结果在校验成功后统一提交。
     FRandomStream RNG(Seed);
     FEquipmentRollData R;
     R.ProfileId = D.GenerationProfile;
@@ -119,13 +126,14 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
     R.RandomSeed = Seed;
     if (!Ranges(P->BaseStats, L, RNG, R.BaseStats))
         return Bad(TEXT("Invalid base range"));
+    // 排序后验证稀有度权重与数量约束，避免表遍历顺序改变同一种子的结果。
     TArray<FName> Names = P->RarityIds;
     Names.Sort(FNameLexicalLess());
     TSet<FName> Seen;
     double Total = 0;
     for (FName N : Names)
     {
-        const auto *V = C.Rarities->FindRow<FEquipmentRarityRow>(N, TEXT("Generate"));
+        const auto* V = C.Rarities->FindRow<FEquipmentRarityRow>(N, TEXT("Generate"));
         if (!V || Seen.Contains(N) || !FMath::IsFinite(V->Weight) || V->Weight < 0 || V->MinAffixes < 0 ||
             V->MaxAffixes < V->MinAffixes || V->MaxAffixes > 6 || V->MaxPrefixes < 0 || V->MaxPrefixes > 6 ||
             V->MaxSuffixes < 0 || V->MaxSuffixes > 6)
@@ -136,10 +144,10 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
     if (Total <= 0)
         return Bad(TEXT("No weighted rarity"));
     double Pick = RNG.GetFraction() * Total;
-    const FEquipmentRarityRow *Q = nullptr;
+    const FEquipmentRarityRow* Q = nullptr;
     for (FName N : Names)
     {
-        auto *V = C.Rarities->FindRow<FEquipmentRarityRow>(N, TEXT("Generate"));
+        auto* V = C.Rarities->FindRow<FEquipmentRarityRow>(N, TEXT("Generate"));
         if (V->Weight <= 0)
             continue;
         Q = V;
@@ -152,22 +160,23 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
     struct Candidate
     {
         FName Id;
-        const FEquipmentAffixRow *Row;
-        const FEquipmentAffixTier *Tier;
+        const FEquipmentAffixRow* Row;
+        const FEquipmentAffixTier* Tier;
     };
+    // 筛选适用配置和等级的词缀，为每项选取最高可用阶级并预检属性范围。
     TArray<Candidate> Candidates;
     Names = C.Affixes->GetRowNames();
     Names.Sort(FNameLexicalLess());
     for (FName N : Names)
     {
-        const auto *A = C.Affixes->FindRow<FEquipmentAffixRow>(N, TEXT("Generate"));
+        const auto* A = C.Affixes->FindRow<FEquipmentAffixRow>(N, TEXT("Generate"));
         if (!A->Profiles.IsEmpty() && !A->Profiles.Contains(D.GenerationProfile))
             continue;
         if (!FMath::IsFinite(A->Weight) || A->Weight < 0)
             return Bad(TEXT("Invalid affix weight"));
-        const FEquipmentAffixTier *Best = nullptr;
+        const FEquipmentAffixTier* Best = nullptr;
         TSet<int32> Tiers;
-        for (const auto &T : A->Tiers)
+        for (const auto& T : A->Tiers)
         {
             if (T.Tier < 1 || T.Tier > 10000 || Tiers.Contains(T.Tier) || T.MinItemLevel < 1 ||
                 T.MaxItemLevel < T.MinItemLevel || T.MaxItemLevel > 10000)
@@ -185,17 +194,20 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
             Candidates.Add({N, A, Best});
         }
     }
+    // 按稀有度决定目标数量；每轮剔除互斥组和前后缀超额项，再无放回抽取。
     const int32 Count = RNG.RandRange(Q->MinAffixes, Q->MaxAffixes);
     int32 Prefixes = 0, Suffixes = 0;
     TSet<FName> Groups;
     for (int32 I = 0; I < Count; ++I)
     {
-        Candidates.RemoveAll([&](const Candidate &V) {
-            return (V.Row->bPrefix ? Prefixes >= Q->MaxPrefixes : Suffixes >= Q->MaxSuffixes) ||
-                   (!V.Row->ExclusiveGroup.IsNone() && Groups.Contains(V.Row->ExclusiveGroup));
-        });
+        Candidates.RemoveAll(
+            [&](const Candidate& V)
+            {
+                return (V.Row->bPrefix ? Prefixes >= Q->MaxPrefixes : Suffixes >= Q->MaxSuffixes) ||
+                       (!V.Row->ExclusiveGroup.IsNone() && Groups.Contains(V.Row->ExclusiveGroup));
+            });
         Total = 0;
-        for (const auto &V : Candidates)
+        for (const auto& V : Candidates)
             Total += V.Row->Weight;
         if (Total <= 0)
             break;
@@ -233,37 +245,41 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions &C, const FBac
     Out = MoveTemp(R);
     return true;
 }
-TMap<FGameplayTag, float> FEquipmentGenerator::GetTotals(const FEquipmentRollData &R)
+// 校验随机数据后按属性 Tag 汇总基础属性与全部词缀；非法数据返回空表。
+TMap<FGameplayTag, float> FEquipmentGenerator::GetTotals(const FEquipmentRollData& R)
 {
     TMap<FGameplayTag, float> T;
     if (!ValidateRoll(R))
         return T;
-    for (const auto &S : R.BaseStats)
+    for (const auto& S : R.BaseStats)
         T.FindOrAdd(S.StatTag) += S.Value;
-    for (const auto &A : R.Affixes)
-        for (const auto &S : A.Stats)
+    for (const auto& A : R.Affixes)
+        for (const auto& S : A.Stats)
             T.FindOrAdd(S.StatTag) += S.Value;
     return T;
 }
-FText FEquipmentGenerator::MakeDisplayName(const FText &B, const FEquipmentRollData &R)
+// 按前缀、基础名称、后缀顺序组合装备显示名。
+FText FEquipmentGenerator::MakeDisplayName(const FText& B, const FEquipmentRollData& R)
 {
     FString S;
-    for (const auto &A : R.Affixes)
+    for (const auto& A : R.Affixes)
         if (A.bPrefix)
             S += A.DisplayName.ToString() + TEXT(" ");
     S += B.ToString();
-    for (const auto &A : R.Affixes)
+    for (const auto& A : R.Affixes)
         if (!A.bPrefix)
             S += TEXT(" ") + A.DisplayName.ToString();
     return FText::FromString(S);
 }
-FText FEquipmentGenerator::MakeDescription(const FEquipmentRollData &R)
+// 将稀有度、等级、基础属性和逐条词缀转换为详情文本；旧版无随机数据时返回空文本。
+FText FEquipmentGenerator::MakeDescription(const FEquipmentRollData& R)
 {
     if (R.GenerationVersion == 0)
         return FText::GetEmpty();
     FString S = FString::Printf(TEXT("%s · 等级 %d"), *R.RarityName.ToString(), R.ItemLevel);
-    auto AppendStats = [&S](const TArray<FEquipmentRolledStat> &Stats) {
-        for (const auto &Stat : Stats)
+    auto AppendStats = [&S](const TArray<FEquipmentRolledStat>& Stats)
+    {
+        for (const auto& Stat : Stats)
         {
             const auto* Definition = EquipmentStats::Find(Stat.StatTag);
             FString Label = Definition ? Definition->Label : Stat.StatTag.ToString();
@@ -275,7 +291,7 @@ FText FEquipmentGenerator::MakeDescription(const FEquipmentRollData &R)
         S += TEXT("\n基础属性");
         AppendStats(R.BaseStats);
     }
-    for (const auto &Affix : R.Affixes)
+    for (const auto& Affix : R.Affixes)
     {
         S += FString::Printf(TEXT("\n%s · 阶级 %d"), *Affix.DisplayName.ToString(), Affix.Tier);
         AppendStats(Affix.Stats);
@@ -283,10 +299,13 @@ FText FEquipmentGenerator::MakeDescription(const FEquipmentRollData &R)
     return FText::FromString(S);
 }
 
+// 核对随机数据与物品定义的随机开关及生成配置一致性；缺失定义仅接受旧版空数据。
 bool FEquipmentGenerator::ValidateForDefinition(const FBackpackItemDefEntry* Def, const FEquipmentRollData& Roll)
 {
- if (!ValidateRoll(Roll)) return false;
- if (!Def) return Roll.GenerationVersion == 0;
- return Def->bRandomizedEquipment == (Roll.GenerationVersion > 0) &&
-  (!Def->bRandomizedEquipment || (Def->bEquippable && Roll.ProfileId == Def->GenerationProfile));
+    if (!ValidateRoll(Roll))
+        return false;
+    if (!Def)
+        return Roll.GenerationVersion == 0;
+    return Def->bRandomizedEquipment == (Roll.GenerationVersion > 0) &&
+           (!Def->bRandomizedEquipment || (Def->bEquippable && Roll.ProfileId == Def->GenerationProfile));
 }

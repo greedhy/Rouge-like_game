@@ -18,6 +18,7 @@ public:
     virtual void OnRegister() override;
     virtual void BeginPlay() override;
     virtual void OnUnregister() override;
+
 private:
     void Moved(USceneComponent* Component, EUpdateTransformFlags Flags, ETeleportType Teleport);
     TWeakObjectPtr<AMyProjectile> Projectile;

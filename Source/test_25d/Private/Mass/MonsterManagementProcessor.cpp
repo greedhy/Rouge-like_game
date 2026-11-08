@@ -21,11 +21,14 @@ void UMonsterManagementProcessor::Execute(FMassEntityManager& EntityManager, FMa
 {
     UWorld* World = Context.GetWorld();
     auto* Manager = World ? World->GetSubsystem<UMonsterManagementSubsystem>() : nullptr;
-    if (!Manager || !Manager->BeginUpdate(Context.GetDeltaTimeSeconds())) return;
-    Query.ForEachEntityChunk(Context, [Manager](FMassExecutionContext& Chunk)
-    {
-        auto Monsters = Chunk.GetMutableFragmentView<FMonsterFragment>();
-        for (FMonsterFragment& Monster : Monsters) Manager->UpdateEnemy(Monster);
-    });
+    if (!Manager || !Manager->BeginUpdate(Context.GetDeltaTimeSeconds()))
+        return;
+    Query.ForEachEntityChunk(Context,
+                             [Manager](FMassExecutionContext& Chunk)
+                             {
+                                 auto Monsters = Chunk.GetMutableFragmentView<FMonsterFragment>();
+                                 for (FMonsterFragment& Monster : Monsters)
+                                     Manager->UpdateEnemy(Monster);
+                             });
     Manager->FinishUpdate();
 }

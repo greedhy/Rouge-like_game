@@ -17,19 +17,17 @@ class UMVVM_Backpack;
  * 
  */
 
-
 UCLASS()
 class TEST_25D_API UBackpackWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Backpack")
-	void SetBackpackViewModel(UMVVM_Backpack* InBackpackViewModel);
+    UFUNCTION(BlueprintCallable, Category = "Backpack")
+    void SetBackpackViewModel(UMVVM_Backpack* InBackpackViewModel);
 
-	UPROPERTY(BlueprintReadOnly, FieldNotify, Category = "Backpack")
-	TObjectPtr<UMVVM_Backpack> BackpackViewModel;
-
+    UPROPERTY(BlueprintReadOnly, FieldNotify, Category = "Backpack")
+    TObjectPtr<UMVVM_Backpack> BackpackViewModel;
 
     ////BackPackUI.h
 
@@ -39,7 +37,6 @@ public:
     //TObjectPtr<UButton> CloseButton;  // 关闭背包按钮
 
     //int32 SlotCount = 16;  //背包允许存在格子数量（可以暴露给蓝图然后自己酌情修改）
-
 
     ////operate
 

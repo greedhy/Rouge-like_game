@@ -18,7 +18,6 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnInventorySwapRequested, int32 /*SourceSl
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInventoryUseRequested, int32 /*SlotIndex*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnInventoryDeleteRequested, int32 /*SlotIndex*/, int32 /*Count*/);
 
-
 UCLASS(Blueprintable, DisplayName = "Backpack ViewModel")
 class TEST_25D_API UMVVM_Backpack : public UMVVMViewModelBase
 {
@@ -30,7 +29,10 @@ public:
 
     // 供 TileView/ListView 绑定——必须返回 TArray<UObject*>，并手动广播
     UFUNCTION(BlueprintPure, FieldNotify)
-    TArray<UMVVM_InventorySlot*> GetSlotViewModels() const { return SlotVMsTyped; }
+    TArray<UMVVM_InventorySlot*> GetSlotViewModels() const
+    {
+        return SlotVMsTyped;
+    }
 
     UFUNCTION(BlueprintCallable)
     void RequestDrop(int32 SlotIndex);
@@ -39,18 +41,27 @@ public:
     void RequestSwap(int32 From, int32 To);
 
     UFUNCTION(BlueprintPure)
-    int32 GetSlotCount() const { return SlotVMsTyped.Num(); }
+    int32 GetSlotCount() const
+    {
+        return SlotVMsTyped.Num();
+    }
 
     // 动态格数：返回当前最大格数
     UFUNCTION(BlueprintPure, FieldNotify)
-    int32 GetMaxSlots() const { return MaxSlotsCache; }
+    int32 GetMaxSlots() const
+    {
+        return MaxSlotsCache;
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify)
-    FText GetMaxSlotsText() const { return FText::AsNumber(MaxSlotsCache); }
+    FText GetMaxSlotsText() const
+    {
+        return FText::AsNumber(MaxSlotsCache);
+    }
 
     // === 拖拽接口（UI调用）===
     UFUNCTION(BlueprintCallable, Category = "Inventory|Drag")
-    bool RequestBeginDrag(int32 SourceSlotIndex);  // 开始拖拽
+    bool RequestBeginDrag(int32 SourceSlotIndex); // 开始拖拽
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Drag")
     bool RequestDropOnSlot(int32 TargetSlotIndex); // 放置到目标槽位
@@ -60,24 +71,33 @@ public:
     bool RequestDropOnHoveredSlot();
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Drag")
-    void RequestCancelDrag();                      // 取消拖拽（拖出背包）
+    void RequestCancelDrag(); // 取消拖拽（拖出背包）
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Drag")
-    void RequestHoverSlot(int32 HoverSlotIndex);   // 拖拽悬停到某槽位
+    void RequestHoverSlot(int32 HoverSlotIndex); // 拖拽悬停到某槽位
 
     UFUNCTION(BlueprintPure, FieldNotify)
-    bool IsDragging() const { return bIsDragging; } // 是否正在拖拽
+    bool IsDragging() const
+    {
+        return bIsDragging;
+    } // 是否正在拖拽
 
-  
     // 选中相关
     UFUNCTION(BlueprintCallable, Category = "Inventory|Selection")
     void SelectSlot(int32 SlotIndex); // 选中指定槽位
 
     UFUNCTION(BlueprintPure, FieldNotify)
-    int32 GetCurrentSelectedIndex() const { return CurrentSelectedIndex; }
+    int32 GetCurrentSelectedIndex() const
+    {
+        return CurrentSelectedIndex;
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify)
-    bool HasSelectedItem() const { return IsValid(Model) && Model->GetSlots().IsValidIndex(CurrentSelectedIndex) && !Model->GetSlots()[CurrentSelectedIndex].IsEmpty(); }
+    bool HasSelectedItem() const
+    {
+        return IsValid(Model) && Model->GetSlots().IsValidIndex(CurrentSelectedIndex) &&
+               !Model->GetSlots()[CurrentSelectedIndex].IsEmpty();
+    }
 
     // 操作接口（对应使用/删除按钮）
     UFUNCTION(BlueprintCallable, Category = "Inventory|Action")
@@ -94,19 +114,41 @@ public:
     FText GetSelectedItemDescription() const;
 
     UFUNCTION(BlueprintPure, FieldNotify, Category = "Inventory|Selection")
-    FText GetSelectedStackText() const { return HasSelectedItem() ? FText::AsNumber(Model->GetSlots()[CurrentSelectedIndex].Quantity) : FText::GetEmpty(); }
+    FText GetSelectedStackText() const
+    {
+        return HasSelectedItem() ? FText::AsNumber(Model->GetSlots()[CurrentSelectedIndex].Quantity)
+                                 : FText::GetEmpty();
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify, Category = "Inventory|Selection")
-    bool GetCanUseSelectedItem() const { const FBackpackItemDefEntry* Definition = HasSelectedItem() ? Model->FindItemDefinition(Model->GetSlots()[CurrentSelectedIndex].ItemDefinitionId) : nullptr; return Definition && Definition->bUsable; }
+    bool GetCanUseSelectedItem() const
+    {
+        const FBackpackItemDefEntry* Definition =
+            HasSelectedItem() ? Model->FindItemDefinition(Model->GetSlots()[CurrentSelectedIndex].ItemDefinitionId)
+                              : nullptr;
+        return Definition && Definition->bUsable;
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify, Category = "Inventory|Selection")
-    bool GetCanDropSelectedItem() const { const FBackpackItemDefEntry* Definition = HasSelectedItem() ? Model->FindItemDefinition(Model->GetSlots()[CurrentSelectedIndex].ItemDefinitionId) : nullptr; return Definition && Definition->PickupActorClass; }
+    bool GetCanDropSelectedItem() const
+    {
+        const FBackpackItemDefEntry* Definition =
+            HasSelectedItem() ? Model->FindItemDefinition(Model->GetSlots()[CurrentSelectedIndex].ItemDefinitionId)
+                              : nullptr;
+        return Definition && Definition->PickupActorClass;
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify, Category = "Inventory|Selection")
-    FText GetUseButtonText() const { return FText::FromString(TEXT("Use")); }
+    FText GetUseButtonText() const
+    {
+        return FText::FromString(TEXT("Use"));
+    }
 
     UFUNCTION(BlueprintPure, FieldNotify, Category = "Inventory|Selection")
-    FText GetDropButtonText() const { return FText::FromString(TEXT("Drop")); }
+    FText GetDropButtonText() const
+    {
+        return FText::FromString(TEXT("Drop"));
+    }
 
     // 当前选中索引（-1=未选中）
     UPROPERTY(BlueprintReadOnly, FieldNotify, meta = (AllowPrivateAccess = true))
@@ -115,10 +157,11 @@ public:
     // 重置选中状态（数据变化时调用）
     void ResetSelection();
 
-	FOnInventoryDropRequested OnDropRequested;
-	FOnInventorySwapRequested OnSwapRequested;
-	FOnInventoryUseRequested OnUseRequested;
-	FOnInventoryDeleteRequested OnDeleteRequested;
+    FOnInventoryDropRequested OnDropRequested;
+    FOnInventorySwapRequested OnSwapRequested;
+    FOnInventoryUseRequested OnUseRequested;
+    FOnInventoryDeleteRequested OnDeleteRequested;
+
 private:
     UPROPERTY()
     UInventoryModel* Model = nullptr;
@@ -154,8 +197,5 @@ private:
     UFUNCTION()
     void OnMaxSlotsChanged(int32 NewMaxSlots);
 
-    void ClearDragState();  // 清理拖拽临时状态
-
+    void ClearDragState(); // 清理拖拽临时状态
 };
-
-

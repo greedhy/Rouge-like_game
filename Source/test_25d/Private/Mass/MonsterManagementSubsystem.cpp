@@ -27,11 +27,15 @@ void UMonsterManagementSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 void UMonsterManagementSubsystem::Enable(UMonsterManagementConfig* InConfig)
 {
     check(IsInGameThread());
-    if (bEnabled || GetWorld()->GetNetMode() == NM_Client || !Mass) return;
+    if (bEnabled || GetWorld()->GetNetMode() == NM_Client || !Mass)
+        return;
     // Snapshot the asset so runtime changes cannot invalidate existing grid membership.
-    Config = InConfig ? DuplicateObject<UMonsterManagementConfig>(InConfig, this) : NewObject<UMonsterManagementConfig>(this);
+    Config = InConfig ? DuplicateObject<UMonsterManagementConfig>(InConfig, this)
+                      : NewObject<UMonsterManagementConfig>(this);
     auto Safe = [](float Value, float Default, float Min, float Max)
-    { return FMath::IsFinite(Value) ? FMath::Clamp(Value, Min, Max) : Default; };
+    {
+        return FMath::IsFinite(Value) ? FMath::Clamp(Value, Min, Max) : Default;
+    };
     Config->CellSize = Safe(Config->CellSize, 1000, 100, 1000000);
     Config->UpdateInterval = Safe(Config->UpdateInterval, .2f, .02f, 5);
     Config->WakeRadius = Safe(Config->WakeRadius, 2500, 0, 1000000);
@@ -42,7 +46,8 @@ void UMonsterManagementSubsystem::Enable(UMonsterManagementConfig* InConfig)
     Archetype = Mass->GetMutableEntityManager().CreateArchetype(Fragments);
     bEnabled = true;
     for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
-        if (It->HasActorBegunPlay()) RegisterEnemy(*It);
+        if (It->HasActorBegunPlay())
+            RegisterEnemy(*It);
 }
 
 bool UMonsterManagementSubsystem::IsTickable() const
@@ -57,17 +62,21 @@ TStatId UMonsterManagementSubsystem::GetStatId() const
 
 void UMonsterManagementSubsystem::Tick(float DeltaTime)
 {
-    if (!Mass || Mass->GetEntityManager().IsProcessing()) return;
+    if (!Mass || Mass->GetEntityManager().IsProcessing())
+        return;
     TArray<TWeakObjectPtr<AEnemyCharacter>> Pending = MoveTemp(PendingRegistrations);
     PendingRegistrations.Reset();
-    for (const auto& Enemy : Pending) if (Enemy.IsValid()) RegisterEnemy(Enemy.Get());
+    for (const auto& Enemy : Pending)
+        if (Enemy.IsValid())
+            RegisterEnemy(Enemy.Get());
 }
 
 void UMonsterManagementSubsystem::RegisterEnemy(AEnemyCharacter* Enemy)
 {
     check(IsInGameThread());
-    if (!bEnabled || !IsValid(Enemy) || Enemy->GetWorld() != GetWorld() || !Enemy->HasAuthority()
-        || ICombatInterface::Execute_IsDead(Enemy) || ActorIds.Contains(Enemy)) return;
+    if (!bEnabled || !IsValid(Enemy) || Enemy->GetWorld() != GetWorld() || !Enemy->HasAuthority() ||
+        ICombatInterface::Execute_IsDead(Enemy) || ActorIds.Contains(Enemy))
+        return;
     auto& Entities = Mass->GetMutableEntityManager();
     if (Entities.IsProcessing())
     {
@@ -92,15 +101,16 @@ void UMonsterManagementSubsystem::RegisterEnemy(AEnemyCharacter* Enemy)
 void UMonsterManagementSubsystem::SetActive(FRecord& Record, bool bActive)
 {
     AEnemyCharacter* Enemy = Record.Enemy.Get();
-    if (!Enemy) return;
+    if (!Enemy)
+        return;
     Record.bActive = bActive;
     if (bActive)
     {
         if (auto* Brain = Record.PausedBrain.Get())
         {
             auto* AI = Cast<AAIController>(Enemy->GetController());
-            if (AI && AI->GetBrainComponent() == Brain && Brain->IsPaused()
-                && !ICombatInterface::Execute_IsDead(Enemy)) Brain->ResumeLogic(TEXT("Mass monster awake"));
+            if (AI && AI->GetBrainComponent() == Brain && Brain->IsPaused() && !ICombatInterface::Execute_IsDead(Enemy))
+                Brain->ResumeLogic(TEXT("Mass monster awake"));
         }
         Record.PausedBrain.Reset();
     }
@@ -119,15 +129,18 @@ void UMonsterManagementSubsystem::SetActive(FRecord& Record, bool bActive)
 void UMonsterManagementSubsystem::RemoveRecord(uint64 Id)
 {
     FRecord* Record = Records.Find(Id);
-    if (!Record) return;
+    if (!Record)
+        return;
     ActorIds.Remove(Record->Enemy);
     if (Mass)
     {
         auto& Entities = Mass->GetMutableEntityManager();
         if (Entities.IsEntityValid(Record->Entity))
         {
-            if (Entities.IsProcessing()) Entities.Defer().DestroyEntity(Record->Entity);
-            else Entities.DestroyEntity(Record->Entity);
+            if (Entities.IsProcessing())
+                Entities.Defer().DestroyEntity(Record->Entity);
+            else
+                Entities.DestroyEntity(Record->Entity);
         }
     }
     Grid.Remove(Id);
@@ -137,7 +150,8 @@ void UMonsterManagementSubsystem::RemoveRecord(uint64 Id)
 void UMonsterManagementSubsystem::UnregisterEnemy(AEnemyCharacter* Enemy)
 {
     PendingRegistrations.Remove(Enemy);
-    if (const uint64* Id = ActorIds.Find(Enemy)) RemoveRecord(*Id);
+    if (const uint64* Id = ActorIds.Find(Enemy))
+        RemoveRecord(*Id);
 }
 
 void UMonsterManagementSubsystem::NotifyDamaged(AEnemyCharacter* Enemy)
@@ -153,9 +167,11 @@ void UMonsterManagementSubsystem::NotifyDamaged(AEnemyCharacter* Enemy)
 bool UMonsterManagementSubsystem::BeginUpdate(float DeltaSeconds)
 {
     check(IsInGameThread());
-    if (!bEnabled || GetWorld()->GetNetMode() == NM_Client) return false;
+    if (!bEnabled || GetWorld()->GetNetMode() == NM_Client)
+        return false;
     AccumulatedTime += DeltaSeconds;
-    if (AccumulatedTime < Config->UpdateInterval) return false;
+    if (AccumulatedTime < Config->UpdateInterval)
+        return false;
     AccumulatedTime = FMath::Fmod(AccumulatedTime, Config->UpdateInterval);
     ++UpdateCount;
     PlayerLocations.Reset();
@@ -171,7 +187,8 @@ void UMonsterManagementSubsystem::UpdateEnemy(FMonsterFragment& Fragment)
 {
     FRecord* Record = Records.Find(Fragment.RegistrationId);
     AEnemyCharacter* Enemy = Fragment.Actor.Get();
-    if (!Record || !IsValid(Enemy) || ICombatInterface::Execute_IsDead(Enemy)) return;
+    if (!Record || !IsValid(Enemy) || ICombatInterface::Execute_IsDead(Enemy))
+        return;
     Fragment.Location = Enemy->GetActorLocation();
     Fragment.RoomId = Enemy->MonsterRoomId;
     Grid.Update(Fragment.RegistrationId, Fragment.Location, Fragment.RoomId);
@@ -181,44 +198,56 @@ void UMonsterManagementSubsystem::UpdateEnemy(FMonsterFragment& Fragment)
     bool bProtected = GetWorld()->GetTimeSeconds() < Record->ProtectedUntil || Enemy->bHitReacting;
     if (UAbilitySystemComponent* ASC = Enemy->GetAbilitySystemComponent())
         for (const FGameplayAbilitySpec& Ability : ASC->GetActivatableAbilities())
-            if (Ability.IsActive()) { bProtected = true; break; }
-    const bool bActive = FMonsterActivityPolicy::ShouldStayActive(Record->bActive, NearestSquared,
-        !PlayerLocations.IsEmpty(), bProtected, Config->WakeRadius, Config->SleepRadius);
+            if (Ability.IsActive())
+            {
+                bProtected = true;
+                break;
+            }
+    const bool bActive =
+        FMonsterActivityPolicy::ShouldStayActive(Record->bActive, NearestSquared, !PlayerLocations.IsEmpty(),
+                                                 bProtected, Config->WakeRadius, Config->SleepRadius);
     SetActive(*Record, bActive);
     Fragment.bActive = Record->bActive;
     if (Config->bDrawDebug)
-        DrawDebugSphere(GetWorld(), Fragment.Location + FVector(0,0,100), 40, 8,
-            bActive ? FColor::Green : FColor::Blue, false, Config->UpdateInterval);
+        DrawDebugSphere(GetWorld(), Fragment.Location + FVector(0, 0, 100), 40, 8,
+                        bActive ? FColor::Green : FColor::Blue, false, Config->UpdateInterval);
 }
 
 void UMonsterManagementSubsystem::FinishUpdate()
 {
     TArray<uint64> Stale;
     for (const auto& Pair : Records)
-        if (!Pair.Value.Enemy.IsValid() || ICombatInterface::Execute_IsDead(Pair.Value.Enemy.Get())) Stale.Add(Pair.Key);
-    for (uint64 Id : Stale) RemoveRecord(Id);
+        if (!Pair.Value.Enemy.IsValid() || ICombatInterface::Execute_IsDead(Pair.Value.Enemy.Get()))
+            Stale.Add(Pair.Key);
+    for (uint64 Id : Stale)
+        RemoveRecord(Id);
 }
 
-TArray<AEnemyCharacter*> UMonsterManagementSubsystem::FindMonstersInRadius(FVector Center, float Radius, FName RoomId) const
+TArray<AEnemyCharacter*> UMonsterManagementSubsystem::FindMonstersInRadius(FVector Center, float Radius,
+                                                                           FName RoomId) const
 {
     TArray<AEnemyCharacter*> Result;
     for (uint64 Id : Grid.Query(Center, Radius, RoomId))
         if (const FRecord* Record = Records.Find(Id))
-            if (AEnemyCharacter* Enemy = Record->Enemy.Get(); IsValid(Enemy) && !ICombatInterface::Execute_IsDead(Enemy)) Result.Add(Enemy);
+            if (AEnemyCharacter* Enemy = Record->Enemy.Get();
+                IsValid(Enemy) && !ICombatInterface::Execute_IsDead(Enemy))
+                Result.Add(Enemy);
     return Result;
 }
 
 bool UMonsterManagementSubsystem::IsMonsterActive(AEnemyCharacter* Enemy) const
 {
     if (const uint64* Id = ActorIds.Find(Enemy))
-        if (const FRecord* Record = Records.Find(*Id)) return Record->bActive;
+        if (const FRecord* Record = Records.Find(*Id))
+            return Record->bActive;
     return false;
 }
 
 FMassEntityHandle UMonsterManagementSubsystem::GetEntityForEnemy(const AEnemyCharacter* Enemy) const
 {
     if (const uint64* Id = ActorIds.Find(Enemy))
-        if (const FRecord* Record = Records.Find(*Id)) return Record->Entity;
+        if (const FRecord* Record = Records.Find(*Id))
+            return Record->Entity;
     return FMassEntityHandle();
 }
 
@@ -226,11 +255,17 @@ FMonsterManagementStats UMonsterManagementSubsystem::GetStats() const
 {
     FMonsterManagementStats Stats;
     Stats.bEnabled = bEnabled;
-    Stats.Registered = Records.Num(); Stats.OccupiedCells = Grid.NumCells(); Stats.UpdateCount = UpdateCount;
+    Stats.Registered = Records.Num();
+    Stats.OccupiedCells = Grid.NumCells();
+    Stats.UpdateCount = UpdateCount;
     for (const auto& Pair : Records)
     {
-        if (Pair.Value.bActive) ++Stats.Active; else ++Stats.Sleeping;
-        if (Pair.Value.PausedBrain.IsValid()) ++Stats.PausedBrains;
+        if (Pair.Value.bActive)
+            ++Stats.Active;
+        else
+            ++Stats.Sleeping;
+        if (Pair.Value.PausedBrain.IsValid())
+            ++Stats.PausedBrains;
     }
     return Stats;
 }
@@ -243,7 +278,11 @@ void UMonsterManagementSubsystem::Deinitialize()
     // Do not resume AI or touch another subsystem while the world is being destroyed.
     Records.Reset();
     Archetype = FMassArchetypeHandle();
-    PendingRegistrations.Reset(); PlayerLocations.Reset(); Grid.Reset(); ActorIds.Reset();
-    Config = nullptr; Mass = nullptr;
+    PendingRegistrations.Reset();
+    PlayerLocations.Reset();
+    Grid.Reset();
+    ActorIds.Reset();
+    Config = nullptr;
+    Mass = nullptr;
     Super::Deinitialize();
 }

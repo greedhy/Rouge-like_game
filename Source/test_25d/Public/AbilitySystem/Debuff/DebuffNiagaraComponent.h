@@ -13,18 +13,17 @@
 UCLASS()
 class TEST_25D_API UDebuffNiagaraComponent : public UNiagaraComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	UDebuffNiagaraComponent();
+    UDebuffNiagaraComponent();
 
-	UPROPERTY(VisibleAnywhere)
-	FGameplayTag DebuffTag;
+    UPROPERTY(VisibleAnywhere)
+    FGameplayTag DebuffTag;
 
 protected:
-	virtual void BeginPlay() override;
-	void DebuffTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
+    virtual void BeginPlay() override;
+    void DebuffTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 
-
-	UFUNCTION()
-	void OnOwnerDeath(AActor* DeadActor);
+    UFUNCTION()
+    void OnOwnerDeath(AActor* DeadActor);
 };

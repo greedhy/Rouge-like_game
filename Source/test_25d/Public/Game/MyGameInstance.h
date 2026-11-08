@@ -12,18 +12,18 @@
 UCLASS()
 class TEST_25D_API UMyGameInstance : public UGameInstance
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	// Referenced by the configured GameInstance Blueprint so the lobby map is included when cooking.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rooms")
-	TSoftObjectPtr<UWorld> RoomLobbyMap;
+    // Referenced by the configured GameInstance Blueprint so the lobby map is included when cooking.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rooms")
+    TSoftObjectPtr<UWorld> RoomLobbyMap;
 
-	UPROPERTY()
-	FName PlayerStartTag = FName();
+    UPROPERTY()
+    FName PlayerStartTag = FName();
 
-	UPROPERTY()
-	FString LoadSlotName = FString();
+    UPROPERTY()
+    FString LoadSlotName = FString();
 
-	UPROPERTY()
-	int32 LoadSlotIndex = 0;
+    UPROPERTY()
+    int32 LoadSlotIndex = 0;
 };

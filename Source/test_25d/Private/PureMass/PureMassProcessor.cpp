@@ -20,11 +20,13 @@ void UPureMassProcessor::Execute(FMassEntityManager& EntityManager, FMassExecuti
     MONSTER_PERF_SCOPE(MassSim);
     UWorld* World = Context.GetWorld();
     UPureMassSubsystem* Simulation = World ? World->GetSubsystem<UPureMassSubsystem>() : nullptr;
-    if (!Simulation || !Simulation->BeginUpdate(Context.GetDeltaTimeSeconds())) return;
-    Query.ForEachEntityChunk(Context, [Simulation](FMassExecutionContext& Chunk)
-    {
-        for (FPureMassFragment& Fragment : Chunk.GetMutableFragmentView<FPureMassFragment>())
-            Simulation->UpdateMonster(Fragment);
-    });
+    if (!Simulation || !Simulation->BeginUpdate(Context.GetDeltaTimeSeconds()))
+        return;
+    Query.ForEachEntityChunk(Context,
+                             [Simulation](FMassExecutionContext& Chunk)
+                             {
+                                 for (FPureMassFragment& Fragment : Chunk.GetMutableFragmentView<FPureMassFragment>())
+                                     Simulation->UpdateMonster(Fragment);
+                             });
     Simulation->FinishUpdate();
 }
