@@ -18,12 +18,55 @@
 #include "Game/MyGameInstance.h"
 #include "Engine/Engine.h"
 #include "Game/MyGameModeBase.h"
+#include "Game/LoadScreenSaveGame.h"
+#include "Character/StanderPlayer.h"
 #include "CheckPoint/TravelPlayerStart.h"
 #include "Player/MyPlayerState.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSavedProfessionTest, "test_25d.Rooms.SavedProfession",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+// Verify serialization and the same per-controller pawn selection used after seamless travel.
+bool FSavedProfessionTest::RunTest(const FString&)
+{
+    auto* Save = NewObject<ULoadScreenSaveGame>();
+    TestTrue(TEXT("Legacy default is Mage"), Save->Profession == EPlayerProfession::Mage);
+    Save->Profession = EPlayerProfession::Stander;
+    TArray<uint8> Bytes;
+    if (!TestTrue(TEXT("Save serialized"), UGameplayStatics::SaveGameToMemory(Save, Bytes)))
+    {
+        return false;
+    }
+    const auto* Loaded = Cast<ULoadScreenSaveGame>(UGameplayStatics::LoadGameFromMemory(Bytes));
+    if (!TestNotNull(TEXT("Save loaded"), Loaded))
+    {
+        return false;
+    }
+    TestTrue(TEXT("Standard survives reload"), Loaded->Profession == EPlayerProfession::Stander);
+
+    auto* World = UWorld::CreateWorld(EWorldType::Game, false);
+    auto* Mode = World->SpawnActor<AMyGameModeBase>();
+    auto* Mage = World->SpawnActor<APlayerController>();
+    auto* Standard = World->SpawnActor<APlayerController>();
+    Mage->PlayerState = World->SpawnActor<AMyPlayerState>();
+    Standard->PlayerState = World->SpawnActor<AMyPlayerState>();
+    auto* LobbyState = World->SpawnActor<AMyPlayerState>();
+    LobbyState->Profession = Loaded->Profession;
+    LobbyState->SeamlessTravelTo(Standard->PlayerState);
+    Mage->GetPlayerState<AMyPlayerState>()->Profession = EPlayerProfession::Mage;
+
+    const UClass* StandardPawn = Mode->GetDefaultPawnClassForController(Standard);
+    TestTrue(TEXT("Standard uses authored pawn after state copy"),
+             StandardPawn && StandardPawn->IsChildOf(AStanderPlayer::StaticClass()));
+    TestEqual(TEXT("Mage keeps the game mode pawn in the same room"),
+              Mode->GetDefaultPawnClassForController(Mage), Mode->DefaultPawnClass.Get());
+    TestNotNull(TEXT("Standard resolves its own ability catalog"), Mode->GetAbilityInfoForActor(Standard->PlayerState));
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSwordTrialArrival, "test_25d.Rooms.SwordTrialOverridesLegacySaveArrival",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 /** 执行 test_25d.Rooms.SwordTrialOverridesLegacySaveArrival 回归，失败信息由下方断言交给自动化框架收集。 */

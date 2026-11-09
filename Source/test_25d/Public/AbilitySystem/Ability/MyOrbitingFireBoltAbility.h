@@ -1,3 +1,4 @@
+// 调用链：GAS激活/初始费用 -> 注册轨道策略；公开计数接口只读取本次策略的资源状态。
 #pragma once
 
 #include "CoreMinimal.h"
@@ -6,6 +7,8 @@
 
 class AMyOrbitingFireBolt;
 class UOrbitingFireBoltConfig;
+class UAbilityGraphInstance;
+class UAbilityOrbitContext;
 
 UCLASS()
 class TEST_25D_API UMyOrbitingFireBoltAbility : public UMyProjectileSpell
@@ -40,33 +43,13 @@ public:
     UFUNCTION(BlueprintPure, Category = "OrbitingFireBolt")
     int32 GetLaunchedFireBoltCount() const;
     UFUNCTION(BlueprintPure, Category = "OrbitingFireBolt")
-    AActor* GetAttackTarget() const
-    {
-        return AttackTarget.Get();
-    }
+    AActor* GetAttackTarget() const;
 
 private:
-    void Replenish();
-    void PayUpkeep();
     bool SpendMana(float Amount) const;
-    void LaunchNext();
-    void HandleOffensiveAttack(UGameplayAbility* SourceAbility, AActor* Target);
-    void HandleDeactivate(const FGameplayTag& AbilityTag);
-    bool IsValidEnemy(AActor* Target) const;
-    void ClearTarget();
-    void ArrangeOrbit();
-    UFUNCTION()
-    void OnTargetDied(AActor* Target);
-    UFUNCTION()
-    void OnOwnerDied(AActor* OwnerActor);
-    UFUNCTION()
-    void OnOwnerDestroyed(AActor* OwnerActor);
     UPROPERTY()
-    TArray<TObjectPtr<AMyOrbitingFireBolt>> FireBolts;
-    TWeakObjectPtr<AActor> AttackTarget;
-    FTimerHandle SpawnTimer;
-    FTimerHandle ManaTimer;
-    FTimerHandle LaunchTimer;
-    FDelegateHandle AttackDelegateHandle;
-    FDelegateHandle DeactivateDelegateHandle;
+    TObjectPtr<UAbilityGraphInstance> OrbitGraph;
+    UPROPERTY()
+    TObjectPtr<UAbilityOrbitContext> OrbitContext;
+    FDelegateHandle GraphFinishedHandle;
 };

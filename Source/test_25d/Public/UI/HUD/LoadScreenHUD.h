@@ -19,6 +19,7 @@ class TEST_25D_API ALoadScreenHUD : public AHUD
 public:
     UFUNCTION(BlueprintCallable)
     void ShowModeSelection();
+    void ShowProfessionSelection();
     UFUNCTION(BlueprintCallable)
     void ShowSaveSelection();
     UPROPERTY(EditDefaultsOnly, Category = "Rooms")
@@ -37,6 +38,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly)
     TObjectPtr<UMVVM_LoadScreen> LoadScreenViewModel;
+
+private:
+    bool OpenRoomMenu();
 
 protected:
     virtual void BeginPlay() override;

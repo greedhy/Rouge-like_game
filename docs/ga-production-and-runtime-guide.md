@@ -1,8 +1,12 @@
 # GA 制作与调用全流程
 
+当前迁移后的完整解释与真实示例见 [现有 GA 的组合、制作与游戏运行全流程](ga-composition-authoring-runtime-walkthrough.md)，其中按实际代码区分图调度、动画前端、Actor/Mass 表现和配置入口。本文继续保留旧批次制作与项目接入资料。
+
 本文于 2026-10-31 补充制作流程，基础执行器说明沿用 2026-10-26 实现，覆盖「提出需求 → 选择执行器 → 编写逻辑 → 制作资产 → 接入角色、菜单与存档 → 输入激活 → 联机目标与伤害 → 表现 → 清理 → 验证」。GA 是 GameplayAbility；制作一个 GA 不只是创建一个同名蓝图。
 
 [返回项目首页](../README.md) · [主要功能清单](project-feature-catalog.md) · [build-ga 技能](../skills/build-ga/SKILL.md)
+
+2026-11-09：后续 GA 开发统一从 [统一 GA 制作指南](ga-unified-authoring-guide.md) 和 [框架/调用链](ga-framework-reference.md) 开始。Schema 2 使用注册策略、共享动作和类型化端口；旧 GA/DA 身份保留并通过兼容编译或共用动作接入。本文以下旧批次路径/字段用于维护现有资产，不能据此再复制旧执行器；当前实现和逐资产验证状态以 [迁移矩阵](ga-unified-migration-matrix.json) 为准。
 
 ## 可复用制作检查表
 
@@ -33,12 +37,12 @@
 
 | 路径 | GA / 配置 / 执行器 | 适用情况与边界 |
 |---|---|---|
-| 传统 Actor/GAS | `UMyGameplayAbility` / `UMyDamageGameplayAbility` 的派生类，配合 GA、GE、Cue、动画蓝图 | 复用原 FireBolt、Beam、近战、被动，或像 ArcaneNova 一样编写专用能力；不能假设所有旧技能自动支持 Mass |
-| 前四批 Actor 原型 | `UPrototypeAbility` + `UAbilityPrototype` + `APrototypeRuntime` | 18 种行为，使用 `OnHit / OnPeriod / OnExpire` 组合；原版执行器以 Actor 目标为主 |
-| 前四批混合目标原型 | `UPureMassAbility` + `UAbilityPrototype` + `APureMassRuntime` | Mass 目录中的 26 个 GA 副本，使用 Actor/Mass 混合目标接口；玩家仍是 Actor/GAS |
-| 第五批扩展 | `UExtensionAbility` + `UExtensionNode` + `AExtensionRuntime` / `UExtensionWorldSubsystem` | Attach、Stack、Displace，以及本执行器实现的 Projectile、Chain、Burst、Delay、Surface；使用 `HitChild / PeriodChild / CompleteChild` |
+| 新制作统一入口 | `UUnifiedGraphAbility` / Schema 2 `UAbilityGraphDefinition` / 注册执行类 | Enemy/Ground/Self 输入、类型化事件与明确寿命；支持范围由真实策略决定，Schema 1 样例保留兼容 |
+| 专用动画/输入前端 | `UMyGameplayAbility` / `UMyDamageGameplayAbility` 派生类 | 保留技能身份和时序，实际动作调用注册策略或同一共享动作服务；不重复实现伤害 |
+| 前四批旧 DA 维护 | `UPrototypeAbility` / `UPureMassAbility` + `UAbilityPrototype` | 兼容编译为统一图；提取的 Actor/Mixed Driver 保留 18 Kind 差异，原 Runtime 负责宿主和复制表现 |
+| 第五批旧 DA 维护 | `UExtensionAbility` + `UExtensionNode` | 兼容编译为统一图；提取的扩展 Driver 与原世界子系统持有叠层/位移状态 |
 
-第五批的 `UExtensionNode` 虽继承 `UAbilityPrototype`，实际行为由 **Behavior** 决定。不要用继承字段 **Kind** 代替 Behavior，也不要把旧版 `OnHit / OnPeriod / OnExpire` 填到扩展图中：`ValidateGraph()` 会拒绝这些连接。旧原型资产不能直接当作扩展子节点。
+第五批旧 `UExtensionNode` 的行为由 **Behavior** 决定，其旧指针字段仍有原校验要求。跨批次组合请在 Schema 2 中连接对应注册策略，不把旧资产直接塞进不兼容指针字段。编译后的端口与旧资产字段是两个层次。
 
 代码入口：[原型 GA](../Source/test_25d/Private/AbilitySystem/Prototypes/PrototypeAbility.cpp)、[混合 GA](../Source/test_25d/Private/PureMass/PureMassAbility.cpp)、[扩展 GA](../Source/test_25d/Private/AbilitySystem/PrototypeExtensions/ExtensionAbility.cpp)。
 
@@ -78,7 +82,7 @@
 
 ### 3.2 编写或复用 C++
 
-同一行为只改数值或节点关系时，复制独立 DA / GA 并配置即可。新增行为时，先实现对应执行器的验证、执行、目标适配、网络表现与清理，再制作资产。
+同一行为只改数值或连接时，创建独立配置即可。新增行为时扩展统一注册策略（配置校验、目标适配、网络表现与清理），专用 GA 前端复用实际动作；不要再新增一套平行执行器。
 
 - 传统完整原生能力参考 [MyArcaneNova.cpp](../Source/test_25d/Private/AbilitySystem/Ability/MyArcaneNova.cpp)：父类执行完整流程，蓝图只配参数，不再放第二套 Activate / Commit。
 - 原型参数参考 [AbilityPrototype.h](../Source/test_25d/Public/AbilitySystem/Prototypes/AbilityPrototype.h)：`DamagePerLevel`、Range、Radius、Period、Duration、LoopVFX、ImpactVFX 等。

@@ -38,7 +38,7 @@ public:
     void Enable();
     // 由生成入口创建实体，校验房间与导航落点后发布首份战斗快照。
     UFUNCTION(BlueprintCallable)
-    int32 SpawnMonster(UPureMassMonsterType* Type, FVector Location, FName Room = NAME_None);
+    int32 SpawnMonster(UPureMassMonsterType* Type, FVector Location, FName Room = NAME_None, int32 LevelOverride = 0);
     /** Public removal never reports Killed; only the damage path can credit a kill. */
     // 外部回收入口仅允许回收或异常原因，不能伪造击杀奖励。
     UFUNCTION(BlueprintCallable, Category = "PureMass|Encounter")

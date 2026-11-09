@@ -1,15 +1,13 @@
-/**
- * 框架：一个 Actor 执行一个行为节点；组合靠 Emit 生成更多 Runtime，不是递归激活多个 GA。
- * 调用链：GA Execute -> Spawn -> FinishSpawning -> BeginPlay；随后引擎 Tick -> 行为函数 -> Hit/Emit -> 子 Spawn。
- * 网络：服务端结算伤害；复制字段与 Niagara 呈现客户端状态。OnRep 与后续 Tick 是异步入口，非连续同步调用栈。
- * 生命周期：Context 由 Runtime 的 UPROPERTY 持有；Finish 清理附属对象，短延迟销毁；EndPlay 再次兜底。
- */
+/** GA / graph strategy -> Spawn or SpawnDriven -> driver Start; compatibility Tick or graph Advance -> driver behavior and child admission. This Actor owns only replication, presentation resources and compatibility delegates. */
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
+#include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
 #include "PrototypeRuntime.generated.h"
+
+class FActorAbilityDriver;
 
 class UNiagaraComponent;
 class AMyOrbitingFireBolt;
@@ -68,7 +66,28 @@ public:
     /** 范围行为的候选 Actor 查询，供 Pulse/Trap 等筛选敌方目标。 */
     void GatherTargets(TArray<AActor*>& Out) const;
 
+    /** Graph-owned invocation: installs child admission before BeginPlay and disables autonomous gameplay ticking. */
+    static APrototypeRuntime* SpawnDriven(UPrototypeCastContext* InContext, UAbilityPrototype* Config,
+                                          const FVector& Position, const FVector& InDirection, AActor* Target,
+                                          int32 InDepth, bool bSingle, FLegacyAbilityChildAdmission Admission,
+                                          UAbilityPrototype* PresentationConfig = nullptr);
+    /** The graph advances the extracted strategy while the actor only updates replicated presentation. */
+    TSharedPtr<FActorAbilityDriver> GetDriver() const
+    {
+        return Driver;
+    }
+
 private:
+    friend class FActorAbilityDriver;
+    TSharedPtr<FActorAbilityDriver> Driver;
+    bool bExternallyDriven = false;
+    /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
+    UPROPERTY()
+    TObjectPtr<UAbilityPrototype> ExecutionPrototype;
+    static APrototypeRuntime* SpawnInternal(UPrototypeCastContext* InContext, UAbilityPrototype* Config,
+                                            const FVector& Position, const FVector& InDirection, AActor* Target,
+                                            int32 InDepth, bool bSingle, FLegacyAbilityChildAdmission Admission,
+                                            bool bDriven, UAbilityPrototype* PresentationConfig);
     UPROPERTY()
     TObjectPtr<UNiagaraComponent> Visual;
     UPROPERTY()
@@ -77,14 +96,6 @@ private:
     TObjectPtr<ATerrainSurface> Surface;
     UPROPERTY()
     TArray<TObjectPtr<AMyOrbitingFireBolt>> Bolts;
-    TWeakObjectPtr<AActor> AttackTarget;
-    TWeakObjectPtr<AActor> LastChainTarget;
-    TSet<TWeakObjectPtr<AActor>> HitTargets;
-    FVector ChainOrigin = FVector::ZeroVector;
-    FVector Direction = FVector::ForwardVector;
-    float Age = 0.f, PeriodClock = 0.f, ManaClock = 0.f, LaunchClock = 0.f, Distance = 0.f;
-    int32 Depth = 0;
-    int32 Emissions = 0;
     UPROPERTY(Replicated)
     bool bSingleProjectile = false;
     UPROPERTY(ReplicatedUsing = OnRep_Finished)
@@ -92,7 +103,6 @@ private:
     UPROPERTY(Replicated)
     bool bImpactOnFinish = false;
     bool bPresentationReady = false, bFinishPresented = false;
-    FDelegateHandle AttackDelegate;
     UFUNCTION()
     /** 配置复制通知，同时由 BeginPlay 主动调用；负责本地 Niagara 初始化，不执行权威伤害。 */
     void OnRep_Prototype();

@@ -3,10 +3,11 @@
 #include "Animation/AnimMontage.h"
 
 // 暴露只读预检给蓝图，失败时调用者不应扣除本次技能资源。
-bool UAbilityTimelineDefinition::ValidateForMontage(UAnimMontage* Montage, FString& Error) const
+bool UAbilityTimelineDefinition::ValidateForMontage(UAnimMontage* Montage, FString& Error,
+                                                     bool bAllowEndBlendOut) const
 {
     FAbilityTimelineSnapshot Snapshot;
-    return ResolveMontage(Montage, Snapshot, Error);
+    return ResolveMontage(Montage, Snapshot, Error, bAllowEndBlendOut);
 }
 
 // 半开区间避免阶段边界仍沿用前摇倍率；终点用于完成时的最终查询。
@@ -87,6 +88,13 @@ void FAbilityTimelineSnapshot::Close()
 // 失败清空输出，避免调用者误用上一次成功解析的施法状态。
 bool UAbilityTimelineDefinition::Resolve(float MontageLength, FAbilityTimelineSnapshot& Out, FString& Error) const
 {
+    return ResolvePhases(MontageLength, Phases, Out, Error);
+}
+
+// Resolve the selected montage's phase list without copying or mutating the DA.
+bool UAbilityTimelineDefinition::ResolvePhases(float MontageLength, const TArray<FAbilityTimelinePhase>& SourcePhases,
+                                               FAbilityTimelineSnapshot& Out, FString& Error) const
+{
     Out = {};
     Error.Reset();
     FAbilityTimelineSnapshot Resolved;
@@ -95,13 +103,13 @@ bool UAbilityTimelineDefinition::Resolve(float MontageLength, FAbilityTimelineSn
         Error = Message;
         return false;
     };
-    if (!FMath::IsFinite(MontageLength) || MontageLength <= 0 || Phases.IsEmpty())
+    if (!FMath::IsFinite(MontageLength) || MontageLength <= 0 || SourcePhases.IsEmpty())
     {
         return Fail(TEXT("Timeline requires a positive montage length and phases"));
     }
     float Start = 0;
     TSet<FName> Names;
-    for (auto Phase : Phases)
+    for (auto Phase : SourcePhases)
     {
         if (Phase.Name.IsNone() || Names.Contains(Phase.Name) || !FMath::IsFinite(Phase.SourceEnd) ||
             Phase.SourceEnd <= Start)
@@ -159,18 +167,26 @@ bool UAbilityTimelineDefinition::Resolve(float MontageLength, FAbilityTimelineSn
 
 // 默认自然混出在最终恒定倍率阶段进行，避免已退出ActiveMontagesMap后ASC无法继续同步变速。
 bool UAbilityTimelineDefinition::ResolveMontage(const UAnimMontage* Montage, FAbilityTimelineSnapshot& Out,
-                                                FString& Error) const
+                                                FString& Error, bool bAllowEndBlendOut) const
 {
     Out = {};
     if (!Montage || Montage->HasRootMotion() || !FMath::IsNearlyEqual(Montage->RateScale, 1.f) ||
-        Montage->CompositeSections.Num() > 1 || !Montage->bEnableAutoBlendOut || Montage->BlendOutTriggerTime >= 0 ||
+        Montage->CompositeSections.Num() > 1 || !Montage->bEnableAutoBlendOut || (Montage->BlendOutTriggerTime >= 0 &&
+         !(bAllowEndBlendOut && Montage->BlendOutTriggerTime == 0.f)) ||
         (Montage->CompositeSections.Num() == 1 && !Montage->CompositeSections[0].NextSectionName.IsNone()))
     {
         Error = TEXT(
             "Timeline requires a non-looping, non-root-motion montage with default automatic blend-out and RateScale 1");
         return false;
     }
-    if (!Resolve(Montage->GetPlayLength(), Out, Error))
+    const auto* Variant = MontageVariants.Find(const_cast<UAnimMontage*>(Montage));
+    if (!MontageVariants.IsEmpty() && !Variant)
+    {
+        Error = TEXT("Timeline has no phases for this montage");
+        return false;
+    }
+    const auto& SourcePhases = Variant ? Variant->Phases : Phases;
+    if (!ResolvePhases(Montage->GetPlayLength(), SourcePhases, Out, Error))
     {
         return false;
     }

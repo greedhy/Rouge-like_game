@@ -216,6 +216,10 @@ void UDungeonRunWidget::Refresh()
     FString Status =
         FString::Printf(TEXT("%s  |  金币 %d\n%s  %s"), Director ? *PhaseLabel(Director->Phase) : TEXT("正在装配"),
                         View.Coins, *View.CurrentRoom.ToString(), Room ? *RoomLabel(Room->Role) : TEXT(""));
+    if (Room)
+    {
+        Status += FString::Printf(TEXT(" · 房间等级 %d"), Room->RoomLevel);
+    }
     if (Room && Room->Phase == EDungeonRoomPhase::Active)
         Status += FString::Printf(TEXT("\n第 %d 波 · 待出现 %d 波 · 剩余目标 %d"), Room->Wave, Room->PendingWaves,
                                   Room->RemainingRequired);

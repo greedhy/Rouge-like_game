@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：共享投射物动作延迟构造并捕获来源生命 -> 原碰撞伤害 -> 原命中特效/复制销毁。
 
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "NiagaraComponent.h"
 #include "Components/AudioComponent.h"
+#include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 #include "MyProjectile.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FProjectileDamageApplied, AActor*);
@@ -30,6 +31,8 @@ public:
     TObjectPtr<UProjectileMovementComponent> ProjectileMovement;
     UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true))
     FDamageEffectParams DamageEffectParams;
+    /** 仅权威端保存原施法生命；正常GA结束不影响飞行，死亡/换Avatar/池复用使命中失效。 */
+    void SetExecutionSourceToken(const FAbilitySourceToken& Source);
     virtual bool IsValidOverlap(AActor* OtherActor);
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -49,6 +52,7 @@ protected:
     }
 
 private:
+    TOptional<FAbilitySourceToken> ExecutionSource;
     bool bHit = false;
 
     UPROPERTY(EditDefaultsOnly)

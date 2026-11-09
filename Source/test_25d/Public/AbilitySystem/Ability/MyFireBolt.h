@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：原蓝图前端 -> SpawnProjectiles收集等级/插槽/追踪参数 -> 共享动作；描述保持原规则。
 
 #pragma once
 

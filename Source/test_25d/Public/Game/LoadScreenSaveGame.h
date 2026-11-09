@@ -6,6 +6,7 @@
 #include "GameFramework/SaveGame.h"
 #include "GameplayTagContainer.h"
 
+#include "Game/PlayerProfession.h"
 #include "LoadScreenSaveGame.generated.h"
 
 /**
@@ -95,6 +96,9 @@ public:
 
     UPROPERTY()
     FString PlayerName = FString("Default Name");
+
+    UPROPERTY()
+    EPlayerProfession Profession = EPlayerProfession::Mage;
 
     UPROPERTY()
     FString MapName = FString("Default Map Name");

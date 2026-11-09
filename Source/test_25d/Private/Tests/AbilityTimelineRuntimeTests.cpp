@@ -26,6 +26,7 @@
 #include "Tests/EquipmentTestEffects.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
+#include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 
 UAbilityTimelineTestAbility::UAbilityTimelineTestAbility()
 {
@@ -234,14 +235,19 @@ bool FTimelineGuard::RunTest(const FString&)
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
     GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
     auto* State = World->SpawnActor<AMyPlayerState>();
-    auto* Pawn = World->SpawnActor<AStanderPlayer>();
-    Pawn->SetPlayerState(State);
+    auto* Pawn = World->SpawnActor<AAbilityTimelineTestStander>();
+    Pawn->AttachState(State);
     auto* ASC = CastChecked<UMyAbilitySystemComponent>(State->GetAbilitySystemComponent());
     auto* Equipment = State->GetEquipmentComponent();
     auto* Backpack = State->GetBackpackComponent();
     Pawn->GetMesh()->SetSkeletalMeshAsset(
         LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/PlatformAnimation/Models/Stander.Stander")));
-    ASC->InitAbilityActorInfo(State, Pawn);
+    TestEqual(TEXT("Fixture Avatar exposes its actual PlayerState ASC"), Pawn->GetAbilitySystemComponent(),
+              State->GetAbilitySystemComponent());
+    FAbilitySourceToken FixtureSource;
+    FString SourceError;
+    const bool bValidFixtureSource = AbilityExecutionIdentity::CaptureSource(Pawn, FixtureSource, SourceError);
+    TestTrue(*FString::Printf(TEXT("Fixture captures a valid source life: %s"), *SourceError), bValidFixtureSource);
     ASC->AddAttributeSetSubobject(CastChecked<UMyAttributeSet>(State->GetAttributeSet()));
     ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxHealthAttribute(), 100);
     ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(), 100);
@@ -261,11 +267,85 @@ bool FTimelineGuard::RunTest(const FString&)
     Backpack->SetItemDefinitions(Catalog);
     Backpack->Initialize();
     Backpack->SetCapacity(1);
-    Equipment->ReconcileEffects();
+    Pawn->DefaultWeaponSet = SourceSet;
+    TestTrue(TEXT("Default Sword_Shield loads without an equipped item"), Equipment->ReconcileEffects());
+    TestTrue(TEXT("Default loadout leaves equipment slots empty"), Equipment->Slots.IsEmpty());
+    const auto* DefaultGuard = ASC->FindAbilitySpecFromClass(GuardClass);
+    const auto DefaultHandle = DefaultGuard ? DefaultGuard->Handle : FGameplayAbilitySpecHandle();
+    TestTrue(TEXT("Default set grants the real sword guard"), DefaultHandle.IsValid());
     Backpack->TryAddItem(Item.ItemDefinitionId, 1);
     const bool bEquipped = Equipment->TryEquip(0, Slot, Backpack->GetInventoryModel()->GetSlots()[0].ItemInstanceId,
                                                Backpack->GetRevision(), Equipment->Revision);
     TestTrue(TEXT("Equip real sword and shield"), bEquipped);
+    TestNotNull(TEXT("Same default handle survives equipping the matching set"),
+                ASC->FindAbilitySpecFromHandle(DefaultHandle));
+    if (bEquipped)
+    {
+        const auto EquippedInstance = Equipment->Slots[0].ItemInstanceId;
+        TestTrue(TEXT("Unequip the matching set"), Equipment->TryUnequip(
+            Slot, EquippedInstance, Backpack->GetRevision(), Equipment->Revision));
+        TestTrue(TEXT("After unequip, inventory equipment is empty"), Equipment->Slots.IsEmpty());
+        TestTrue(TEXT("After unequip, same Sword_Shield set remains active"), Equipment->GetWeaponSet() == SourceSet);
+        TestNotNull(TEXT("Same default handle survives unequip"), ASC->FindAbilitySpecFromHandle(DefaultHandle));
+    }
+    // Exercise every authored action, including the six real default input slots.
+    TestEqual(TEXT("Real Sword_Shield set exposes all 17 actions"), SourceSet->Abilities.Num(), 17);
+    for (const auto& Entry : SourceSet->Abilities)
+    {
+        auto* EquippedSpec = Entry.InputTag.IsValid() ? ASC->GetSpecWithSlot(Entry.InputTag)
+                                                     : ASC->FindAbilitySpecFromClass(Entry.Ability);
+        const FString Label = Entry.InputTag.ToString() + TEXT(" -> ") + Entry.Ability->GetName();
+        if (!TestTrue(Label + TEXT(" has expected weapon GA"),
+                      EquippedSpec && EquippedSpec->Ability->GetClass() == Entry.Ability))
+        {
+            continue;
+        }
+        auto* Action = CastChecked<UStanderWeaponActionAbility>(EquippedSpec->GetPrimaryInstance());
+        TestTrue(Label + TEXT(" action config valid"), Action->ActionConfig->Validate());
+        const auto Handle = EquippedSpec->Handle;
+        bool bEndedNormally = false;
+        const auto EndHandle = ASC->OnAbilityEnded.AddLambda(
+            [&](const FAbilityEndedData& Ended)
+            {
+                if (Ended.AbilitySpecHandle == Handle)
+                {
+                    bEndedNormally = !Ended.bWasCancelled;
+                }
+            });
+        Pawn->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+        ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 1000);
+        if (Entry.InputTag.IsValid())
+        {
+            ASC->AbilityInputTagHeld(Entry.InputTag);
+        }
+        else
+        {
+            ASC->TryActivateAbility(Handle);
+        }
+        TestTrue(Label + TEXT(" starts"), Action->IsActive());
+        TestTrue(Label + TEXT(" plays configured montage"),
+                 ASC->GetCurrentMontage() == Action->ActionConfig->Montage);
+        for (int32 Frame = 0; Frame < 2000 && Action->IsActive(); ++Frame)
+        {
+            Pawn->GetMesh()->TickAnimation(.01f, false);
+            Pawn->GetMesh()->GetAnimInstance()->DispatchQueuedAnimEvents();
+            if (auto* Task = Action->GetActiveTimelineTask())
+            {
+                Task->TickTask(.01f);
+            }
+            World->GetTimerManager().Tick(.01f);
+        }
+        ASC->OnAbilityEnded.Remove(EndHandle);
+        TestTrue(Label + TEXT(" completes without cancellation"), bEndedNormally);
+        TestFalse(Label + TEXT(" is no longer active"), Action->IsActive());
+        TestFalse(Label + TEXT(" releases Busy"),
+                  ASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.Stander.Busy"))));
+        ASC->CancelAbilityHandle(Handle);
+        if (Action->ActionConfig->CooldownTag.IsValid())
+        {
+            ASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(Action->ActionConfig->CooldownTag));
+        }
+    }
     auto* Spec = ASC->FindAbilitySpecFromClass(GuardClass);
     auto* Ability = Spec ? Cast<UStanderWeaponActionAbility>(Spec->GetPrimaryInstance()) : nullptr;
     if (TestNotNull(TEXT("Equipment grants guard"), Ability))

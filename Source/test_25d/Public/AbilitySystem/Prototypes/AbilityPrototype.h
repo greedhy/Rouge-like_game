@@ -8,6 +8,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "MyAbilityTypes.h"
+#include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 #include "AbilityPrototype.generated.h"
 
 class UNiagaraSystem;
@@ -143,6 +144,30 @@ public:
     int32 Level = 1;
     int32 Spawned = 0;
     bool bCancelled = false;
+    /** 跨族组合共用的持久状态预算；不放在第五批专用子类，允许任意根节点连接 Stack/Surface。 */
+    int32 Surfaces = 0;
+    TSet<FName> DetonatedEffects;
     /** Runtime::Spawn 的共享预算入口：取消状态、深度超出 0..3 或累计达到 64 时拒绝；成功立即占用一次预算。 */
     bool ReserveSpawn(int32 Depth);
+    /** 根执行首次捕获当前生命；后续调用只能验证原生命，不能把同 ASC 的新 Avatar 当作原施法者。 */
+    bool CaptureSourceLife(FString& Error);
+    /** 异步行为/子节点每次恢复前调用，失败关闭共享施法。普通预算单元测试不依赖此入口。 */
+    bool ValidateSourceLife();
+    /** 第一次选择目标时捕获生命；同施法后续恢复拒绝该 Actor/实体的新租约。 */
+    bool ResolveTargetLife(const FPureMassCombatTarget& Target, FVector& Location);
+    /** 历史命中只读快照；可能已失活，必须经 ResolveTarget 才能用于新伤害。 */
+    const FAbilityTargetToken* FindTargetLife(const FPureMassCombatTarget& Target) const
+    {
+        return TargetLives.Find(Target);
+    }
+    /** 统一图接入使用同一份已捕获来源，避免在目标数据返回后重新绑定来源身份。 */
+    const FAbilitySourceToken& GetSourceLife() const
+    {
+        return SourceLife;
+    }
+
+private:
+    bool bSourceLifeCaptured = false;
+    FAbilitySourceToken SourceLife;
+    TMap<FPureMassCombatTarget, FAbilityTargetToken> TargetLives;
 };

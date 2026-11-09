@@ -2,6 +2,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityEnemySpecialNodeExecutions.h"
 #include "GruxEnemyAbility.generated.h"
 
 UENUM(BlueprintType)
@@ -69,12 +70,11 @@ private:
     TWeakObjectPtr<UAnimMontage> ObservedMontage;
     UPROPERTY()
     TObjectPtr<UGruxAttackConfig> FrozenConfig;
-    int32 Stage = 0, ChargeRoom = INDEX_NONE;
+    int32 Stage = 0;
     float BaseDamageSnapshot = 0;
-    double ChargeStarted = 0;
     bool bCharging = false;
-    FVector ChargeStart = FVector::ZeroVector, PreviousChargePosition = FVector::ZeroVector;
-    TSet<TWeakObjectPtr<AActor>> ChargedTargets;
+    TSharedPtr<FAbilityEnemyAreaAction> ChargeAction;
+    FAbilitySourceToken ArmorSource;
     FActiveGameplayEffectHandle AppliedArmor;
 };
 UCLASS()

@@ -1,4 +1,6 @@
+// 调用链：导演初始化布局 → 建立房间/等级 → 遭遇账本推进 → FinishEncounter 唯一清房结果。
 #include "Roguelike/DungeonRunModel.h"
+#include "Equipment/SharedLootSubsystem.h"
 
 bool FDungeonEncounterLedger::Start(int32 Waves)
 {
@@ -135,6 +137,17 @@ bool FDungeonRunModel::Initialize(const FDungeonLayout& InLayout)
         auto& S = Rooms.AddDefaulted_GetRef();
         S.RoomId = R.RoomId;
         S.Role = R.Role;
+    }
+    // BFS 顺序保证父房间先处理；分支房间按深度而非数组序号定级。
+    TArray<int32> Depths;
+    Depths.Init(0, Count);
+    for (int32 Index : Queue)
+    {
+        if (Index != 0)
+        {
+            Depths[Index] = Depths[Parents[Index]] + 1;
+        }
+        Rooms[Index].RoomLevel = GetDefault<USharedLootSettings>()->RoomLevel(Depths[Index]);
     }
     Rooms[0].Phase = EDungeonRoomPhase::Cleared;
     Rooms[0].bVisited = true;

@@ -27,13 +27,74 @@
 #include "Engine/Level.h"
 #include "Misc/PackageName.h"
 #include "Online/RoomSubsystem.h"
+#include "Character/SwordShieldPlayer.h"
 
 AMyGameModeBase::AMyGameModeBase() : BackpackPersistenceProvider(MakeUnique<FServerLocalBackpackPersistenceProvider>())
 {
 }
 
+namespace
+{
+    // Existing character presets supply pawn, HUD and ability catalog independently of world rules.
+    const AMyGameModeBase* GetProfessionPreset(const AMyPlayerState* State, const UClass* ModePawn)
+    {
+        if (!State)
+        {
+            return nullptr;
+        }
+        const TCHAR* Preset = nullptr;
+        if (State->Profession == EPlayerProfession::Stander)
+        {
+            Preset = TEXT("/Game/BluePrints/Characters/Stander/BP_StanderGameMode.BP_StanderGameMode_C");
+        }
+        else if (State->Profession == EPlayerProfession::Mage && ModePawn &&
+                 ModePawn->IsChildOf(ASwordShieldPlayer::StaticClass()))
+        {
+            Preset = TEXT("/Game/RoguelikeGeneration/Gameplay/BP_DungeonRunGameMode.BP_DungeonRunGameMode_C");
+        }
+        const auto* Class = Preset ? LoadClass<AMyGameModeBase>(nullptr, Preset) : nullptr;
+        return Class ? Class->GetDefaultObject<AMyGameModeBase>() : nullptr;
+    }
+}
+
+// Choose per controller so different professions can share the same GameMode.
+UClass* AMyGameModeBase::GetDefaultPawnClassForController_Implementation(AController* Controller)
+{
+    const auto* Preset = GetProfessionPreset(Controller ? Controller->GetPlayerState<AMyPlayerState>() : nullptr,
+                                             DefaultPawnClass);
+    return Preset ? Preset->DefaultPawnClass.Get() : Super::GetDefaultPawnClassForController_Implementation(Controller);
+}
+
+void AMyGameModeBase::InitializeHUDForPlayer_Implementation(APlayerController* Controller)
+{
+    const auto* Preset = GetProfessionPreset(Controller->GetPlayerState<AMyPlayerState>(), DefaultPawnClass);
+    if (Preset)
+    {
+        Controller->ClientSetHUD(Preset->HUDClass);
+        return;
+    }
+    Super::InitializeHUDForPlayer_Implementation(Controller);
+}
+
+UAbilityInfo* AMyGameModeBase::GetAbilityInfoForActor(const AActor* Actor) const
+{
+    const auto* Pawn = Cast<APawn>(Actor);
+    const auto* State = Pawn ? Pawn->GetPlayerState<AMyPlayerState>() : Cast<AMyPlayerState>(Actor);
+    const auto* Preset = GetProfessionPreset(State, DefaultPawnClass);
+    return Preset ? Preset->AbilityInfo.Get() : AbilityInfo.Get();
+}
+
 void AMyGameModeBase::PostLogin(APlayerController* NewPlayer)
 {
+    if (NewPlayer && NewPlayer->IsLocalController())
+    {
+        auto* State = NewPlayer->GetPlayerState<AMyPlayerState>();
+        const auto* GI = GetGameInstance<UMyGameInstance>();
+        if (State && GI)
+        {
+            State->Profession = GI->GetSelectedProfession();
+        }
+    }
     FString PlayerId;
     if (!NewPlayer || !PendingLoginPlayerIds.RemoveAndCopyValue(NewPlayer, PlayerId))
     {
@@ -136,7 +197,7 @@ void AMyGameModeBase::HandleSeamlessTravelPlayer(AController*& C)
             RegisterBackpackSession(State, PlayerId, false);
         else if (State && ResolveStablePlayerIdForLogin(FString(), State->GetUniqueId(), PlayerId))
         {
-            // The UI-only lobby uses native PlayerStates. Their first seamless entry skips Login,
+            // The UI-only lobby has no backpack session. Its first seamless entry skips Login,
             // so initialize the new gameplay state's normal server-owned persistence session here.
             FString Error;
             if (BeginBackpackLogin(PlayerId, Error))
@@ -279,21 +340,27 @@ void AMyGameModeBase::ReleaseBackpackSession(const FString& PlayerId)
         BackpackPersistenceProvider->ReleaseSessionLock(PlayerId);
 }
 
-void AMyGameModeBase::SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex)
+// Create a slot once. An existing slot retains its original profession.
+bool AMyGameModeBase::SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex, EPlayerProfession Profession)
 {
     if (UGameplayStatics::DoesSaveGameExist(LoadSlot->GetLoadSlotName(), SlotIndex))
     {
-        UGameplayStatics::DeleteGameInSlot(LoadSlot->GetLoadSlotName(), SlotIndex);
+        return false;
     }
     USaveGame* SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
     ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
+    if (!LoadScreenSaveGame)
+    {
+        return false;
+    }
+    LoadScreenSaveGame->Profession = Profession;
     LoadScreenSaveGame->PlayerName = LoadSlot->GetPlayerName();
     LoadScreenSaveGame->SaveSlotStatus = Taken;
     LoadScreenSaveGame->MapName = LoadSlot->GetMapName();
     LoadScreenSaveGame->MapAssetName = LoadSlot->MapAssetName;
     LoadScreenSaveGame->PlayerStartTag = LoadSlot->PlayerStartTag;
 
-    UGameplayStatics::SaveGameToSlot(LoadScreenSaveGame, LoadSlot->GetLoadSlotName(), SlotIndex);
+    return UGameplayStatics::SaveGameToSlot(LoadScreenSaveGame, LoadSlot->GetLoadSlotName(), SlotIndex);
 }
 
 ULoadScreenSaveGame* AMyGameModeBase::GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const

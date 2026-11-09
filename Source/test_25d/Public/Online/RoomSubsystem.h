@@ -41,8 +41,10 @@ public:
     void StartSinglePlayer();
     UFUNCTION(BlueprintCallable)
     void StartSwordShieldTrial();
-    UFUNCTION(BlueprintCallable)
+#if WITH_DEV_AUTOMATION_TESTS
+    // Isolated legacy map probe. Player-facing selection uses the saved profession.
     void StartStanderTrial();
+#endif
     UFUNCTION(BlueprintCallable)
     void CreateRoom();
     UFUNCTION(BlueprintCallable)

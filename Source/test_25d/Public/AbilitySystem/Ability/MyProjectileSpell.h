@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：蓝图目标/蒙太奇前端 -> SpawnProjectile -> 共享Actor投射物动作；不重复Commit或伤害。
 
 #pragma once
 
@@ -18,6 +18,8 @@ class TEST_25D_API UMyProjectileSpell : public UMyDamageGameplayAbility
     GENERATED_BODY()
 public:
 protected:
+    /** 必须仍属于本次激活的来源生命，不能在Avatar重绑定后重新授权旧动画通知。 */
+    bool CaptureProjectileSource(FAbilitySourceToken& Source) const;
     // Shared deferred-spawn path for active FireBolt and persistent orbiting fireballs.
     AMyProjectile* CreateProjectileDeferred(TSubclassOf<AMyProjectile> Class, const FTransform& Transform);
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,

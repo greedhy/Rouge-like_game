@@ -12,6 +12,9 @@
 #include "Abilities/Tasks/AbilityTask_WaitInputRelease.h"
 #include "TimerManager.h"
 #include "AbilitySystem/Data/OrbitingFireBoltConfig.h"
+#include "AbilitySystem/Unified/AbilityLegacyGraphCompiler.h"
+#include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "AbilitySystem/Unified/AbilityNodeInput.h"
 
 /** 构造阶段设定每 Actor 实例化与本地预测策略；伤害附加参数默认关闭。 */
 UPrototypeAbility::UPrototypeAbility()
@@ -95,7 +98,7 @@ void UPrototypeAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, const
                                         FGameplayAbilityActivationInfo Activation, const FGameplayEventData* Event)
 {
     bReceivedTarget = false;
-    Runtime = nullptr;
+    UnifiedExecution = nullptr;
     if (!Info || !Prototype)
     {
         Abort();
@@ -190,6 +193,14 @@ void UPrototypeAbility::Execute(const FVector& Position, AActor* Target)
         return;
     }
     SetOffensiveAttackTarget(Target);
+    FString GraphError;
+    UAbilityGraphDefinition* Graph = PrepareUnifiedGraph(TEXT("LegacyActor.v1"), GraphError);
+    if (!Graph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Unified GA %s: %s"), *GetName(), *GraphError);
+        Abort();
+        return;
+    }
     if (!CanActivateAbility(CurrentSpecHandle, CurrentActorInfo) ||
         !CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
     {
@@ -223,18 +234,16 @@ void UPrototypeAbility::Execute(const FVector& Position, AActor* Target)
         if (Target)
             Origin.Z = Position.Z;
     }
-    Runtime = APrototypeRuntime::Spawn(Context, Prototype, Origin, Direction, Target);
-    if (!IsValid(Runtime))
+    const bool bHold = Prototype->Kind == K::Beam || Prototype->Kind == K::Orbit;
+    if (!StartUnifiedGraph(Graph, Context, Origin, Direction, FPureMassCombatTarget::FromActor(Target), bHold,
+                           GraphError))
     {
         Abort();
         return;
     }
     PrototypeFacing::Apply(Avatar, Position, Prototype->bTargetSelf);
-    if (Prototype->Kind == K::Beam || Prototype->Kind == K::Orbit)
-        Runtime->OnDestroyed.AddDynamic(this, &ThisClass::OnRuntimeDestroyed);
-    else
+    if (!bHold)
     {
-        Runtime = nullptr; // Finite actors own their lifespan after an instant GA ends.
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
     }
 }
@@ -243,13 +252,6 @@ void UPrototypeAbility::Execute(const FVector& Position, AActor* Target)
 void UPrototypeAbility::OnReleased(float)
 {
     Abort();
-}
-/** Runtime 的 OnDestroyed 回调：先清空引用，再结束仍激活的 GA，避免重复取消已销毁对象。 */
-void UPrototypeAbility::OnRuntimeDestroyed(AActor*)
-{
-    Runtime = nullptr;
-    if (IsActive())
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 /** 超时、非法目标或松键共用的取消入口；仅在 GA 激活时调用 EndAbility。 */
 void UPrototypeAbility::Abort()
@@ -263,13 +265,82 @@ void UPrototypeAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGam
 {
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(TargetTimeout);
-    if (IsValid(Runtime))
+    if (UnifiedExecution)
     {
-        Runtime->OnDestroyed.RemoveDynamic(this, &ThisClass::OnRuntimeDestroyed);
-        Runtime->CancelCast();
+        UnifiedExecution->OnFinished.RemoveAll(this);
+        if (bCancelled)
+        {
+            UnifiedExecution->Cancel();
+        }
     }
-    Runtime = nullptr;
+    UnifiedExecution = nullptr;
     Super::EndAbility(Handle, Info, Activation, bReplicate, bCancelled);
+}
+
+UAbilityGraphDefinition* UPrototypeAbility::PrepareUnifiedGraph(FName Profile, FString& Error)
+{
+    const auto Session = GetExecutionSession();
+    if (!CurrentActorInfo || !CurrentActorInfo->IsNetAuthority() || !Session || !Session->IsSourceCurrent())
+    {
+        Error = TEXT("The original activation source is no longer current.");
+        return nullptr;
+    }
+    return UAbilityLegacyGraphCompiler::Compile(this, Prototype, Profile, Error);
+}
+
+bool UPrototypeAbility::StartUnifiedGraph(UAbilityGraphDefinition* Graph, UPrototypeCastContext* Context,
+                                          FVector Origin, FVector Direction, const FPureMassCombatTarget& Target,
+                                          bool bHoldAbility, FString& Error)
+{
+    if (!Context || !Context->CaptureSourceLife(Error))
+    {
+        return false;
+    }
+    FAbilityNodeInput Input;
+    Input.SourceToken = Context->GetSourceLife();
+    Input.Origin = Origin;
+    Input.Direction = Direction;
+    Input.EventCenter = Origin;
+    Input.Context = Context;
+    Input.Level = Context->Level;
+    Input.DamageParams = Context->DamageParams;
+    if (Target.IsSet())
+    {
+        FVector Location;
+        if (!Context->ResolveTargetLife(Target, Location))
+        {
+            Error = TEXT("The selected target life is no longer valid.");
+            return false;
+        }
+        Input.LiveTargetToken = *Context->FindTargetLife(Target);
+    }
+    UnifiedExecution = UAbilityLegacyGraphCompiler::Execute(Graph, Context, Input, Error);
+    if (!UnifiedExecution)
+    {
+        return false;
+    }
+    if (bHoldAbility)
+    {
+        if (UnifiedExecution->IsFinished())
+        {
+            OnUnifiedFinished(UnifiedExecution->GetEndReason());
+        }
+        else
+        {
+            UnifiedExecution->OnFinished.AddUObject(this, &ThisClass::OnUnifiedFinished);
+        }
+    }
+    return true;
+}
+
+void UPrototypeAbility::OnUnifiedFinished(EAbilityGraphEndReason Reason)
+{
+    UnifiedExecution = nullptr;
+    if (IsActive())
+    {
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true,
+                   Reason != EAbilityGraphEndReason::Completed && Reason != EAbilityGraphEndReason::Expired);
+    }
 }
 
 /** 技能 UI 查询入口：按当前节点 Kind 和等级参数生成说明；不执行技能或消耗资源。 */

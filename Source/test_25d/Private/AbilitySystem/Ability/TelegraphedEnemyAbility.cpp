@@ -1,5 +1,7 @@
 // 主要调用链：行为树攻击标签 → 选择器 TryChooseAttack → ActivateAbility 建立预警 → Advance 按蒙太奇接触时间结算 → EndAbility 清理。
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 #include "Character/TelegraphedEnemyCharacter.h"
 #include "NativeGameplayTags.h"
 #include "AbilitySystemBlueprintLibrary.h"
@@ -52,6 +54,10 @@ bool UTelegraphedEnemyAbility::CanActivateAbility(FGameplayAbilitySpecHandle Han
                                                   FGameplayTagContainer* Relevant) const
 {
     auto* Actor = Info ? Cast<ATelegraphedEnemyCharacter>(Info->AvatarActor.Get()) : nullptr;
+    if (UAbilityMovementOwnershipComponent::HasActiveClaim(Actor))
+    {
+        return false;
+    }
     FString Error;
     if (!Actor || !Info->AbilitySystemComponent.IsValid() || !AttackConfig || !AttackConfig->Tuning.Validate(Error) ||
         !Actor->GetCombatConfig() || !Actor->GetCombatConfig()->DamageEffect ||
@@ -234,7 +240,20 @@ void UTelegraphedEnemyAbility::Advance()
                 return;
             }
             bHit = true;
-            ResolveHit();
+            const TWeakObjectPtr<UTelegraphedEnemyAbility> WeakThis(this);
+            // 每段重新预警产生新的Serial；同段通知只执行一次，子类仍复用原专属命中动作。
+            if (!DispatchExecutionAction(TEXT("Enemy.Contact"), Serial,
+                                         [WeakThis](int32)
+                                         {
+                                             if (auto* Self = WeakThis.Get())
+                                             {
+                                                 Self->ResolveHit();
+                                             }
+                                         }))
+            {
+                Abort();
+                return;
+            }
             if (!IsActive())
                 return;
         }
@@ -246,33 +265,15 @@ void UTelegraphedEnemyAbility::Advance()
 void UTelegraphedEnemyAbility::GatherTargets(TArray<AActor*>& Out) const
 {
     Out.Reset();
-    if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease))
-        return;
-    TArray<AActor*> Candidates;
-    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Golem.Get(), Candidates, {Golem.Get()},
-                                                        Snapshot.QueryRadius() + 200, Center);
-    for (auto* Target : Candidates)
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease) ||
+        !AbilityExecutionIdentity::CaptureSource(Golem.Get(), Source, Error))
     {
-        if (Snapshot.bSingleTarget && Target != SelectedTarget.Get())
-            continue;
-        if (!IsValid(Target) || !Target->Implements<UCombatInterface>() || ICombatInterface::Execute_IsDead(Target) ||
-            !UMyAbilitySystemLibrary::IsNotFriend(Golem.Get(), Target) ||
-            !ADungeonRunDirector::AllowsCombat(Golem.Get(), Target) ||
-            !UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target))
-            continue;
-        FVector Feet = Target->GetActorLocation();
-        if (const auto* Character = Cast<ACharacter>(Target))
-            Feet.Z -= Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-        FVector Ground;
-        if (!Snapshot.Contains(Center, Yaw, Feet) ||
-            !StoneGolemGeometry::SurfaceContains(LockedSurface, LockedTriangles, Feet) ||
-            !StoneGolemGeometry::Project(GetWorld(), Golem.Get(), FVector(Feet.X, Feet.Y, Center.Z),
-                                         Snapshot.HeightTolerance, Ground) ||
-            FMath::Abs(Feet.Z - Ground.Z) > Snapshot.HeightTolerance ||
-            !StoneGolemGeometry::Visible(GetWorld(), Golem.Get(), Center, Ground))
-            continue;
-        Out.AddUnique(Target);
+        return;
     }
+    AbilityCharacterActions::GatherTelegraphedTargets(Source, Snapshot, Center, Yaw, LockedSurface, LockedTriangles,
+                                                      SelectedTarget.Get(), Out);
 }
 // 计算命中特效落点，并将当前合法目标交给伤害结算。
 void UTelegraphedEnemyAbility::ResolveHit()
@@ -296,26 +297,28 @@ void UTelegraphedEnemyAbility::ResolveHit()
 // 逐个目标重新检查攻击归属，使用伤害快照与击退参数走统一 GAS 伤害通路。
 void UTelegraphedEnemyAbility::ApplyHitTargets(const TArray<AActor*>& Targets)
 {
-    if (!Targets.IsEmpty())
-        ReportOffensiveAttack(Targets[0]);
-    for (auto* Target : Targets)
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease) ||
+        !AbilityExecutionIdentity::CaptureSource(Golem.Get(), Source, Error))
     {
-        if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease))
-            break;
-        if (!IsValid(Target) || ICombatInterface::Execute_IsDead(Target))
-            continue;
-        auto Params = MakeDamageEffectParamsFromClassDefaults(Target);
-        Params.DamageGameplayEffectClass = SnapshotDamageEffect;
-        Params.DamageType = SnapshotDamageType;
-        Params.BaseDamage = SnapshotDamage;
-        Params.DebuffChance = 0;
-        Params.bIsRadialDamage = false;
-        Params.KnockbackChance = Snapshot.KnockbackSpeed > 0 || Snapshot.KnockbackUpSpeed > 0 ? 100 : 0;
-        Params.KnockbackForce =
-            (Target->GetActorLocation() - Golem->GetActorLocation()).GetSafeNormal2D() * Snapshot.KnockbackSpeed;
-        Params.KnockbackForce.Z = Snapshot.KnockbackUpSpeed;
-        UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
+        return;
     }
+    auto Params = MakeDamageEffectParamsFromClassDefaults();
+    Params.DamageGameplayEffectClass = SnapshotDamageEffect;
+    Params.DamageType = SnapshotDamageType;
+    Params.BaseDamage = SnapshotDamage;
+    FAbilityCharacterActionCallbacks Callbacks;
+    Callbacks.BeforeActorDamage = [this](AActor* Target)
+    {
+        ReportOffensiveAttack(Target);
+    };
+    Callbacks.IsCurrent = [this, Session = GetExecutionSession()]()
+    {
+        return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
+               Golem.IsValid() && Golem->IsAttackCurrent(Serial, Lease);
+    };
+    AbilityCharacterActions::ApplyTelegraphedTargets(Source, Params, Snapshot, Targets, Callbacks);
 }
 // 将异常、中断或失效统一转入取消收尾。
 void UTelegraphedEnemyAbility::Abort()
@@ -326,6 +329,7 @@ void UTelegraphedEnemyAbility::Abort()
 void UTelegraphedEnemyAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                           FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled)
 {
+    CloseExecutionSession(Cancelled);
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(UpdateTimer);
     if (Serial && Golem.IsValid())

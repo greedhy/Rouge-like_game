@@ -277,7 +277,11 @@ bool FOrbitConfiguration::RunTest(const FString&)
     Ability->Config = DuplicateObject<UOrbitingFireBoltConfig>(Ability->Config, Ability);
     Ability->Config->MaxFireBolts = 2;
     F.Advance(12.1f);
-    TestEqual(TEXT("Data asset limit is honored"), Ability->GetLiveFireBoltCount(), 2);
+    TestEqual(TEXT("Active cast retains its immutable configuration"), Ability->GetLiveFireBoltCount(), 3);
+    F.ASC->CancelAbilityHandle(F.Handle);
+    TestTrue(TEXT("Updated configuration is accepted by the next activation"), F.ASC->TryActivateAbility(F.Handle));
+    F.Advance(6.1f);
+    TestEqual(TEXT("Next cast honors updated capacity"), Ability->GetLiveFireBoltCount(), 2);
     auto* Far = F.Spawn(FVector(5000, 0, 0), TEXT("Enemy"));
     F.Attack(Far);
     TestNull(TEXT("Out-of-range target rejected"), Ability->GetAttackTarget());

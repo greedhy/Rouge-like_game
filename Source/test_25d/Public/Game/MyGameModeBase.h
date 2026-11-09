@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Backpack/BackpackPersistence.h"
+#include "Game/PlayerProfession.h"
 #include "MyGameModeBase.generated.h"
 
 class UAbilitySystemComponent;
@@ -60,7 +61,11 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Loot Tiers")
     TObjectPtr<ULootTiers> LootTiers;
 
-    void SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex);
+    bool SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex,
+                      EPlayerProfession Profession = EPlayerProfession::Mage);
+    virtual UClass* GetDefaultPawnClassForController_Implementation(AController* Controller) override;
+    virtual void InitializeHUDForPlayer_Implementation(APlayerController* Controller) override;
+    UAbilityInfo* GetAbilityInfoForActor(const AActor* Actor) const;
     ULoadScreenSaveGame* GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const;
     static void DeleteSlot(const FString& SlotName, int32 SlotIndex);
     ULoadScreenSaveGame* RetrieveInGameSaveData();

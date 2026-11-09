@@ -15,6 +15,8 @@
 #include "GameplayAbilitySpec.h"
 #include "EquipmentComponent.generated.h"
 
+class AStanderPlayer;
+
 class UAbilitySystemComponent;
 class UBackpackComponent;
 struct FReplicatedInventorySlot;
@@ -151,11 +153,13 @@ private:
     // 验证武器组唯一性、可取消性和能力标签，预授予新能力供事务提交。
     bool PrepareWeaponSet(const TArray<FEquipmentSlot>& Records, TArray<FGameplayAbilitySpecHandle>& Prepared);
     // 撤销旧武器能力、恢复被挤出能力，再为新武器分配输入槽并刷新外观。
-    void CommitWeaponSet(const TArray<FEquipmentSlot>& Records, const TArray<FGameplayAbilitySpecHandle>& Prepared);
+    void CommitWeaponSet(const TArray<FEquipmentSlot>& Records, const TArray<FGameplayAbilitySpecHandle>& Prepared,
+                         bool bIncludeDefault = true);
     // 撤销尚未提交的临时武器能力。
     void DiscardWeaponSet(const TArray<FGameplayAbilitySpecHandle>& Prepared);
     // 从装备记录中查找带武器能力组的定义。
-    UWeaponSetConfig* WeaponSetFor(const TArray<FEquipmentSlot>& Records) const;
+    UWeaponSetConfig* WeaponSetFor(const TArray<FEquipmentSlot>& Records, bool bIncludeDefault = true) const;
+    AStanderPlayer* FindStanderAvatar() const;
 
     FDelegateHandle RemovedDelegate;
     // 订阅装备效果移除事件，用于检测外部移除造成的状态缺失。

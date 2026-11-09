@@ -4,7 +4,7 @@
 
 更新于 **2026-10-31**。下表按本地源码、资产制作记录及已有测试整理；“已实现”不代表所有地图均启用，也不代表打包版本已验收。GitHub 最近一次同步仅包含代码、配置、脚本和文档，新增地图、蓝图、纹理等资产仍需本地资源配套，单独克隆代码不能保证体验最新全部玩法。
 
-[详细功能清单](docs/project-feature-catalog.md) · [GA 制作流程](docs/ga-production-and-runtime-guide.md) · [随机装备指南](docs/2026-10-31-random-equipment-guide.md)
+[详细功能清单](docs/project-feature-catalog.md) · [GA 全流程与实际示例](docs/ga-composition-authoring-runtime-walkthrough.md) · [GA 制作流程](docs/ga-production-and-runtime-guide.md) · [随机装备指南](docs/2026-10-31-random-equipment-guide.md)
 
 ## 当前玩法
 
@@ -21,6 +21,7 @@
 | 药水与背包 | 拾取、堆叠、交换、使用药水和整组丢弃 | 消耗品走既有 GE；服务端校验与背包持久化 |
 | 装备拾取与穿戴 | 靠近 Soul 查看名称，E 拾取，B 同时打开背包与装备栏，选择穿脱 | 左右戒指槽与胸甲槽；出生房间原 5 件固定样例 + 3 件随机样例 |
 | 随机装备 | 获得不同品质、基础数值、前后缀及词缀等级的装备 | 服务器生成一次；穿脱、丢弃、复制、读档保留实际结果；当前支持 20 项持久属性加法，含主属性、次级属性和六种抗性 |
+| 共享掉落与等级 | 普通怪概率掉药水，精英/Boss 保底药水与词缀装备，清战斗房额外 2 件装备 | 全模式共用规则；Mass 无掉落；房间按入口深度定级，装备当前上限 20；[配置与验收](docs/2026-11-09-shared-loot-and-room-levels.md) |
 | 队友倒地 | 存活队友继续清房，倒地者清房后复活；全灭则失败 | 保留原 Pawn/ASC；异常移除必杀目标会明确失败，不算击杀 |
 | 地形战斗 | 利用或躲避岩浆、冰霜、毒性与藤蔓区域 | 分别提供灼烧、减速、中毒和缠绕；泥潭目前仅视觉 |
 | Mass 实验玩法 | 在独立测试地图对抗 200 Goblin，测试 Actor/Mass 混合技能 | 保留独立 ECS 实现；不代表当前随机地牢默认启用 Mass 或已有大规模性能保证 |
@@ -96,6 +97,7 @@
 | [装备开发规范](docs/equipment-development-standard.md) | 服务端装备事务、GE 约束、复制及持久化 |
 | [随机装备接入指南](docs/2026-10-31-random-equipment-guide.md) | 表格编辑、实例生命周期、样例与测试 |
 | [GA 制作与调用全流程](docs/ga-production-and-runtime-guide.md) | 从技能定义、制作资产到输入、结算与清理 |
+| [现有 GA 组合与实际示例](docs/ga-composition-authoring-runtime-walkthrough.md) | 迁移后的资产组合、真实调用顺序、动画/特效、网络与生命周期；含火种、石化、Stander、StoneGolem等案例 |
 | [课程学习记录](docs/aura-learning-notes.md) | 原首页保留的学习笔记 |
 
 基础工程参考 Stephen Ulibarri 的 [GAS Top Down RPG 课程](https://www.udemy.com/course/unreal-engine-5-gas-top-down-rpg/) 与 [Aura 原仓库](https://github.com/DruidMech/GameplayAbilitySystem_Aura)，学习亦参考 CSDN 暮志未晚NAN、GitHub ShinyRuo 的笔记。课程基础代码与第三方美术素材不作为本项目原创内容。

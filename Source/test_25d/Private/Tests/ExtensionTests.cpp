@@ -238,7 +238,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionBurstTest, "test_25d.Extensions.Mixed
 bool FExtensionBurstTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     const int32 Id = F.Enemy(FVector(100, 0, 0));
@@ -258,7 +258,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionStackTest, "test_25d.Extensions.Stack
 bool FExtensionStackTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* S = F.World->GetSubsystem<UExtensionWorldSubsystem>();
@@ -306,7 +306,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionAttachTest, "test_25d.Extensions.Atta
 bool FExtensionAttachTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* A = F.Character(FVector(100, 0, 0));
@@ -340,7 +340,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionStackEdgeTest, "test_25d.Extensions.S
 bool FExtensionStackEdgeTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* S = F.World->GetSubsystem<UExtensionWorldSubsystem>();
@@ -385,7 +385,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionMoveTest, "test_25d.Extensions.Displa
 bool FExtensionMoveTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* Floor = F.World->SpawnActor<AActor>();
@@ -432,7 +432,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionHitchTest, "test_25d.Extensions.Hitch
 bool FExtensionHitchTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     const int32 Id = F.Enemy(FVector(100, 0, 0));
@@ -464,7 +464,7 @@ bool FExtensionLethalStackTest::RunTest(const FString&)
     using namespace ExtensionTests;
     for (bool ActorTarget : {false, true})
     {
-        FFixture F;
+        ExtensionTests::FFixture F;
         if (!F.Ready(*this))
             return false;
         FTarget Target;
@@ -509,7 +509,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionPublicCancelTest, "test_25d.Extension
 bool FExtensionPublicCancelTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     int32 Id = F.Enemy(FVector(100, 0, 0));
@@ -529,7 +529,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionPointsRespawnTest, "test_25d.Extensio
 bool FExtensionPointsRespawnTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* S = NewObject<UMassStartingPointsSession>(F.World->GetGameInstance());
@@ -551,7 +551,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FExtensionGroundContactTest, "test_25d.Extensio
 bool FExtensionGroundContactTest::RunTest(const FString&)
 {
     using namespace ExtensionTests;
-    FFixture F;
+    ExtensionTests::FFixture F;
     if (!F.Ready(*this))
         return false;
     auto* Floor = F.World->SpawnActor<AActor>();

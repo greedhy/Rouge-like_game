@@ -64,7 +64,6 @@ void UPureMassAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, const 
                                        FGameplayAbilityActivationInfo Activation, const FGameplayEventData* Event)
 {
     bTargetConsumed = false;
-    MassRuntime = nullptr;
     if (!Info || !Prototype || !GetWorld()->GetSubsystem<UPureMassSubsystem>())
     {
         AbortMass();
@@ -170,6 +169,14 @@ void UPureMassAbility::ExecuteMass(const FVector& Point, FPureMassCombatTarget T
         return;
     }
     SetOffensiveAttackTarget(Target.Actor.Get());
+    FString GraphError;
+    UAbilityGraphDefinition* Graph = PrepareUnifiedGraph(TEXT("LegacyMixed.v1"), GraphError);
+    if (!Graph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Unified GA %s: %s"), *GetName(), *GraphError);
+        AbortMass();
+        return;
+    }
     if (!CanActivateAbility(CurrentSpecHandle, CurrentActorInfo) ||
         !CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
     {
@@ -192,8 +199,8 @@ void UPureMassAbility::ExecuteMass(const FVector& Point, FPureMassCombatTarget T
     }
     if (Prototype->Kind == K::Cone || Prototype->Kind == K::Line || Prototype->Kind == K::Chain)
         Origin = Avatar->GetActorLocation();
-    MassRuntime = APureMassRuntime::Spawn(Context, Prototype, Origin, Direction, Target);
-    if (!IsValid(MassRuntime))
+    const bool bHold = Prototype->Kind == K::Beam || IsInputToggleAbility();
+    if (!StartUnifiedGraph(Graph, Context, Origin, Direction, Target, bHold, GraphError))
     {
         AbortMass();
         return;
@@ -201,11 +208,8 @@ void UPureMassAbility::ExecuteMass(const FVector& Point, FPureMassCombatTarget T
     PrototypeFacing::Apply(Avatar, Point, Prototype->bTargetSelf);
     if (Prototype->Kind != K::Orbit)
         APureMassRuntime::NotifyCommittedAttack(Avatar, this, Target);
-    if (Prototype->Kind == K::Beam || IsInputToggleAbility())
-        MassRuntime->OnDestroyed.AddDynamic(this, &ThisClass::RuntimeDestroyed);
-    else
+    if (!bHold)
     {
-        MassRuntime = nullptr;
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
     }
 }
@@ -214,13 +218,6 @@ void UPureMassAbility::ExecuteMass(const FVector& Point, FPureMassCombatTarget T
 void UPureMassAbility::Released(float)
 {
     AbortMass();
-}
-/** Runtime OnDestroyed 回调：先清引用，正常结束仍激活的 GA，避免重复销毁。 */
-void UPureMassAbility::RuntimeDestroyed(AActor*)
-{
-    MassRuntime = nullptr;
-    if (IsActive())
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 /** 超时或失败统一入口，对仍激活技能调用取消式 EndAbility。 */
 void UPureMassAbility::AbortMass()
@@ -234,11 +231,5 @@ void UPureMassAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGame
 {
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(MassTargetTimeout);
-    if (IsValid(MassRuntime))
-    {
-        MassRuntime->OnDestroyed.RemoveDynamic(this, &ThisClass::RuntimeDestroyed);
-        MassRuntime->CancelCast();
-    }
-    MassRuntime = nullptr;
     Super::EndAbility(Handle, Info, Activation, bReplicate, bCancelled);
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Game/PlayerProfession.h"
 #include "RoomMenuWidget.generated.h"
 class UButton;
 class UTextBlock;
@@ -20,6 +21,7 @@ public:
     URoomMenuWidget(const FObjectInitializer& ObjectInitializer);
     UFUNCTION(BlueprintCallable)
     void ShowModeSelection();
+    void ShowProfessionSelection();
     UFUNCTION(BlueprintCallable)
     void ShowLobby();
 
@@ -75,7 +77,14 @@ private:
     UFUNCTION()
     void SwordTrialClicked();
     UFUNCTION()
-    void StanderTrialClicked();
+    void MageProfessionClicked();
+    UFUNCTION()
+    void StanderProfessionClicked();
+    void ConfirmProfession(EPlayerProfession Profession);
+    UPROPERTY()
+    TObjectPtr<UTextBlock> ProfessionError;
+    UPROPERTY()
+    TObjectPtr<UVerticalBox> ProfessionPage;
     UFUNCTION()
     void MultiplayerClicked();
     UFUNCTION()

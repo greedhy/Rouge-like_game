@@ -1,12 +1,29 @@
 // 测试调用链：自动化夹具授予本GA -> RunTimeline -> 记录Notify/结束；游戏角色不授予此测试类型。
 #pragma once
-#include "Abilities/GameplayAbility.h"
+#include "AbilitySystem/Ability/MyGameplayAbility.h"
 #include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
+#include "Character/StanderPlayer.h"
+#include "Player/MyPlayerState.h"
 #include "AbilityTimelineTestAbility.generated.h"
+
+/** 临时世界没有正常PossessedBy；显式建立与生产玩家相同的双向ASC绑定，不加载存档或HUD。 */
+UCLASS(Transient, NotBlueprintable)
+class AAbilityTimelineTestStander : public AStanderPlayer
+{
+    GENERATED_BODY()
+public:
+    void AttachState(AMyPlayerState* State)
+    {
+        SetPlayerState(State);
+        AbilitySystemComponent = State->GetAbilitySystemComponent();
+        AttributeSet = State->GetAttributeSet();
+        AbilitySystemComponent->InitAbilityActorInfo(State, this);
+    }
+};
 
 /** 真实ASC/蒙太奇任务的测试接收器，计数仅存在于当前测试对象，不复制。 */
 UCLASS()
-class UAbilityTimelineTestAbility : public UGameplayAbility
+class UAbilityTimelineTestAbility : public UMyGameplayAbility
 {
     GENERATED_BODY()
 public:

@@ -53,6 +53,8 @@ public:
     ARoomLobbyGameMode();
     virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
                           FString& ErrorMessage) override;
+    virtual FString InitNewPlayer(APlayerController* Controller, const FUniqueNetIdRepl& UniqueId,
+                                  const FString& Options, const FString& Portal) override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 };

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：共享动作写入来源生命 -> Sphere重叠重验 -> 原ApplyDamageEffect -> DamageApplied/销毁。
 
 #include "Actor/MyProjectile.h"
 
@@ -103,8 +103,19 @@ void AMyProjectile::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AA
         bHit = true; //如果没有权限，设置bHit为true，等待服务器销毁
 }
 
+void AMyProjectile::SetExecutionSourceToken(const FAbilitySourceToken& Source)
+{
+    ExecutionSource = Source;
+}
+
 bool AMyProjectile::IsValidOverlap(AActor* OtherActor)
 {
+    AActor* CapturedAvatar = nullptr;
+    if (HasAuthority() && ExecutionSource.IsSet() &&
+        !AbilityExecutionIdentity::ResolveSource(ExecutionSource.GetValue(), CapturedAvatar))
+    {
+        return false;
+    }
     if (DamageEffectParams.SourceAbilitySystemComponent == nullptr)
         return false;
     AActor* SourceAvatarActor = DamageEffectParams.SourceAbilitySystemComponent->GetAvatarActor();

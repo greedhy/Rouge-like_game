@@ -1,5 +1,7 @@
 // 主要调用链：GAS 激活检查 -> ActivateAbility -> StartStrike -> 定时 Advance -> MoveDash / Hit；GuardHit 延迟触发反击，EndAbility 统一清理。
 #include "AbilitySystem/Ability/StanderAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
 #include "AbilitySystem/Ability/SwordShieldAbility.h"
 #include "Character/StanderPlayer.h"
 #include "AbilitySystemComponent.h"
@@ -173,8 +175,21 @@ bool UStanderAbility::StartStrike(const FSwordStrike& NewStrike)
     Strike = NewStrike;
     bHit = false;
     Started = GetWorld()->GetTimeSeconds();
+    StrikeTimeline = {};
+    StrikeDuration = Strike.Montage->GetPlayLength() / Strike.PlayRate;
+    AppliedTimelineRate = Strike.PlayRate;
+    if (Timeline)
+    {
+        FString Error;
+        if (!Timeline->ResolveMontage(Strike.Montage, StrikeTimeline, Error, true))
+        {
+            return false;
+        }
+        AppliedTimelineRate = StrikeTimeline.RateAt(0.f);
+        StrikeDuration = StrikeTimeline.ElapsedAt(Strike.Montage->GetPlayLength());
+    }
     return CurrentActorInfo->AbilitySystemComponent->PlayMontage(this, CurrentActivationInfo, Strike.Montage,
-                                                                 Strike.PlayRate) > 0;
+                                                                 AppliedTimelineRate) > 0;
 }
 // 提交技能消耗和冷却，锁定朝向与移动，播放蒙太奇并启动推进定时器。
 void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
@@ -203,6 +218,17 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
     {
         Selected.Montage = C->GuardMontage;
         Selected.PlayRate = Selected.Montage->GetPlayLength() / C->GuardDuration;
+    }
+    if (Timeline)
+    {
+        FAbilityTimelineSnapshot Preview;
+        FString Error;
+        if (!Timeline->ResolveMontage(Selected.Montage, Preview, Error, true) ||
+            (Mode == EMode::Guard && !Timeline->ResolveMontage(C->Counter.Montage, Preview, Error, true)))
+        {
+            EndAbility(H, I, A, true, true);
+            return;
+        }
     }
     if (!CommitAbility(H, I, A) || !IsActive() || !Player.IsValid())
     {
@@ -238,9 +264,12 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
     if (Mode == EMode::Guard)
     {
         auto* ASC = I->AbilitySystemComponent.Get();
-        auto Spec = ASC->MakeOutgoingSpec(USwordGuardEffect::StaticClass(), 1, ASC->MakeEffectContext());
-        if (Spec.IsValid())
-            GuardHandle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+        FAbilitySourceToken Source;
+        FString Error;
+        if (AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
+        {
+            GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source);
+        }
         GuardListener = ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ThisClass::GuardHit);
     }
     GetWorld()->GetTimerManager().SetTimer(Timer, this, &ThisClass::Advance, .01f, true);
@@ -248,12 +277,7 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
 // 确认伤害上下文标记了格挡且包含正值伤害类型。
 bool UStanderAbility::IsCounterDamage(const FGameplayEffectSpec& Spec)
 {
-    if (!UMyAbilitySystemLibrary::IsBlockedHit(Spec.GetContext()))
-        return false;
-    for (const auto& Pair : FMyGameplayTags::Get().DamageTypesToResistance)
-        if (Spec.GetSetByCallerMagnitude(Pair.Key, false, 0) > 0)
-            return true;
-    return false;
+    return AbilityCharacterActions::IsBlockedDamage(Spec);
 }
 // 额外检查 Mass 伤害 GE 类型和命中上下文中的实体编号。
 bool UStanderAbility::IsMassCounterDamage(const FGameplayEffectSpec& Spec)
@@ -290,40 +314,27 @@ void UStanderAbility::GuardHit(UAbilitySystemComponent*, const FGameplayEffectSp
 void UStanderAbility::MoveDash(float Position)
 {
     const auto* C = Config(CurrentActorInfo);
-    if (!C || bDashBlocked || !Player.IsValid())
-        return;
-    float Remaining = FMath::Max(0.f, C->DashFraction(Position) * C->DashDistance - DashApplied);
-    while (Remaining > KINDA_SMALL_NUMBER && Player.IsValid() && IsActive())
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!C || bDashBlocked || !Player.IsValid() ||
+        !AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
     {
-        const float Step = FMath::Min(Remaining, 20.f);
-        const FVector From = Player->GetActorLocation();
-        FVector Next = From + LockedForward * Step;
-        if (auto* D = ADungeonRunDirector::Find(GetWorld());
-            D && (OriginRoom == INDEX_NONE || D->GetRoomIndex(Next) != OriginRoom))
+        return;
+    }
+    FAbilityCharacterMoveState State;
+    State.AppliedDistance = DashApplied;
+    State.bBlocked = bDashBlocked;
+    const auto Session = GetExecutionSession();
+    AbilityMovementActions::GroundDash(
+        Source, LockedForward, C->DashFraction(Position) * C->DashDistance, OriginRoom, State,
+        [this, Session]()
         {
-            bDashBlocked = true;
-            return;
-        }
-        FHitResult Floor;
-        FCollisionQueryParams Query(SCENE_QUERY_STAT(StanderDashFloor), false, Player.Get());
-        const float Half = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-        if (!GetWorld()->LineTraceSingleByObjectType(Floor, Next + FVector(0, 0, 30), Next - FVector(0, 0, Half + 70),
-                                                     FCollisionObjectQueryParams(ECC_WorldStatic), Query) ||
-            Floor.ImpactNormal.Z < .7f || FMath::Abs(Floor.ImpactPoint.Z + Half + 2 - From.Z) > 35)
-        {
-            bDashBlocked = true;
-            return;
-        }
-        Next.Z = Floor.ImpactPoint.Z + Half + 2;
-        FHitResult Block;
-        Player->SetActorLocation(Next, true, &Block, ETeleportType::None);
-        DashApplied += Step;
-        Remaining -= Step;
-        if (Block.bBlockingHit)
-        {
-            bDashBlocked = true;
-            return;
-        }
+            return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive();
+        });
+    if (GetExecutionSession() == Session)
+    {
+        DashApplied = State.AppliedDistance;
+        bDashBlocked = State.bBlocked;
     }
 }
 // 定时读取蒙太奇位置，处理命中或事件窗口，并在失效、打断或结束时收尾。
@@ -347,6 +358,18 @@ void UStanderAbility::Advance()
         Stop(!bHit);
         return;
     }
+    const float Position = Anim->Montage_GetPosition(Strike.Montage);
+    // Reuse the shared phase mapping while preserving the legacy guard/counter lifecycle.
+    if (!StrikeTimeline.Phases.IsEmpty())
+    {
+        const float Rate = StrikeTimeline.RateAt(Position);
+        auto* ASC = CurrentActorInfo->AbilitySystemComponent.Get();
+        if (Rate > 0.f && Rate != AppliedTimelineRate && ASC->GetAnimatingAbility() == this)
+        {
+            ASC->CurrentMontageSetPlayRate(Rate);
+            AppliedTimelineRate = Rate;
+        }
+    }
     // 反击在定时器阶段切换蒙太奇，避开受击委托的重入调用栈。
     if (Mode == EMode::Guard && !bCounter)
     {
@@ -365,11 +388,10 @@ void UStanderAbility::Advance()
                 Stop(true);
             return;
         }
-        if (GetWorld()->GetTimeSeconds() - Started >= C->GuardDuration)
+        if (GetWorld()->GetTimeSeconds() - Started >= StrikeDuration)
             Stop(false);
         return;
     }
-    const float Position = Anim->Montage_GetPosition(Strike.Montage);
     if (Mode == EMode::Dash)
         MoveDash(Position);
     if (!IsActive() || !Player.IsValid())
@@ -383,84 +405,72 @@ void UStanderAbility::Advance()
             return;
         }
         bHit = true;
-        Hit();
+        const TWeakObjectPtr<UStanderAbility> WeakThis(this);
+        if (!DispatchExecutionAction(TEXT("Stander.Strike"), CurrentCombo,
+                                     [WeakThis](int32)
+                                     {
+                                         if (auto* Self = WeakThis.Get())
+                                         {
+                                             Self->Hit();
+                                         }
+                                     }))
+        {
+            Stop(true);
+            return;
+        }
     }
-    if (IsActive() && GetWorld()->GetTimeSeconds() - Started > Strike.Montage->GetPlayLength() / Strike.PlayRate + .2f)
+    if (IsActive() && GetWorld()->GetTimeSeconds() - Started > StrikeDuration + .2f)
         Stop(!bHit);
 }
 // 筛选范围内合法且无遮挡的目标，应用伤害并播放命中表现。
 void UStanderAbility::Hit()
 {
     if (!Player.IsValid())
+    {
         return;
+    }
     const auto* C = Config(CurrentActorInfo);
-    if (C && C->SwingEffect)
-        Player->ShowSwordImpact(C->SwingEffect, Player->GetActorLocation() + LockedForward * 80);
     if (!C || !C->ValidateDeathImpulses())
+    {
         return;
+    }
     const FVector LocalImpulse = Mode == EMode::Lift         ? C->LiftDeathImpulse
                                  : Mode == EMode::ShieldBash ? C->ShieldBashDeathImpulse
                                  : Mode == EMode::Guard      ? C->CounterDeathImpulse
                                  : Mode == EMode::Spin       ? C->SpinDeathImpulse
                                  : Mode == EMode::Dash       ? C->DashDeathImpulse
                                                              : C->ComboDeathImpulses[CurrentCombo];
-    const FVector Origin = Player->GetActorLocation();
-    // 同一事件内按统一战斗目标身份去重；Actor 与 Mass 后续分别走既有伤害入口。
-    TSet<FPureMassCombatTarget> Seen;
-    for (const auto& Target : PureMassCombat::Gather(GetWorld(), Player.Get(), Origin, Strike.Radius + 100))
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
     {
-        if (!IsActive() || !Player.IsValid() || Player->IsDungeonDowned() || Player->IsDead_Implementation())
-            return;
-        FVector Location;
-        if (Seen.Contains(Target))
-            continue;
-        Seen.Add(Target);
-        if (!PureMassCombat::Resolve(GetWorld(), Player.Get(), Target, Location) ||
-            !Strike.Contains(Origin, LockedForward, Location) ||
-            !PureMassCombat::Visible(GetWorld(), Player.Get(), Origin, Target))
-            continue;
-        if (auto* Director = ADungeonRunDirector::Find(GetWorld());
-            Director && Director->GetRoomIndex(Origin) != Director->GetRoomIndex(Location))
-            continue;
-        // A circular sweep throws each victim away from the player, including those behind.
-        const FVector RadialForward = (Location - Origin).GetSafeNormal2D();
-        const FVector ImpulseForward =
-            Mode == EMode::Spin && !RadialForward.IsNearlyZero() ? RadialForward : LockedForward;
-        const FVector Impulse = UStanderCombatConfig::WorldDeathImpulse(LocalImpulse, ImpulseForward);
-        bool Applied = false;
-        if (Target.IsActor())
-        {
-            auto Params = MakeDamageEffectParamsFromClassDefaults(Target.Actor.Get());
-            if (!Params.TargetAbilitySystemComponent)
-                continue;
-            Params.BaseDamage = Strike.Damage;
-            Params.DebuffChance = 0;
-            Params.bIsRadialDamage = false;
-            Params.DeathImpulse = Impulse;
-            ReportOffensiveAttack(Target.Actor.Get());
-            if (!IsActive() || !Player.IsValid())
-                return;
-            // 通过共享GAS伤害通路结算Actor目标。
-            UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
-            Applied = true;
-        }
-        else if (auto* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
-        {
-            FPureMassDamage DamageParams;
-            DamageParams.Source = Player.Get();
-            DamageParams.Amount = Strike.Damage;
-            DamageParams.DamageType = DamageType;
-            DamageParams.DeathImpulse = Impulse;
-            Applied = Mass->ApplyDamage(Target.EntityId, DamageParams) > 0;
-        }
-        if (Applied && IsActive() && Player.IsValid() && C)
-            Player->ShowSwordImpact(C->HitEffect, Location);
+        return;
     }
+    auto* Settings = NewObject<UAbilityCharacterStrikeNodeConfig>(this);
+    Settings->Profile = EAbilityCharacterStrikeProfile::StanderMixed;
+    Settings->Strike = Strike;
+    Settings->LocalDeathImpulse = LocalImpulse;
+    Settings->bRadialImpulse = Mode == EMode::Spin;
+    Settings->SwingEffect = C->SwingEffect;
+    Settings->HitEffect = C->HitEffect;
+    FAbilityCharacterActionCallbacks Callbacks;
+    Callbacks.IsCurrent = [this, Session = GetExecutionSession()]()
+    {
+        return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
+               Player.IsValid() && !Player->IsDungeonDowned() && !Player->IsDead_Implementation();
+    };
+    Callbacks.BeforeActorDamage = [this](AActor* Target)
+    {
+        ReportOffensiveAttack(Target);
+    };
+    AbilityCharacterActions::ExecuteStrike(Source, MakeDamageEffectParamsFromClassDefaults(), *Settings,
+                                           Player->GetActorLocation(), LockedForward, Callbacks);
 }
 // 清除定时器、技能效果和动画占用，按角色状态恢复移动并结束 GAS 激活。
 void UStanderAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                  FGameplayAbilityActivationInfo A, bool Replicate, bool Cancelled)
 {
+    CloseExecutionSession(Cancelled);
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timer);
     // 只清理本次能力持有的格挡句柄和蒙太奇，避免影响其他能力。

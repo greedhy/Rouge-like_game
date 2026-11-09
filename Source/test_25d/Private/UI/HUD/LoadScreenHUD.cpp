@@ -27,21 +27,40 @@ void ALoadScreenHUD::BeginPlay()
         ShowModeSelection();
 }
 
-void ALoadScreenHUD::ShowModeSelection()
+// Both creation and mode selection use the same menu frame and input focus.
+bool ALoadScreenHUD::OpenRoomMenu()
 {
     if (!RoomMenuWidget)
         RoomMenuWidget = CreateWidget<URoomMenuWidget>(
             GetOwningPlayerController(),
             RoomMenuWidgetClass ? RoomMenuWidgetClass : TSubclassOf<URoomMenuWidget>(URoomMenuWidget::StaticClass()));
     if (!RoomMenuWidget)
-        return;
+    {
+        return false;
+    }
     LoadScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
     if (!RoomMenuWidget->IsInViewport())
         RoomMenuWidget->AddToViewport(50);
     RoomMenuWidget->SetVisibility(ESlateVisibility::Visible);
-    RoomMenuWidget->ShowModeSelection();
     GetOwningPlayerController()->SetInputMode(FInputModeUIOnly().SetWidgetToFocus(RoomMenuWidget->TakeWidget()));
     GetOwningPlayerController()->bShowMouseCursor = true;
+    return true;
+}
+
+void ALoadScreenHUD::ShowModeSelection()
+{
+    if (OpenRoomMenu())
+    {
+        RoomMenuWidget->ShowModeSelection();
+    }
+}
+
+void ALoadScreenHUD::ShowProfessionSelection()
+{
+    if (OpenRoomMenu())
+    {
+        RoomMenuWidget->ShowProfessionSelection();
+    }
 }
 void ALoadScreenHUD::ShowSaveSelection()
 {

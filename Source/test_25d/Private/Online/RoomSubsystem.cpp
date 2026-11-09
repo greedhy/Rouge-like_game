@@ -180,6 +180,7 @@ void URoomSubsystem::StartSwordShieldTrial()
     ClearError();
     DestroyThen(EAfterDestroy::Single);
 }
+#if WITH_DEV_AUTOMATION_TESTS
 void URoomSubsystem::StartStanderTrial()
 {
     if (IsBusy() || State == ERoomFlowState::InLobby)
@@ -194,6 +195,7 @@ void URoomSubsystem::StartStanderTrial()
     ClearError();
     DestroyThen(EAfterDestroy::Single);
 }
+#endif
 void URoomSubsystem::CreateRoom()
 {
     if (IsBusy() || State == ERoomFlowState::InLobby)
@@ -376,7 +378,10 @@ void URoomSubsystem::Joined(FName Name, EOnJoinSessionCompleteResult::Type Resul
         Fail(LOCTEXT("JoinFailed", "加入房间失败，房间可能已满或已经关闭。"));
         return;
     }
-    PC->ClientTravel(Address + TEXT("?RoomPassword=") + PendingPassword, TRAVEL_Absolute);
+    const auto* GI = Cast<UMyGameInstance>(GetGameInstance());
+    const bool bStander = GI && GI->GetSelectedProfession() == EPlayerProfession::Stander;
+    const FString ProfessionOption = bStander ? TEXT("?PlayerProfession=Stander") : TEXT("?PlayerProfession=Mage");
+    PC->ClientTravel(Address + TEXT("?RoomPassword=") + PendingPassword + ProfessionOption, TRAVEL_Absolute);
 }
 bool URoomSubsystem::AuthorizeIncoming(const FString& Options, int32 PlayerCount, FString& Error) const
 {

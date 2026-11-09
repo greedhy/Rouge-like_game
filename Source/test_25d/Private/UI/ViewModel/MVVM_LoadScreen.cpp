@@ -41,27 +41,45 @@ UMVVM_LoadSlot* UMVVM_LoadScreen::GetLoadSlotViewModelByIndex(int32 Index) const
 
 void UMVVM_LoadScreen::NewSlotButtonPressed(int32 Slot, const FString& EnteredName)
 {
-    AMyGameModeBase* MyGameMode = Cast<AMyGameModeBase>(UGameplayStatics::GetGameMode(this));
-    if (!IsValid(MyGameMode))
+    auto* PC = UGameplayStatics::GetPlayerController(this, 0);
+    auto* HUD = PC ? Cast<ALoadScreenHUD>(PC->GetHUD()) : nullptr;
+    if (!HUD || !LoadSlots.Contains(Slot) || LoadSlots[Slot]->SlotStatus == Taken ||
+        EnteredName.TrimStartAndEnd().IsEmpty())
     {
-        GEngine->AddOnScreenDebugMessage(1, 15.f, FColor::Magenta, FString("Please switch to Single Player"));
         return;
     }
+    PendingNewSlot = Slot;
+    PendingPlayerName = EnteredName.TrimStartAndEnd();
+    HUD->ShowProfessionSelection();
+}
 
+// Commit the name and profession together so backing out leaves the slot vacant.
+bool UMVVM_LoadScreen::ConfirmNewSlotProfession(EPlayerProfession Profession)
+{
+    const int32 Slot = PendingNewSlot;
+    auto* MyGameMode = Cast<AMyGameModeBase>(UGameplayStatics::GetGameMode(this));
+    if (!MyGameMode || !LoadSlots.Contains(Slot) ||
+        (Profession != EPlayerProfession::Mage && Profession != EPlayerProfession::Stander))
+    {
+        return false;
+    }
     LoadSlots[Slot]->SetMapName(MyGameMode->DefaultMapName);
-    LoadSlots[Slot]->SetPlayerName(EnteredName);
+    LoadSlots[Slot]->SetPlayerName(PendingPlayerName);
     LoadSlots[Slot]->SetPlayerLevel(1);
-    LoadSlots[Slot]->SlotStatus = Taken;
     LoadSlots[Slot]->PlayerStartTag = MyGameMode->DefaultPlayerStartTag;
     LoadSlots[Slot]->MapAssetName = MyGameMode->DefaultMap.ToSoftObjectPath().GetAssetName();
 
-    MyGameMode->SaveSlotData(LoadSlots[Slot], Slot);
+    if (!MyGameMode->SaveSlotData(LoadSlots[Slot], Slot, Profession))
+    {
+        return false;
+    }
+    PendingNewSlot = INDEX_NONE;
+    PendingPlayerName.Reset();
+    LoadSlots[Slot]->SlotStatus = Taken;
     LoadSlots[Slot]->InitializeSlot();
-
-    UMyGameInstance* MyGameInstance = Cast<UMyGameInstance>(MyGameMode->GetGameInstance());
-    MyGameInstance->LoadSlotName = LoadSlots[Slot]->GetLoadSlotName();
-    MyGameInstance->LoadSlotIndex = LoadSlots[Slot]->SlotIndex;
-    MyGameInstance->PlayerStartTag = MyGameMode->DefaultPlayerStartTag;
+    SelectSlotButtonPressed(Slot);
+    PlayButtonPressed();
+    return true;
 }
 
 void UMVVM_LoadScreen::NewGameButtonPressed(int32 Slot)

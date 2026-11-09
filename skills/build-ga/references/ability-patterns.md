@@ -1,5 +1,7 @@
 # 原型、数值与生命周期
 
+当前制作路线以工程 `docs/ga-unified-authoring-guide.md`、`docs/ga-framework-reference.md` 和实际注册表为准。以下旧技能合同用于兼容维护；新增行为放入配置/注册策略，专属 GA 仅保留输入、费用和动画前端。相同动作必须由原前端与节点调用同一共享实现，不能复制本文件描述的旧循环来新增另一套执行器。
+
 ## 瞬发范围（ArcaneNova 路径）
 
 阅读 MyArcaneNova 与 MyDamageGameplayAbility。纯服务端瞬发技能可使用 InstancedPerActor + ServerOnly；不要把这个策略套到需要本地选点/预测的技能。

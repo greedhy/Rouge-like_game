@@ -5,6 +5,8 @@
  */
 // 主要调用链：装备授予动作 GA -> CanActivateAbility -> ActivateAbility -> Advance -> Execute / Move；发射物交由 AStanderWeaponProjectile 推进，EndAbility 清理占用。
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
 #include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
 #include "Actor/StanderWeaponProjectile.h"
 #include "Player/StanderCombatConfig.h"
@@ -271,7 +273,23 @@ void UStanderWeaponActionAbility::AdvanceAt(float Pos)
             Stop(true);
             return;
         }
-        Execute(E);
+        // 事件索引是本次动作的稳定调用序号；Timeline和旧动画时钟共用唯一执行入口。
+        const TWeakObjectPtr<UStanderWeaponActionAbility> WeakThis(this);
+        if (!DispatchExecutionAction(TEXT("Weapon.Action"), NextEvent - 1,
+                                     [WeakThis](int32 Index)
+                                     {
+                                         if (auto* Self = WeakThis.Get();
+                                             Self && Self->ActionConfig &&
+                                             Self->ActionConfig->Events.IsValidIndex(Index))
+                                         {
+                                             const FStanderWeaponActionEvent Event = Self->ActionConfig->Events[Index];
+                                             Self->Execute(Event);
+                                         }
+                                     }))
+        {
+            Stop(true);
+            return;
+        }
         if (!IsActive())
             return;
     }
@@ -281,118 +299,59 @@ void UStanderWeaponActionAbility::AdvanceAt(float Pos)
 // 按事件类型处理格挡、发射物或近战命中，表现事件只生成特效。
 void UStanderWeaponActionAbility::Execute(const FStanderWeaponActionEvent& E)
 {
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!Player.IsValid() || !AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
+    {
+        return;
+    }
     auto* ASC = CurrentActorInfo->AbilitySystemComponent.Get();
-    FVector Origin = Player->GetActorLocation();
+    const FVector Origin = Player->GetActorLocation();
     if (E.Effect && E.Kind != EStanderWeaponActionKind::Projectile)
+    {
         Player->ShowSwordImpact(E.Effect, Origin + Forward * 60);
+    }
     if (E.Kind == EStanderWeaponActionKind::Guard)
     {
         GuardEnds = E.Time + E.Duration;
-        if (GuardHandle.IsValid())
-            ASC->RemoveActiveGameplayEffect(GuardHandle);
-        auto S = ASC->MakeOutgoingSpec(USwordGuardEffect::StaticClass(), 1, ASC->MakeEffectContext());
-        if (S.IsValid())
-        {
-            // 统一时间轴路径按动画窗口移除，不能让固定秒数GE在慢放时提前失效。
-            S.Data->SetDuration(TimelineTask ? UGameplayEffect::INFINITE_DURATION : E.Duration, true);
-            GuardHandle = ASC->ApplyGameplayEffectSpecToSelf(*S.Data);
-        }
+        AbilityCharacterActions::CloseGuardWindow(ASC, GuardHandle);
+        GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source, TimelineTask ? -1.f : E.Duration);
         return;
     }
-    auto Params = MakeDamageEffectParamsFromClassDefaults();
-    Params.BaseDamage = E.Damage;
-    Params.DebuffChance = 0;
-    Params.bIsRadialDamage = false;
-    Params.DeathImpulse = UStanderCombatConfig::WorldDeathImpulse(E.DeathImpulse, Forward);
-    // 按锁定朝向和发射偏角选择辅助瞄准目标，再生成独立推进的投射物。
+    const auto Params = MakeDamageEffectParamsFromClassDefaults();
     if (E.Kind == EStanderWeaponActionKind::Projectile)
     {
-        FVector LaunchDirection = Forward.RotateAngleAxis(E.LaunchYaw, FVector::UpVector);
-        const FVector Start =
-            E.SocketName.IsNone() ? Origin + LaunchDirection * 60 : Player->GetMesh()->GetSocketLocation(E.SocketName);
-        // Hand offsets and airborne poses must aim at the same combat target as the
-        // locked heading. Keep assistance within a narrow cone; walls remain authoritative.
-        const float Range = E.ProjectileSpeed * E.ProjectileLifetime;
-        float Nearest = Range * Range;
-        for (const auto& Target : PureMassCombat::Gather(GetWorld(), Player.Get(), Origin, Range))
+        if (auto* Projectile =
+                AbilityCharacterActions::SpawnWeaponProjectile(Source, Params, E, Origin, Forward, OriginRoom))
         {
-            FVector Location;
-            if (!PureMassCombat::Resolve(GetWorld(), Player.Get(), Target, Location) ||
-                FMath::Abs(Location.Z - Origin.Z) > 250.f ||
-                !UStanderWeaponActionConfig::IsInAimCone(Forward.RotateAngleAxis(E.LaunchYaw, FVector::UpVector),
-                                                         Location - Origin) ||
-                !PureMassCombat::Visible(GetWorld(), Player.Get(), Origin, Target))
-                continue;
-            if (auto* D = ADungeonRunDirector::Find(GetWorld()); D && D->GetRoomIndex(Location) != OriginRoom)
-                continue;
-            const float Distance = FVector::DistSquared2D(Origin, Location);
-            if (Distance < Nearest)
-            {
-                Nearest = Distance;
-                LaunchDirection = (Location - Start).GetSafeNormal();
-            }
-        }
-        Params.DeathImpulse =
-            UStanderCombatConfig::WorldDeathImpulse(E.DeathImpulse, LaunchDirection.GetSafeNormal2D());
-        FActorSpawnParameters Spawn;
-        Spawn.Owner = Player.Get();
-        Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        auto* Projectile = GetWorld()->SpawnActor<AStanderWeaponProjectile>(Start, LaunchDirection.Rotation(), Spawn);
-        if (Projectile)
-        {
-            Projectile->Initialize(Player.Get(), E, Params, LaunchDirection);
             Projectiles.Add(Projectile);
         }
         return;
     }
-
     if (E.Kind != EStanderWeaponActionKind::Melee)
-        return;
-    // 同一事件内按统一战斗目标身份去重；Actor 与 Mass 后续分别走既有伤害入口。
-    TSet<FPureMassCombatTarget> Seen;
-    for (const auto& T : PureMassCombat::Gather(GetWorld(), Player.Get(), Origin, E.Radius + 100))
     {
-        FVector L;
-        if (Seen.Contains(T))
-            continue;
-        Seen.Add(T);
-        if (!PureMassCombat::Resolve(GetWorld(), Player.Get(), T, L) || FMath::Abs(Origin.Z - L.Z) > 180.f ||
-            FVector::DistSquared2D(Origin, L) > FMath::Square(E.Radius) ||
-            (E.Angle < 360 && FVector::DotProduct(Forward, (L - Origin).GetSafeNormal2D()) <
-                                  FMath::Cos(FMath::DegreesToRadians(E.Angle * .5f))) ||
-            !PureMassCombat::Visible(GetWorld(), Player.Get(), Origin, T))
-            continue;
-        if (auto* D = ADungeonRunDirector::Find(GetWorld()); D && D->GetRoomIndex(Origin) != D->GetRoomIndex(L))
-            continue;
-        const FVector HitForward = E.Angle >= 359.f ? (L - Origin).GetSafeNormal2D() : Forward;
-        Params.DeathImpulse = UStanderCombatConfig::WorldDeathImpulse(E.DeathImpulse, HitForward);
-        if (T.IsActor())
-        {
-            auto P = MakeDamageEffectParamsFromClassDefaults(T.Actor.Get());
-            P.BaseDamage = E.Damage;
-            P.DeathImpulse = Params.DeathImpulse;
-            P.DebuffChance = 0;
-            P.bIsRadialDamage = false;
-            if (P.TargetAbilitySystemComponent)
-                UMyAbilitySystemLibrary::ApplyDamageEffect(P);
-        }
-        else if (auto* M = GetWorld()->GetSubsystem<UPureMassSubsystem>())
-        {
-            FPureMassDamage D;
-            D.Source = Player.Get();
-            D.Amount = E.Damage;
-            D.DamageType = DamageType;
-            D.DeathImpulse = Params.DeathImpulse;
-            M->ApplyDamage(T.EntityId, D);
-        }
-        if (!IsActive() || !Player.IsValid())
-            return;
+        return;
     }
+    auto* Settings = NewObject<UAbilityCharacterStrikeNodeConfig>(this);
+    Settings->Profile = EAbilityCharacterStrikeProfile::WeaponMixed;
+    Settings->Strike.Damage = E.Damage;
+    Settings->Strike.Radius = E.Radius;
+    Settings->Strike.Angle = E.Angle;
+    Settings->LocalDeathImpulse = E.DeathImpulse;
+    Settings->bRadialImpulse = E.Angle >= 359.f;
+    FAbilityCharacterActionCallbacks Callbacks;
+    Callbacks.IsCurrent = [this, Session = GetExecutionSession()]()
+    {
+        return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
+               Player.IsValid();
+    };
+    AbilityCharacterActions::ExecuteStrike(Source, Params, *Settings, Origin, Forward, Callbacks);
 }
 // 清除定时器、技能效果和动画占用，按角色状态恢复移动并结束 GAS 激活。
 void UStanderWeaponActionAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                              FGameplayAbilityActivationInfo A, bool R, bool C)
 {
+    CloseExecutionSession(C);
     // 先解绑并关闭事件入口，后面的蒙太奇停止不能再触发一次结束回调。
     if (TimelineTask)
     {
@@ -472,46 +431,31 @@ FString UStanderWeaponActionAbility::GetDescription(int32)
 // 根据两次动画位置的差值分段移动，叠加跳跃弧线并阻止跨房间或穿过障碍。
 void UStanderWeaponActionAbility::Move(const FStanderWeaponActionEvent& E, float Position)
 {
-    // 用上次与本次动画进度计算增量，位移受阻后保留该事件的阻挡状态。
     const float Before = FMath::Clamp((LastPosition - E.Time) / E.Duration, 0.f, 1.f);
     const float After = FMath::Clamp((Position - E.Time) / E.Duration, 0.f, 1.f);
-    if (After <= Before || !Player.IsValid())
-        return;
-    const int32 Key = &E - ActionConfig->Events.GetData();
-    float Distance = BlockedMoves.Contains(Key) ? 0.f : E.MoveDistance * (After - Before);
-    const float Height = UStanderWeaponActionConfig::JumpHeight(After, E.MoveHeight);
-    const int32 Steps = FMath::Max(1, FMath::CeilToInt(FMath::Abs(Distance) / 20.f));
-    for (int32 Step = 0; Step < Steps; ++Step)
+    FAbilitySourceToken Source;
+    FString Error;
+    if (After <= Before || !Player.IsValid() || !AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
     {
-        const FVector From = Player->GetActorLocation();
-        FVector Next = From + Forward * (Distance / Steps);
-        auto* Director = ADungeonRunDirector::Find(GetWorld());
-        if (Director && (OriginRoom == INDEX_NONE || Director->GetRoomIndex(Next) != OriginRoom))
+        return;
+    }
+    const int32 Key = &E - ActionConfig->Events.GetData();
+    FAbilityCharacterMoveState State;
+    State.bBlocked = BlockedMoves.Contains(Key);
+    State.JumpOffset = JumpOffset;
+    const auto Session = GetExecutionSession();
+    AbilityMovementActions::WeaponArc(Source, Forward, E.MoveDistance, E.MoveHeight, Before, After, OriginRoom, State,
+                                      [this, Session]()
+                                      {
+                                          return Session && Session->IsSourceCurrent() &&
+                                                 GetExecutionSession() == Session && IsActive();
+                                      });
+    if (GetExecutionSession() == Session)
+    {
+        JumpOffset = State.JumpOffset;
+        if (State.bBlocked)
         {
             BlockedMoves.Add(Key);
-            Next = From;
-            Distance = 0;
-        }
-        const float Half = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-        const float GroundCenter = From.Z - JumpOffset;
-        FHitResult Floor;
-        FCollisionQueryParams Q(SCENE_QUERY_STAT(WeaponMoveFloor), false, Player.Get());
-        FVector Probe(Next.X, Next.Y, GroundCenter);
-        if (!GetWorld()->LineTraceSingleByObjectType(Floor, Probe + FVector(0, 0, 30), Probe - FVector(0, 0, Half + 70),
-                                                     FCollisionObjectQueryParams(ECC_WorldStatic), Q) ||
-            Floor.ImpactNormal.Z < .7f || FMath::Abs(Floor.ImpactPoint.Z + Half + 2 - GroundCenter) > 35)
-        {
-            BlockedMoves.Add(Key);
-            return;
-        }
-        Next.Z = Floor.ImpactPoint.Z + Half + 2 + Height;
-        FHitResult Hit;
-        Player->SetActorLocation(Next, true, &Hit);
-        JumpOffset = FMath::Max(0.f, Player->GetActorLocation().Z - (Floor.ImpactPoint.Z + Half + 2));
-        if (Hit.bBlockingHit)
-        {
-            BlockedMoves.Add(Key);
-            return;
         }
     }
 }

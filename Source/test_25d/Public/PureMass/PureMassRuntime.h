@@ -1,14 +1,14 @@
-/**
- * 混合行为执行器：GA ExecuteMass/Emit -> Spawn -> BeginPlay；引擎 Tick -> Projectile/Chain/Orbit/Pulse -> Hit -> Actor GE 或 Mass 子系统。共享 Context 持有施法预算与取消状态，不复制；Prototype/端点/OrbitBolts/结束状态复制驱动本地表现。Finish 清理所属 Surface/弹体状态，EndPlay 兜底；Batch6 Area/Snow 组件随宿主释放。
- * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
- */
+/** GA / graph strategy -> Spawn or SpawnDriven -> mixed driver; graph or compatibility Tick advances behavior. Actor owns replicated endpoints, Surface and Batch6 presentation; driver owns clocks, targeting and child admission. */
 // 技能运行入口：施法生成行为节点，逐帧分发弹道与范围行为，经统一目标查询分流到角色效果或实体伤害；结束时清理附属表现。
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "PureMass/PureMassCombatTarget.h"
+#include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
 #include "PureMassRuntime.generated.h"
+
+class FMixedAbilityDriver;
 class UNiagaraComponent;
 class UStaticMeshComponent;
 class UInstancedStaticMeshComponent;
@@ -83,7 +83,28 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly)
     TArray<FPureMassOrbitBolt> OrbitBolts;
 
+    /** Graph-owned invocation: installs child admission before BeginPlay and disables autonomous gameplay ticking. */
+    static APureMassRuntime* SpawnDriven(UPrototypeCastContext* InContext, UAbilityPrototype* Config, FVector Position,
+                                         FVector InDirection, FPureMassCombatTarget InTarget, int32 InDepth,
+                                         bool bInSingle, FLegacyAbilityChildAdmission Admission,
+                                         UAbilityPrototype* PresentationConfig = nullptr);
+    /** The graph advances the extracted strategy while the actor only updates replicated presentation. */
+    TSharedPtr<FMixedAbilityDriver> GetDriver() const
+    {
+        return Driver;
+    }
+
 private:
+    friend class FMixedAbilityDriver;
+    TSharedPtr<FMixedAbilityDriver> Driver;
+    bool bExternallyDriven = false;
+    /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
+    UPROPERTY()
+    TObjectPtr<UAbilityPrototype> ExecutionPrototype;
+    static APureMassRuntime* SpawnInternal(UPrototypeCastContext* InContext, UAbilityPrototype* Config,
+                                           FVector Position, FVector InDirection, FPureMassCombatTarget InTarget,
+                                           int32 InDepth, bool bInSingle, FLegacyAbilityChildAdmission Admission,
+                                           bool bDriven, UAbilityPrototype* PresentationConfig);
     UPROPERTY()
     TObjectPtr<UNiagaraComponent> Visual;
     UPROPERTY()
@@ -98,14 +119,7 @@ private:
     bool bFinished = false;
     UPROPERTY(Replicated)
     bool bSingle = false;
-    bool bReturning = false, bPresented = false;
-    FVector Direction = FVector::ForwardVector;
-    FVector ChainOrigin = FVector::ZeroVector;
-    FPureMassCombatTarget Target;
-    int32 Depth = 0, Emissions = 0;
-    TSet<FPureMassCombatTarget> HitTargets;
-    float Age = 0.f, PeriodClock = 0.f, Travel = 0.f, LaunchClock = 0.f;
-    float PreviousWaveRadius = 0.f;
+    bool bPresented = false;
     // 初始播放与复制通知共同更新循环特效和结束表现。
     UFUNCTION()
     /** BeginPlay/Finish/RepNotify 共用：更新循环和一次结束表现；专用服务器跳过；初始化光束端点后才激活 Niagara。 */

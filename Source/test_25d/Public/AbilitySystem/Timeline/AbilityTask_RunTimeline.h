@@ -8,6 +8,7 @@
 
 class UAnimMontage;
 class UAnimInstance;
+class FAbilityExecutionSession;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAbilityTimelinePosition, float, SourcePosition);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAbilityTimelineFinished, bool, bInterrupted);
@@ -84,4 +85,7 @@ private:
     float LastPosition = 0;
     float LastRate = 0;
     bool bFinishing = false;
+    /** 只接受创建任务时的会话，不从可重复激活的GA读取下一次施法。 */
+    TWeakPtr<FAbilityExecutionSession> ExecutionSession;
+    bool bUsesExecutionSession = false;
 };

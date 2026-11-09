@@ -73,6 +73,15 @@ struct TEST_25D_API FAbilityTimelineSnapshot
     void Close();
 };
 
+// One GA can select among multiple montages, such as combo steps or guard/counter.
+USTRUCT(BlueprintType)
+struct FAbilityTimelineMontagePhases
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FAbilityTimelinePhase> Phases;
+};
+
 UCLASS(BlueprintType)
 class TEST_25D_API UAbilityTimelineDefinition : public UDataAsset
 {
@@ -80,14 +89,21 @@ class TEST_25D_API UAbilityTimelineDefinition : public UDataAsset
 public:
     /** 蓝图/资产脚本在Commit前检查配置，返回可读原因，不创建运行任务或播放动画。 */
     UFUNCTION(BlueprintCallable, Category = "Ability|Timeline")
-    bool ValidateForMontage(UAnimMontage* Montage, FString& Error) const;
+    bool ValidateForMontage(UAnimMontage* Montage, FString& Error, bool bAllowEndBlendOut = false) const;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<FAbilityTimelinePhase> Phases;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<FAbilityTimelineEventWindow> Events;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<TObjectPtr<UAnimMontage>, FAbilityTimelineMontagePhases> MontageVariants;
 
     /** 校验连续覆盖并解析数据表，成功时生成独立施法 ID；失败不返回半份配置。 */
     bool Resolve(float MontageLength, FAbilityTimelineSnapshot& Out, FString& Error) const;
     /** 校验首版支持的连续非根运动播放，并拒绝会在变速边界前提前混出的配置。 */
-    bool ResolveMontage(const UAnimMontage* Montage, FAbilityTimelineSnapshot& Out, FString& Error) const;
+    bool ResolveMontage(const UAnimMontage* Montage, FAbilityTimelineSnapshot& Out, FString& Error,
+                        bool bAllowEndBlendOut = false) const;
+
+private:
+    bool ResolvePhases(float MontageLength, const TArray<FAbilityTimelinePhase>& SourcePhases,
+                       FAbilityTimelineSnapshot& Out, FString& Error) const;
 };

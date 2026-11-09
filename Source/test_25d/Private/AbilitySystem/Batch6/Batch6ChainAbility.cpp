@@ -1,5 +1,5 @@
 /**
- * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> 广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
+ * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> Delivery.ForkedChain图策略的广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
  * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
  */
 #include "AbilitySystem/Batch6/Batch6ChainAbility.h"
@@ -17,6 +17,8 @@
 #include "Components/SceneComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
+#include "AbilitySystem/Unified/Nodes/AbilityBatch6NodeExecutions.h"
+#include "AbilitySystem/Unified/AbilityGraphInstance.h"
 
 /** 构造始终相关的复制 Actor 并加载圆柱兜底网格，避免 Niagara 参数不兼容时无连线。 */
 ABatch6ChainPresentation::ABatch6ChainPresentation()
@@ -91,6 +93,16 @@ void UBatch6ChainAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, con
                                           FGameplayAbilityActivationInfo Activation, const FGameplayEventData* Event)
 {
     bResolved = false;
+    ActivationSource = {};
+    if (Info && Info->IsNetAuthority())
+    {
+        FString Error;
+        if (!AbilityExecutionIdentity::CaptureSource(Info->AvatarActor.Get(), ActivationSource, Error))
+        {
+            Abort();
+            return;
+        }
+    }
     GetWorld()->GetTimerManager().SetTimer(Timeout, this, &ThisClass::Abort, 3.f);
     auto* Task = UTargetDataUnderMouse::CreateTargetDataUnderMouse(this);
     Task->ValidData.AddDynamic(this, &ThisClass::ReceiveTarget);
@@ -124,6 +136,17 @@ FString UBatch6ChainAbility::GetDescription(int32 Level)
 void UBatch6ChainAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                      FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled)
 {
+    CloseExecutionSession(Cancelled);
+    if (Batch6Execution)
+    {
+        auto* Execution = Batch6Execution.Get();
+        Batch6Execution = nullptr;
+        if (!Execution->IsFinished())
+        {
+            Execution->Cancel();
+        }
+    }
+    ActivationSource = {};
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timeout);
     Super::EndAbility(Handle, Info, Activation, Replicate, Cancelled);
@@ -135,8 +158,9 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
         return;
     bResolved = true;
     const auto* Hit = Data.Num() == 1 && Data.Get(0) ? Data.Get(0)->GetHitResult() : nullptr;
-    AActor* Caster = GetAvatarActorFromActorInfo();
-    if (!Hit || Hit->ImpactPoint.ContainsNaN() || !Caster || !DamageEffectClass)
+    AActor* Caster = nullptr;
+    if (!Hit || Hit->ImpactPoint.ContainsNaN() || !AbilityExecutionIdentity::ResolveSource(ActivationSource, Caster) ||
+        !DamageEffectClass)
     {
         Abort();
         return;
@@ -163,83 +187,58 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
             break;
         }
     }
+    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
+    Graph->SchemaVersion = 2;
+    Graph->CompatibilityProfile = TEXT("UnifiedV2");
+    auto* Config = NewObject<UAbilityForkedChainNodeConfig>(Graph);
+    Config->MaxTargets = MaxTargets;
+    Config->MaxDepth = MaxDepth;
+    Config->BranchesPerTarget = BranchesPerTarget;
+    Config->JumpRadius = JumpRadius;
+    Config->DamageFalloff = Prototype ? Prototype->DamageFalloff : 1.f;
+    Config->BeamSystem = BeamSystem;
+    FAbilityGraphNode Node;
+    Node.NodeId = FGuid::NewGuid();
+    Node.TypeId = TEXT("Delivery.ForkedChain");
+    Node.Config = Config;
+    Graph->EntryNodeId = Node.NodeId;
+    Graph->Nodes.Add(Node);
+    FAbilityNodeInput Input;
+    Input.SourceToken = ActivationSource;
+    Input.Origin = Origin;
+    Input.Level = GetAbilityLevel();
+    Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+    if (Prototype)
+    {
+        Input.DamageParams.BaseDamage = Prototype->DamageAtLevel(GetAbilityLevel());
+        Input.DamageParams.DamageType = Prototype->DamageType;
+    }
+    FAbilityTargetToken FirstToken;
+    FString Error;
+    TArray<FString> Errors;
+    FAbilityNodeRegistry Registry;
+    Registry.RegisterBuiltins();
     SetOffensiveAttackTarget(First.Actor.Get());
-    if (!First.IsSet() || !CanActivateAbility(CurrentSpecHandle, CurrentActorInfo) ||
-        !CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
+    if (!First.IsSet() || !AbilityExecutionIdentity::CaptureTarget(ActivationSource, First, FirstToken, Error) ||
+        !Graph->Validate(Registry, Errors) || !CanActivateAbility(CurrentSpecHandle, CurrentActorInfo) ||
+        !CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo) || !IsActive())
     {
         Abort();
         return;
     }
-    struct FPending
+    Input.LiveTargetToken = FirstToken;
+    Batch6Execution = NewObject<UAbilityGraphInstance>(this);
+    auto* Execution = Batch6Execution.Get();
+    const bool bStarted = Execution->StartWithInput(Graph, Input, {}, Registry, Error);
+    // 单节点已同步结算，最多129条结果/完成事件；分批清空通知，不推进额外游戏时间或再次伤害。
+    for (int32 Batch = 0; bStarted && !Execution->IsFinished() && Batch < 3; ++Batch)
     {
-        FPureMassCombatTarget Target;
-        FVector From;
-        int32 Depth;
-    };
-    TArray<FPending> Queue;
-    Queue.Add({First, Origin, 0});
-    TSet<FPureMassCombatTarget> Visited;
-    Visited.Add(First);
-    TArray<FBatch6ChainSegment> Segments;
-    for (int32 Index = 0; Index < Queue.Num() && Index < 128; ++Index)
-    {
-        const auto Entry = Queue[Index];
-        FVector P;
-        if (!PureMassCombat::Resolve(GetWorld(), Caster, Entry.Target, P))
-            continue;
-        FBatch6ChainSegment S;
-        S.Start = Entry.From;
-        S.End = P;
-        Segments.Add(S);
-        auto Params = MakeDamageEffectParamsFromClassDefaults();
-        if (Prototype)
-        {
-            Params.BaseDamage =
-                Prototype->DamageAtLevel(GetAbilityLevel()) * FMath::Pow(Prototype->DamageFalloff, Entry.Depth);
-            Params.DamageType = Prototype->DamageType;
-        }
-        Params.DebuffChance = 0;
-        Params.bIsRadialDamage = false;
-        if (Entry.Target.IsActor())
-        {
-            Params.TargetAbilitySystemComponent =
-                UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Entry.Target.Actor.Get());
-            if (Params.TargetAbilitySystemComponent)
-                UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
-        }
-        else if (auto* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
-        {
-            FPureMassDamage D;
-            D.Source = Caster;
-            D.Amount = Params.BaseDamage;
-            D.DamageType = Params.DamageType;
-            Mass->ApplyDamage(Entry.Target.EntityId, D);
-        }
-        auto Next = PureMassCombat::Gather(GetWorld(), Caster, P, FMath::Clamp(JumpRadius, 1.f, 2000.f));
-        int32 Siblings = 0;
-        for (auto T : Next)
-        {
-            if (!FBatch6ChainBudget::Allows(Visited.Num(), Entry.Depth + 1, Siblings, MaxTargets, MaxDepth,
-                                            BranchesPerTarget))
-                break;
-            FVector Q;
-            if (Visited.Contains(T) || !PureMassCombat::Resolve(GetWorld(), Caster, T, Q) ||
-                FVector::DistSquared(P, Q) > FMath::Square(FMath::Clamp(JumpRadius, 1.f, 2000.f)) ||
-                !PureMassCombat::Visible(GetWorld(), Caster, P, T))
-                continue;
-            Visited.Add(T);
-            Queue.Add({T, P, Entry.Depth + 1});
-            ++Siblings;
-        }
+        Execution->Advance(0.f);
     }
-    FActorSpawnParameters Spawn;
-    Spawn.Owner = Caster;
-    if (auto* Visual = GetWorld()->SpawnActor<ABatch6ChainPresentation>(Origin, FRotator::ZeroRotator, Spawn))
+    const bool bSucceeded =
+        bStarted && Execution->IsFinished() && Execution->GetEndReason() == EAbilityGraphEndReason::Completed;
+    if (IsActive())
     {
-        Visual->Segments = Segments;
-        Visual->BeamSystem = BeamSystem;
-        Visual->Present();
-        Visual->ForceNetUpdate();
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bSucceeded);
     }
-    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }

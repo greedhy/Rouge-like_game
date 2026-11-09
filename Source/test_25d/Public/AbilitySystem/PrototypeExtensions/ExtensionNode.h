@@ -71,7 +71,5 @@ UCLASS()
 class TEST_25D_API UExtensionCastContext : public UPrototypeCastContext
 {
     GENERATED_BODY()
-public:
-    int32 Surfaces = 0;
-    TSet<FName> DetonatedEffects;
+    // 兼容已存在的反射类身份；公共施法状态已移到 UPrototypeCastContext，不能形成第二份计数器。
 };

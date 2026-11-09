@@ -1,24 +1,28 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// 调用链：蓝图SpawnProjectile/轨道弹前端 -> 本次会话验证 -> 共享延迟构造/发射动作 -> 原投射物伤害。
 #include "AbilitySystem/Ability/MyProjectileSpell.h"
-
-#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystem/Unified/Nodes/AbilityTraditionalNodeExecutions.h"
 #include "Interface/CombatInterface.h"
-#include "AbilitySystemComponent.h"
-#include "MyGameplayTags.h"
+
+bool UMyProjectileSpell::CaptureProjectileSource(FAbilitySourceToken& Source) const
+{
+    const auto Session = GetExecutionSession();
+    FString Error;
+    return IsActive() && Session && Session->IsSourceCurrent() &&
+           AbilityExecutionIdentity::CaptureSource(GetAvatarActorFromActorInfo(), Source, Error);
+}
 
 AMyProjectile* UMyProjectileSpell::CreateProjectileDeferred(TSubclassOf<AMyProjectile> Class,
                                                             const FTransform& Transform)
 {
-    AActor* Avatar = GetAvatarActorFromActorInfo();
-    if (!IsValid(Avatar) || !Avatar->HasAuthority() || !Class)
+    FAbilitySourceToken Source;
+    if (!CaptureProjectileSource(Source))
+    {
         return nullptr;
-    AMyProjectile* Projectile = GetWorld()->SpawnActorDeferred<AMyProjectile>(
-        Class, Transform, Avatar, Cast<APawn>(Avatar), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-    if (Projectile)
-        Projectile->DamageEffectParams = MakeDamageEffectParamsFromClassDefaults();
-    return Projectile;
+    }
+    return AbilityTraditionalActions::CreateProjectileDeferred(Source, MakeDamageEffectParamsFromClassDefaults(), Class,
+                                                               Transform);
 }
+
 void UMyProjectileSpell::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
                                          const FGameplayAbilityActorInfo* ActorInfo,
                                          const FGameplayAbilityActivationInfo ActivationInfo,
@@ -30,34 +34,15 @@ void UMyProjectileSpell::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 void UMyProjectileSpell::SpawnProjectile(const FVector& ProjectileTargetLocation, const FGameplayTag& SocketTag,
                                          const FName SocketName, const bool bOverridePitch, const float PitchOverride)
 {
-    const bool bIsServer = GetAvatarActorFromActorInfo()->HasAuthority();
-    if (!bIsServer)
-        return;
-
-    const FVector SocketLocation =
-        ICombatInterface::Execute_GetCombatSocketLocation(GetAvatarActorFromActorInfo(), SocketTag);
-    FRotator Rotation = (ProjectileTargetLocation - SocketLocation).Rotation();
-
-    FTransform SpawnTransform;
-    SpawnTransform.SetLocation(SocketLocation);
-    SpawnTransform.SetRotation(Rotation.Quaternion());
-
-    if (bOverridePitch)
+    FAbilitySourceToken Source;
+    if (!CaptureProjectileSource(Source) || !Source.Avatar->Implements<UCombatInterface>())
     {
-        Rotation.Pitch = PitchOverride; //覆写发射角度
-    }
-
-    //SpawnActorDeferred将异步创建实例，在实例创建完成时，相应的数据已经应用到了实例身上
-    AMyProjectile* Projectile = CreateProjectileDeferred(ProjectileClass, SpawnTransform);
-    if (!Projectile)
         return;
-
-    //const UAbilitySystemComponent* SourceASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetAvatarActorFromActorInfo());
-    //const FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(DamageEffectClass, GetAbilityLevel(), SourceASC->MakeEffectContext());
-    //FMyGameplayTags GameplayTags = FMyGameplayTags::Get();
-    //const	float ScaledDamage = Damage.GetValueAtLevel(GetAbilityLevel());
-    //UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, DamageType, ScaledDamage);
-    //Projectile->DamageEffectSpecHandle = SpecHandle;
-
-    Projectile->FinishSpawning(SpawnTransform);
+    }
+    const FVector Origin = ICombatInterface::Execute_GetCombatSocketLocation(Source.Avatar.Get(), SocketTag);
+    FAbilityActorProjectileSettings Settings;
+    Settings.ProjectileClass = ProjectileClass;
+    // 旧单发入口在保存Transform后才覆写局部Pitch，因此保留其实际方向；图配置可显式覆写Pitch。
+    AbilityTraditionalActions::SpawnProjectiles(Source, MakeDamageEffectParamsFromClassDefaults(), Settings,
+                                                GetAbilityLevel(), Origin, ProjectileTargetLocation);
 }

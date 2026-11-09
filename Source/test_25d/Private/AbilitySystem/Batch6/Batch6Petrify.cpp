@@ -1,5 +1,5 @@
 /**
- * 石化链：服务器 GA ActivateAbility/Commit -> 混合范围查询 -> Mass ApplyPetrify 或 Enemy 组件 Apply。Actor 用 Infinite Stun GE 控制，组件复制 bPetrified/材质/Lease，OnRep_State 管理本地动画暂停与材质。Tick/GE 移除回调/EndPlay -> Clear；缓存原材质只在匹配当前覆盖时恢复，避免覆盖其他系统修改。
+ * 石化链：服务器 GA ActivateAbility/Commit -> Status.PetrifyArea图策略 -> 混合范围查询 -> AbilityStatusService -> Mass ApplyPetrify 或 Enemy 组件 Apply。Actor 用 Infinite Stun GE 控制，组件复制 bPetrified/材质/Lease，OnRep_State 管理本地动画暂停与材质。Tick/GE 移除回调/EndPlay -> Clear；缓存原材质只在匹配当前覆盖时恢复，避免覆盖其他系统修改。
  * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
  */
 #include "AbilitySystem/Batch6/Batch6Petrify.h"
@@ -17,6 +17,9 @@
 #include "PureMass/PureMassCombatTarget.h"
 #include "PureMass/PureMassSubsystem.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
+#include "AbilitySystem/Unified/AbilityStatusService.h"
+#include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "AbilitySystem/Unified/Nodes/AbilityBatch6NodeExecutions.h"
 /** 构造 Infinite 控制 GE，实际 Stun Tag 在 Apply 的独立 Spec 中加入。 */
 UBatch6PetrifyEffect::UBatch6PetrifyEffect()
 {
@@ -165,40 +168,65 @@ void UBatch6PetrifyAbility::ApplyCost(FGameplayAbilitySpecHandle Handle, const F
     if (Info && Info->IsNetAuthority() && Prototype)
         UPureMassAbility::SpendMana(Info->AvatarActor.Get(), Prototype->ManaCost);
 }
-/** 服务器提交施法后查询可见范围目标：Mass 调 ApplyPetrify，Actor 按需注册组件并 Apply；完成后结束 GA，组件继续计时。 */
+/** 服务器仍按原顺序 Commit/Gather/Visible；每目标应用交共享服务，结束 GA 后原状态持有者继续计时。 */
 void UBatch6PetrifyAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
                                             const FGameplayAbilityActorInfo* Info,
                                             const FGameplayAbilityActivationInfo Activation,
                                             const FGameplayEventData* Data)
 {
     AActor* Avatar = Info ? Info->AvatarActor.Get() : nullptr;
-    if (!Avatar || !Avatar->HasAuthority() || !CommitAbility(Handle, Info, Activation))
+    FAbilityNodeInput Input;
+    FString Error;
+    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
+    Graph->SchemaVersion = 2;
+    Graph->CompatibilityProfile = TEXT("UnifiedV2");
+    auto* Config = NewObject<UAbilityAreaPetrifyNodeConfig>(Graph);
+    Config->Radius = Radius;
+    Config->Duration = Duration;
+    Config->StoneMaterial = StoneMaterial;
+    FAbilityGraphNode Node;
+    Node.NodeId = FGuid::NewGuid();
+    Node.TypeId = TEXT("Status.PetrifyArea");
+    Node.Config = Config;
+    Graph->Nodes.Add(Node);
+    Graph->EntryNodeId = Node.NodeId;
+    FAbilityNodeRegistry Registry;
+    Registry.RegisterBuiltins();
+    TArray<FString> Errors;
+    if (!Avatar || !Avatar->HasAuthority() ||
+        !AbilityExecutionIdentity::CaptureSource(Avatar, Input.SourceToken, Error) ||
+        !Graph->Validate(Registry, Errors) || !CommitAbility(Handle, Info, Activation) || !IsActive())
     {
         EndAbility(Handle, Info, Activation, true, true);
         return;
     }
-    for (const auto& Target : PureMassCombat::Gather(GetWorld(), Avatar, Avatar->GetActorLocation(), Radius))
+    Input.Origin = Avatar->GetActorLocation();
+    Batch6Execution = NewObject<UAbilityGraphInstance>(this);
+    auto* Execution = Batch6Execution.Get();
+    const bool bStarted = Execution->StartWithInput(Graph, Input, {}, Registry, Error);
+    Execution->Advance(0.f);
+    const bool bSucceeded =
+        bStarted && Execution->IsFinished() && Execution->GetEndReason() == EAbilityGraphEndReason::Completed;
+    if (IsActive())
     {
-        if (!Target.IsActor())
-        {
-            if (PureMassCombat::Visible(GetWorld(), Avatar, Avatar->GetActorLocation(), Target))
-                if (auto* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
-                    Mass->ApplyPetrify(Target.EntityId, Duration, Avatar);
-            continue;
-        }
-        auto* Enemy = Cast<AEnemyCharacter>(Target.Actor.Get());
-        if (!Enemy || !PureMassCombat::Visible(GetWorld(), Avatar, Avatar->GetActorLocation(), Target))
-            continue;
-        auto* Component = Enemy->FindComponentByClass<UBatch6PetrifyComponent>();
-        if (!Component)
-        {
-            Component = NewObject<UBatch6PetrifyComponent>(Enemy);
-            Enemy->AddInstanceComponent(Component);
-            Component->RegisterComponent();
-        }
-        Component->Apply(Duration, StoneMaterial);
+        EndAbility(Handle, Info, Activation, true, !bSucceeded);
     }
-    EndAbility(Handle, Info, Activation, true, false);
+}
+
+void UBatch6PetrifyAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
+                                       FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled)
+{
+    CloseExecutionSession(Cancelled);
+    if (Batch6Execution)
+    {
+        auto* Execution = Batch6Execution.Get();
+        Batch6Execution = nullptr;
+        if (!Execution->IsFinished())
+        {
+            Execution->Cancel();
+        }
+    }
+    Super::EndAbility(Handle, Info, Activation, Replicate, Cancelled);
 }
 
 /** UI 使用当前半径、持续时间与 Prototype 的费用/冷却生成说明。 */

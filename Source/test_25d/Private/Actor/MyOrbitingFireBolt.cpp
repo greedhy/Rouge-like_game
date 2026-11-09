@@ -1,4 +1,6 @@
+/** Driver/GA orbit launch -> movement overlap -> original projectile damage. Cast guards apply before independent movement callbacks can damage a new life. */
 #include "Actor/MyOrbitingFireBolt.h"
+#include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "AbilitySystem/Data/OrbitingFireBoltConfig.h"
 #include "Interface/CombatInterface.h"
 
@@ -49,7 +51,7 @@ void AMyOrbitingFireBolt::ReturnToOrbit()
 
 void AMyOrbitingFireBolt::LaunchAt(AActor* Target)
 {
-    if (!HasAuthority() || bImpactStarted || !IsValid(Target) || !Settings)
+    if (!HasAuthority() || bImpactStarted || !IsValid(Target) || !Settings || !ValidateCastLife(Target))
         return;
     AttackTarget = Target;
     bLaunched = true;
@@ -74,7 +76,7 @@ void AMyOrbitingFireBolt::Tick(float DeltaSeconds)
     if (!HasAuthority() || bImpactStarted)
         return;
     AActor* Avatar = OrbitAvatar.Get();
-    if (!IsValid(Avatar) || !Settings ||
+    if (!IsValid(Avatar) || !Settings || !ValidateCastLife() ||
         (Avatar->Implements<UCombatInterface>() && ICombatInterface::Execute_IsDead(Avatar)))
     {
         Destroy();
@@ -85,8 +87,8 @@ void AMyOrbitingFireBolt::Tick(float DeltaSeconds)
     {
         AActor* Target = AttackTarget.Get();
         FlightSeconds += DeltaSeconds;
-        if (!IsValid(Target) || !Target->Implements<UCombatInterface>() || ICombatInterface::Execute_IsDead(Target) ||
-            FlightSeconds > Settings->MaxFlightSeconds ||
+        if (!IsValid(Target) || !ValidateCastLife(Target) || !Target->Implements<UCombatInterface>() ||
+            ICombatInterface::Execute_IsDead(Target) || FlightSeconds > Settings->MaxFlightSeconds ||
             FVector::DistSquared(Avatar->GetActorLocation(), Target->GetActorLocation()) >
                 FMath::Square(Settings->MaxTargetDistance))
         {
@@ -114,7 +116,7 @@ bool AMyOrbitingFireBolt::IsValidOverlap(AActor* OtherActor)
 {
     return HasAuthority() && bLaunched && !bImpactStarted && OtherActor == AttackTarget.Get() && IsValid(OtherActor) &&
            OtherActor->Implements<UCombatInterface>() && !ICombatInterface::Execute_IsDead(OtherActor) &&
-           Super::IsValidOverlap(OtherActor);
+           ValidateCastLife(OtherActor) && Super::IsValidOverlap(OtherActor);
 }
 
 void AMyOrbitingFireBolt::OnHit()
@@ -128,4 +130,31 @@ void AMyOrbitingFireBolt::OnHit()
 void AMyOrbitingFireBolt::MulticastImpact_Implementation()
 {
     Super::OnHit();
+}
+
+/** Optional for legacy Orbit GA; extracted invocations bind a context before launching any bolt. */
+void AMyOrbitingFireBolt::SetCastContext(UPrototypeCastContext* Context)
+{
+    CastContext = Context;
+    bHasCastLifeGuard = true;
+}
+
+/** Resolve the captured source and selected target immediately before movement or overlap damage. */
+bool AMyOrbitingFireBolt::ValidateCastLife(AActor* Target) const
+{
+    if (!bHasCastLifeGuard)
+    {
+        return true;
+    }
+    auto* Context = CastContext.Get();
+    if (!Context || !Context->ValidateSourceLife())
+    {
+        return false;
+    }
+    if (!Target)
+    {
+        return true;
+    }
+    FVector Location;
+    return Context->ResolveTargetLife(FPureMassCombatTarget::FromActor(Target), Location);
 }

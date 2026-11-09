@@ -1,46 +1,39 @@
 # 原型与组合 GA 源码阅读地图
 
-本说明对应原型组合功能族，不宣称覆盖全部游戏代码。各文件内有函数职责、框架调用链和网络/生命周期说明。
-箭头表示控制流；任务回调、引擎 Tick、复制通知常发生于不同帧，不能把整个流程当作一条同步 C++ 调用栈。
+当前开发入口为 [统一制作指南](ga-unified-authoring-guide.md)，架构、网络与生命周期合同见 [框架说明](ga-framework-reference.md)。箭头表示控制流；任务回调、引擎 Tick、复制通知常发生于不同帧，不能把整个流程当作一条同步 C++ 调用栈。
 
 ## 从一个技能追到实际伤害
 
-先查看 GA 的父类和 Prototype 引用，再决定执行器。共享 DA 是配置，Context 是一次施法的运行状态；
-子节点组合生成新的行为 Runtime，不等于再次激活一个 GA，也不再次扣根节点的费用。
+先查看 GA 的父类和配置引用。共享 DA 是配置，会话属于一次激活，图实例属于一次执行。旧 DA 通过兼容编译器生成同一 Schema 2 图；子节点不再次激活完整 GA，也不默认重复扣根节点费用。
 
 | 路径 | 文件位置（相对 Source/test_25d） | 关键顺序 |
 |---|---|---|
-| Actor 原型 | AbilitySystem/Prototypes 对应 Public/Private | PrototypeAbility::ActivateAbility → 目标任务 → OnTargetData → Execute/CommitAbility → PrototypeRuntime::Spawn |
-| 混合原型 | PureMass/PureMassAbility、PureMassRuntime | TargetReady → ValidateCombatTarget → ExecuteMass → Spawn → BeginPlay/Tick → Hit |
-| 第五批图 | AbilitySystem/PrototypeExtensions | ExtensionAbility::Execute → ExtensionRuntime::Spawn → Behavior 分支 → HitChild/PeriodChild/CompleteChild |
-| 第六批分叉连锁 | AbilitySystem/Batch6/Batch6ChainAbility | ReceiveTarget → Commit → Queue/Visited 广度优先结算 → 复制连线段 |
-| 第六批范围 | AbilitySystem/Batch6/Batch6FieldAbility | PureMassAbility 执行；PureMassRuntime 消费波前、跟随、减速与范围表现参数 |
-| 第六批石化 | AbilitySystem/Batch6/Batch6Petrify | ActivateAbility → 混合范围筛选 → Actor 组件 Apply / Mass ApplyPetrify |
+| Actor 原型 | AbilitySystem/Prototypes、Unified/LegacyActorAbilityDriver | PrototypeAbility → 目标/费用 → LegacyGraphCompiler → GraphInstance → LegacyNodeExecution → Actor Driver |
+| 混合原型 | PureMass、Unified/LegacyMixedAbilityDriver | PureMassAbility → 混合目标/费用 → 兼容图 → Mixed Driver |
+| 第五批图 | AbilitySystem/PrototypeExtensions、Unified/LegacyExtensionAbilityDriver | ExtensionAbility → 兼容图 → Extension Driver → 原状态子系统 |
+| 第六批分叉连锁 | AbilitySystem/Batch6、Unified/Nodes/AbilityBatch6NodeExecutions | Batch6ChainAbility → 目标/费用 → Delivery.ForkedChain → BFS/伤害/连线段 |
+| 第六批范围 | AbilitySystem/Batch6/Batch6FieldAbility | PureMassAbility → 混合兼容图，保留波前/跟随/减速参数 |
+| 第六批石化 | AbilitySystem/Batch6、Unified/Nodes/AbilityBatch6NodeExecutions | Batch6PetrifyAbility → Status.PetrifyArea → Actor 组件 / Mass 状态服务 |
 
 上述表中的目录同时存在 Public 声明与 Private 实现。核心示例同步栈：
 
 ```text
-UPrototypeAbility::Execute
-  CommitAbility（GAS 内部调用费用/冷却回调）
-  APrototypeRuntime::Spawn
-    UAbilityPrototype::IsValidConfiguration
-    UPrototypeCastContext::ReserveSpawn
-    FinishSpawning
-      BeginPlay（世界已进入播放时）
-
-后续独立的引擎更新：
-APrototypeRuntime::Tick
-  行为分支，例如 TickProjectile / TickChain / Pulse
-    Hit
-      UMyAbilitySystemLibrary::ApplyDamageEffect
-      Emit(OnHit)
-        Spawn(同 Context, Depth + 1)
+UMyGameplayAbility::PreActivate：本次会话及来源生命
+GA 目标确认 / 原费用时点
+  UAbilityLegacyGraphCompiler::Compile 或指定 Schema 2 图
+  UAbilityGraphInstance::StartWithInput：校验/冻结/实例化策略
+    Legacy.Mixed.Burst：实际命中
+      OnHit -> ConfirmedImpact（原目标生命与历史位置）
+    FIFO 事件队列
+      Target.ResolveImpact：验证原目标仍属于同一生命
+        TargetFound -> LiveTarget
+          Status.Petrify：原 Actor 组件 / Mass 状态服务
 ```
 
 ## 数据图边界
 
-- 旧图使用 Kind 与 OnHit/OnPeriod/OnExpire；共享 Context 的生成预算限制深度与总节点数。
-- 第五批使用 Behavior 与 HitChild/PeriodChild/CompleteChild；ValidateGraph 拒绝旧连接混入，并检查路径环。
+- 旧 Kind/Behavior 与子引用通过兼容编译器冻结并转为图节点/边；旧资产仍按原规则校验。新组合使用类型化端口，不硬填跨族旧指针。
+- 原 Runtime Actor 保留表现、稳定资产复制与兼容接口；实际行为在 Driver，禁止再复制 Kind 执行循环。旧递归调用改为有界 FIFO，不保证全部同步观察者顺序不变。
 - Batch6 分叉连锁有自己的广度优先预算，不是第五批 Chain 节点的同一实现。
 - 混合目标 Hit 先 Resolve，再分别进入 Actor GE 或 PureMass 子系统伤害；Niagara 不决定命中。
 
@@ -60,6 +53,4 @@ Actor 位移由 RootMotionSource 交 CharacterMovement；Mass 位移由 Extensio
 
 ## 注释变更验证
 
-本轮只补充/修正注释，不修改函数签名、反射声明或运行逻辑。
-基线与检查结果位于 Saved/GACommentAudit，20261108/verification.json 比较忽略注释后的代码 token。
-构建记录位于 Saved/Logs/Build-GAComments-20261108.log；构建结果以该次实际结果为准。
+`Saved/GACommentAudit/20261108/verification.json` 只证明当时纯注释整理。本轮包含行为迁移，不能沿用 token 比较作为迁移验收；请使用当前构建、全量自动化和独立资产读回证据。

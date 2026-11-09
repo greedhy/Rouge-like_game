@@ -11,6 +11,11 @@
 
 class UAbilityPrototype;
 class APrototypeRuntime;
+class UAbilityGraphDefinition;
+class UAbilityGraphInstance;
+class UPrototypeCastContext;
+struct FPureMassCombatTarget;
+enum class EAbilityGraphEndReason : uint8;
 
 UCLASS()
 class TEST_25D_API UPrototypeAbility : public UMyDamageGameplayAbility
@@ -56,9 +61,18 @@ public:
     /** 技能 UI 下一等级说明入口，复用描述生成逻辑。 */
     virtual FString GetNextLevelDescription(int32 Level) override;
 
+protected:
+    /** 目标数据返回后先核对原激活生命，再编译只读图；失败发生在 Commit 之前。 */
+    UAbilityGraphDefinition* PrepareUnifiedGraph(FName Profile, FString& Error);
+    /** 已提交的根入口共用图启动/世界持有；连续技能保留完成监听，有限技能在 GA 结束后继续。 */
+    bool StartUnifiedGraph(UAbilityGraphDefinition* Graph, UPrototypeCastContext* Context, FVector Origin,
+                           FVector Direction, const FPureMassCombatTarget& Target, bool bHoldAbility, FString& Error);
+
 private:
-    UPROPERTY()
-    TObjectPtr<APrototypeRuntime> Runtime;
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityGraphInstance> UnifiedExecution;
+    /** 图自然结束/来源失效回调；先清引用再结束 GAS，避免 EndAbility 重入取消同一图。 */
+    void OnUnifiedFinished(EAbilityGraphEndReason Reason);
     FTimerHandle TargetTimeout;
     bool bReceivedTarget = false;
     UFUNCTION()
@@ -67,9 +81,6 @@ private:
     UFUNCTION()
     /** WaitInputRelease 的异步松键回调，经 Abort 取消持续技能。 */
     void OnReleased(float HeldTime);
-    UFUNCTION()
-    /** Runtime 的 OnDestroyed 回调：先清空引用，再结束仍激活的 GA，避免重复取消已销毁对象。 */
-    void OnRuntimeDestroyed(AActor* Actor);
     /** 超时、非法目标或松键共用的取消入口；仅在 GA 激活时调用 EndAbility。 */
     void Abort();
     /** OnTargetData/自身施法入口：拒绝重复目标，提交费用与冷却，建立共享上下文并生成根 Runtime。有限节点脱离 GA 存活；Beam/Orbit 保留销毁监听。 */

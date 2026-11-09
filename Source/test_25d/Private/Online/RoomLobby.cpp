@@ -3,6 +3,9 @@
 #include "UI/Widget/RoomMenuWidget.h"
 #include "GameFramework/PlayerState.h"
 #include "Engine/GameInstance.h"
+#include "Game/MyGameInstance.h"
+#include "Player/MyPlayerState.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 bool ARoomLobbyGameState::CanManage(const APlayerController* Requester) const
@@ -22,6 +25,7 @@ ARoomLobbyGameMode::ARoomLobbyGameMode()
     GameStateClass = ARoomLobbyGameState::StaticClass();
     PlayerControllerClass = ARoomLobbyController::StaticClass();
     DefaultPawnClass = nullptr;
+    PlayerStateClass = AMyPlayerState::StaticClass();
     bUseSeamlessTravel = true;
 }
 void ARoomLobbyGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
@@ -32,8 +36,35 @@ void ARoomLobbyGameMode::PreLogin(const FString& Options, const FString& Address
         if (auto* Rooms = GetGameInstance()->GetSubsystem<URoomSubsystem>())
             Rooms->AuthorizeIncoming(Options, GetNumPlayers(), Error);
 }
+// A joining client supplies its local save profession once, during lobby login.
+FString ARoomLobbyGameMode::InitNewPlayer(APlayerController* Controller, const FUniqueNetIdRepl& UniqueId,
+                                         const FString& Options, const FString& Portal)
+{
+    const FString Error = Super::InitNewPlayer(Controller, UniqueId, Options, Portal);
+    if (Error.IsEmpty())
+    {
+        if (auto* State = Controller->GetPlayerState<AMyPlayerState>())
+        {
+            State->Profession = UGameplayStatics::ParseOption(Options, TEXT("PlayerProfession")) == TEXT("Stander")
+                                    ? EPlayerProfession::Stander
+                                    : EPlayerProfession::Mage;
+        }
+    }
+    return Error;
+}
+
 void ARoomLobbyGameMode::PostLogin(APlayerController* PC)
 {
+    if (PC->IsLocalController())
+    {
+        if (auto* State = PC->GetPlayerState<AMyPlayerState>())
+        {
+            if (const auto* GI = GetGameInstance<UMyGameInstance>())
+            {
+                State->Profession = GI->GetSelectedProfession();
+            }
+        }
+    }
     Super::PostLogin(PC);
     auto* GS = GetGameState<ARoomLobbyGameState>();
     if (GS && PC->IsLocalController())

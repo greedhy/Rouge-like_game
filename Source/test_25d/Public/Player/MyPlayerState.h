@@ -15,6 +15,7 @@
 #include "AbilitySystemInterface.h"
 #include "Backpack/BackpackPersistence.h"
 
+#include "Game/PlayerProfession.h"
 #include "MyPlayerState.generated.h"
 
 class ULevelUpInfo;
@@ -38,6 +39,8 @@ class TEST_25D_API AMyPlayerState : public APlayerState, public IAbilitySystemIn
     GENERATED_BODY()
 
 public:
+    // Set on the server at login and carried across seamless travel.
+    EPlayerProfession Profession = EPlayerProfession::Unselected;
     // 创建可复制能力系统、属性集、背包与装备组件。
     AMyPlayerState();
     // 注册本类需要复制的状态，同时保留父类复制字段。

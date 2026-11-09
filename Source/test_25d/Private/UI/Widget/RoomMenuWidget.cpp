@@ -2,6 +2,7 @@
 #include "Online/RoomSubsystem.h"
 #include "Online/RoomLobby.h"
 #include "UI/HUD/LoadScreenHUD.h"
+#include "UI/ViewModel/MVVM_LoadScreen.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -138,8 +139,6 @@ void URoomMenuWidget::BuildTree()
         ->OnClicked.AddDynamic(this, &ThisClass::SingleClicked);
     AddButton(Mode, TEXT("SwordShieldTrialButton"), TEXT("单人剑盾试炼"))
         ->OnClicked.AddDynamic(this, &ThisClass::SwordTrialClicked);
-    AddButton(Mode, TEXT("StanderTrialButton"), TEXT("Stander动作试炼"))
-        ->OnClicked.AddDynamic(this, &ThisClass::StanderTrialClicked);
     AddButton(Mode, TEXT("MultiplayerButton"), TEXT("多人模式"))
         ->OnClicked.AddDynamic(this, &ThisClass::MultiplayerClicked);
     AddButton(Mode, TEXT("ReturnToSaveButton"), TEXT("返回存档选择"))
@@ -163,6 +162,14 @@ void URoomMenuWidget::BuildTree()
     StartButton->OnClicked.AddDynamic(this, &ThisClass::StartClicked);
     AddButton(Lobby, TEXT("LeaveRoomButton"), TEXT("离开房间"))->OnClicked.AddDynamic(this, &ThisClass::LeaveClicked);
     LobbyHint = AddText(Lobby, TEXT("等待房主开始游戏"), 16);
+    ProfessionPage = AddPage(TEXT("选择职业"), TEXT("职业随存档固定，适用于单人和多人模式。"));
+    AddButton(ProfessionPage, TEXT("MageProfessionButton"), TEXT("魔法师"))
+        ->OnClicked.AddDynamic(this, &ThisClass::MageProfessionClicked);
+    AddButton(ProfessionPage, TEXT("StanderProfessionButton"), TEXT("Standard"))
+        ->OnClicked.AddDynamic(this, &ThisClass::StanderProfessionClicked);
+    AddButton(ProfessionPage, TEXT("CancelProfessionButton"), TEXT("返回存档选择"))
+        ->OnClicked.AddDynamic(this, &ThisClass::BackClicked);
+    ProfessionError = AddText(ProfessionPage, TEXT(""), 17);
     Modal = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("RoomErrorDialog"));
     Modal->SetBrushColor(FLinearColor(.025f, .025f, .03f, .99f));
     Modal->SetPadding(FMargin(32));
@@ -211,6 +218,14 @@ void URoomMenuWidget::ShowModeSelection()
         Pages->SetActiveWidgetIndex(0);
     Refresh();
 }
+void URoomMenuWidget::ShowProfessionSelection()
+{
+    bLobby = false;
+    ProfessionError->SetText(FText::GetEmpty());
+    Pages->SetActiveWidget(ProfessionPage);
+    Refresh();
+}
+
 void URoomMenuWidget::ShowLobby()
 {
     bLobby = true;
@@ -254,7 +269,7 @@ void URoomMenuWidget::Refresh()
     default:
         Status = TEXT("当前存档：") + R->SelectedPlayerName;
     }
-    StatusText->SetText(FText::FromString(Status));
+    StatusText->SetText(Pages->GetActiveWidget() == ProfessionPage ? FText::GetEmpty() : FText::FromString(Status));
     if (HasError)
     {
         ModalText->SetText(R->LastError);
@@ -294,10 +309,23 @@ void URoomMenuWidget::SwordTrialClicked()
     if (Rooms())
         Rooms()->StartSwordShieldTrial();
 }
-void URoomMenuWidget::StanderTrialClicked()
+void URoomMenuWidget::MageProfessionClicked()
 {
-    if (Rooms())
-        Rooms()->StartStanderTrial();
+    ConfirmProfession(EPlayerProfession::Mage);
+}
+
+void URoomMenuWidget::StanderProfessionClicked()
+{
+    ConfirmProfession(EPlayerProfession::Stander);
+}
+
+void URoomMenuWidget::ConfirmProfession(EPlayerProfession Profession)
+{
+    auto* HUD = Cast<ALoadScreenHUD>(GetOwningPlayer()->GetHUD());
+    if (!HUD || !HUD->LoadScreenViewModel || !HUD->LoadScreenViewModel->ConfirmNewSlotProfession(Profession))
+    {
+        ProfessionError->SetText(FText::FromString(TEXT("无法创建存档，请确认存档槽位可用后重试。")));
+    }
 }
 void URoomMenuWidget::MultiplayerClicked()
 {
@@ -321,7 +349,7 @@ void URoomMenuWidget::JoinClicked()
 void URoomMenuWidget::BackClicked()
 {
     const int32 Index = Pages->GetActiveWidgetIndex();
-    if (Index == 0)
+    if (Index == 0 || Pages->GetActiveWidget() == ProfessionPage)
     {
         if (auto* HUD = Cast<ALoadScreenHUD>(GetOwningPlayer()->GetHUD()))
             HUD->ShowSaveSelection();

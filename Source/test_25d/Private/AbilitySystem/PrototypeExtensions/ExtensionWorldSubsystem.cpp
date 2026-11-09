@@ -18,6 +18,31 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 
+namespace
+{
+    /** Compare captured identities without requiring a live target: a lethal threshold hit still belongs to its old life. */
+    bool SameCapturedTargetLife(const UPrototypeCastContext& Previous, const UPrototypeCastContext& Current,
+                                const FPureMassCombatTarget& Target)
+    {
+        const auto* PreviousLife = Previous.FindTargetLife(Target);
+        const auto* CurrentLife = Current.FindTargetLife(Target);
+        return PreviousLife && CurrentLife && PreviousLife->World == CurrentLife->World &&
+               PreviousLife->Target == CurrentLife->Target && PreviousLife->ActorLease == CurrentLife->ActorLease &&
+               PreviousLife->MassEntity == CurrentLife->MassEntity &&
+               PreviousLife->DungeonRunId == CurrentLife->DungeonRunId;
+    }
+
+    /** Match the engine removal operation on the exact owned source. This also works after source/target life expires. */
+    void ReleaseOwnedRootMotion(FExtensionMoveState& Move)
+    {
+        if (Move.OwnedRootMotion)
+        {
+            Move.OwnedRootMotion->Status.SetFlag(ERootMotionSourceStatusFlags::MarkedForRemoval);
+            Move.OwnedRootMotion.Reset();
+        }
+    }
+} // namespace
+
 /** 引擎子系统创建筛选：只支持 Game/PIE，避免编辑器预览世界维护战斗状态。 */
 bool UExtensionWorldSubsystem::DoesSupportWorldType(EWorldType::Type T) const
 {
@@ -48,11 +73,10 @@ TStatId UExtensionWorldSubsystem::GetStatId() const
     RETURN_QUICK_DECLARE_CYCLE_STAT(ExtensionWorld, STATGROUP_Tickables);
 }
 /** Runtime/子系统共用守卫：检查 Context 未取消、弱引用有效、Actor 未销毁且战斗接口未死亡。 */
-bool UExtensionWorldSubsystem::CasterAlive(const UPrototypeCastContext* C)
+bool UExtensionWorldSubsystem::CasterAlive(UPrototypeCastContext* C)
 {
-    AActor* A = C ? C->Caster.Get() : nullptr;
-    return C && !C->bCancelled && IsValid(A) && !A->IsActorBeingDestroyed() &&
-           (!A->Implements<UCombatInterface>() || !ICombatInterface::Execute_IsDead(A));
+    FString Error;
+    return C && !C->bCancelled && C->CaptureSourceLife(Error);
 }
 /** 按施法者、EffectId、混合目标查当前层数；没有匹配记录返回零。 */
 int32 UExtensionWorldSubsystem::LayersFor(AActor* Caster, FName Id, FPureMassCombatTarget T) const
@@ -63,21 +87,23 @@ int32 UExtensionWorldSubsystem::LayersFor(AActor* Caster, FName Id, FPureMassCom
     return 0;
 }
 /** Runtime Stack 分支入口：校验图与确认命中快照，按来源/效果/目标合并层数；到阈值进入待引爆期，最多保留 256 条。 */
-bool UExtensionWorldSubsystem::AddStack(UExtensionCastContext* C, UExtensionNode* N, FPureMassCombatTarget T, FVector P,
-                                        FVector D, int32 Depth, bool ConfirmedHit)
+bool UExtensionWorldSubsystem::AddStack(UPrototypeCastContext* C, UExtensionNode* N, FPureMassCombatTarget T, FVector P,
+                                        FVector D, int32 Depth, bool ConfirmedHit,
+                                        FLegacyAbilityChildAdmission ChildAdmission, TFunction<void()> ReleasedCallback)
 {
     if (GetWorld()->GetNetMode() == NM_Client || !CasterAlive(C) || !N || !N->ValidateGraph() ||
         C->DetonatedEffects.Contains(N->EffectId) || !T.IsSet() || P.ContainsNaN())
         return false;
     FVector LivePosition;
-    if (PureMassCombat::Resolve(GetWorld(), C->Caster.Get(), T, LivePosition))
+    if (C->ResolveTargetLife(T, LivePosition))
         P = LivePosition;
     else if (!ConfirmedHit)
         return false; // Only a server-confirmed hit can carry a lethal snapshot.
     FExtensionStackState* S = Stacks.FindByPredicate(
         [&](const auto& V)
         {
-            return V.Context->Caster == C->Caster && V.Node->EffectId == N->EffectId && V.Target == T;
+            return V.Context && V.Node && V.Context->Caster == C->Caster && V.Node->EffectId == N->EffectId &&
+                   V.Target == T && CasterAlive(V.Context) && SameCapturedTargetLife(*V.Context, *C, T);
         });
     if (S && S->bPending)
         return false;
@@ -92,6 +118,10 @@ bool UExtensionWorldSubsystem::AddStack(UExtensionCastContext* C, UExtensionNode
         S->Target = T;
         S->VisualId = NextVisualId++;
     }
+    // 下一次叠层继承数值，执行所有权转给新施法。先移动旧回调，避免同步回调触及正在填写的数组元素。
+    TFunction<void()> PreviousRelease = MoveTemp(S->ReleasedCallback);
+    S->ChildAdmission = MoveTemp(ChildAdmission);
+    S->ReleasedCallback = MoveTemp(ReleasedCallback);
     S->Context = C;
     S->Node = N;
     S->Position = P;
@@ -100,6 +130,10 @@ bool UExtensionWorldSubsystem::AddStack(UExtensionCastContext* C, UExtensionNode
     ++S->Layers;
     S->bPending = S->Layers >= N->StackThreshold;
     S->Remaining = S->bPending ? N->DetonationDelay : N->StackLifetime;
+    if (PreviousRelease)
+    {
+        PreviousRelease();
+    }
     return true;
 }
 /** 服务器逐帧过期清理；先移出待引爆记录再生成子节点以避免重入失效；清理根运动/替换令牌，并更新复制表现快照。 */
@@ -108,16 +142,21 @@ void UExtensionWorldSubsystem::Tick(float Delta)
     if (GetWorld()->GetNetMode() == NM_Client)
         return;
     TArray<FExtensionStackState> Detonations;
+    TArray<TFunction<void()>> Releases;
     for (int32 I = Stacks.Num() - 1; I >= 0; --I)
     {
         auto& S = Stacks[I];
         if (!CasterAlive(S.Context))
         {
+            if (S.ReleasedCallback)
+            {
+                Releases.Add(MoveTemp(S.ReleasedCallback));
+            }
             Stacks.RemoveAtSwap(I);
             continue;
         }
         FVector P;
-        bool Alive = PureMassCombat::Resolve(GetWorld(), S.Context->Caster.Get(), S.Target, P);
+        bool Alive = S.Context->ResolveTargetLife(S.Target, P);
         if (Alive)
             S.Position = P;
         S.Remaining -= Delta;
@@ -125,6 +164,8 @@ void UExtensionWorldSubsystem::Tick(float Delta)
         {
             if (S.bPending)
                 Detonations.Add(S);
+            else if (S.ReleasedCallback)
+                Releases.Add(MoveTemp(S.ReleasedCallback));
             Stacks.RemoveAtSwap(I);
         }
     }
@@ -132,23 +173,44 @@ void UExtensionWorldSubsystem::Tick(float Delta)
     for (auto& S : Detonations)
     {
         S.Context->DetonatedEffects.Add(S.Node->EffectId);
-        AExtensionRuntime::Spawn(S.Context, S.Node->CompleteChild, S.Position, S.Direction, {}, S.Depth + 1,
-                                 S.Position);
+        if (S.ChildAdmission)
+        {
+            FLegacyAbilityChildRequest Request;
+            Request.Event = TEXT("OnExpire");
+            Request.Config = S.Node->CompleteChild;
+            Request.Context = S.Context;
+            Request.Position = S.Position;
+            Request.Direction = S.Direction;
+            Request.EventCenter = S.Position;
+            Request.Depth = S.Depth + 1;
+            S.ChildAdmission(Request);
+        }
+        else
+        {
+            AExtensionRuntime::Spawn(S.Context, S.Node->CompleteChild, S.Position, S.Direction, {}, S.Depth + 1,
+                                     S.Position);
+        }
+        if (S.ReleasedCallback)
+        {
+            Releases.Add(MoveTemp(S.ReleasedCallback));
+        }
+    }
+    for (auto& Release : Releases)
+    {
+        Release();
     }
     for (int32 I = Moves.Num() - 1; I >= 0; --I)
     {
         auto& M = Moves[I];
         FVector P;
-        bool Valid =
-            CasterAlive(M.Context) && PureMassCombat::Resolve(GetWorld(), M.Context->Caster.Get(), M.Target, P);
+        bool Valid = CasterAlive(M.Context) && M.Context->ResolveTargetLife(M.Target, P);
         if (M.Target.IsActor())
             M.Remaining -= Delta;
         if (!Valid || M.Remaining <= 0)
         {
             if (!Valid)
                 Replaced.Add(M.Token, GetWorld()->GetTimeSeconds() + 60);
-            if (auto* A = Cast<ACharacter>(M.Target.Actor.Get()))
-                A->GetCharacterMovement()->RemoveRootMotionSourceByID(M.RootMotionId);
+            ReleaseOwnedRootMotion(M);
             Moves.RemoveAtSwap(I);
         }
     }
@@ -211,12 +273,12 @@ bool UExtensionWorldSubsystem::ConstrainMove(UWorld* W, AActor* Ignore, FVector 
     return true;
 }
 /** Runtime Displace 分支入口：服务器校验免疫和位移比例、约束终点；替换旧令牌。Actor 添加 RootMotionSource，Mass 保存目标供处理器推进。 */
-FGuid UExtensionWorldSubsystem::RequestDisplacement(UExtensionCastContext* C, UExtensionNode* N,
+FGuid UExtensionWorldSubsystem::RequestDisplacement(UPrototypeCastContext* C, UExtensionNode* N,
                                                     FPureMassCombatTarget T, FVector Center, FVector Direction)
 {
     FVector P;
     if (GetWorld()->GetNetMode() == NM_Client || !CasterAlive(C) || !N || !N->ValidateGraph() ||
-        !PureMassCombat::Resolve(GetWorld(), C->Caster.Get(), T, P))
+        !C->ResolveTargetLife(T, P))
         return {};
     float Radius = 20, HalfHeight = 40, Scale = 1;
     ACharacter* Character = nullptr;
@@ -261,8 +323,7 @@ FGuid UExtensionWorldSubsystem::RequestDisplacement(UExtensionCastContext* C, UE
         if (Moves[I].Target == T)
         {
             Replaced.Add(Moves[I].Token, GetWorld()->GetTimeSeconds() + 60);
-            if (Character)
-                Character->GetCharacterMovement()->RemoveRootMotionSourceByID(Moves[I].RootMotionId);
+            ReleaseOwnedRootMotion(Moves[I]);
             Moves.RemoveAtSwap(I);
         }
     if (Moves.Num() >= 256)
@@ -300,6 +361,7 @@ FGuid UExtensionWorldSubsystem::RequestDisplacement(UExtensionCastContext* C, UE
         Move->FinishVelocityParams.Mode = ERootMotionFinishVelocityMode::SetVelocity;
         Move->FinishVelocityParams.SetVelocity = FVector::ZeroVector;
         M.RootMotionId = Character->GetCharacterMovement()->ApplyRootMotionSource(Move);
+        M.OwnedRootMotion = Move;
     }
     return M.Token;
 }
@@ -311,7 +373,17 @@ void UExtensionWorldSubsystem::MoveMass(FPureMassFragment& F, float Delta)
         {
             return !V.Target.IsActor() && V.Target.EntityId == F.Id;
         });
-    if (!M || !CasterAlive(M->Context) || M->Remaining <= 0 || F.Health <= 0 || !F.Type.IsValid())
+    if (!M)
+        return;
+    FVector CurrentTargetPosition;
+    if (!CasterAlive(M->Context) || !M->Context->ResolveTargetLife(M->Target, CurrentTargetPosition))
+    {
+        // Processor callbacks can run before subsystem Tick. Close the old command without touching its fragment.
+        M->Remaining = 0.f;
+        Replaced.Add(M->Token, GetWorld()->GetTimeSeconds() + 60.f);
+        return;
+    }
+    if (M->Remaining <= 0 || F.Health <= 0 || !F.Type.IsValid())
         return;
     FVector End;
     const FVector Desired = FMath::Lerp(F.Location, M->Destination, FMath::Clamp(Delta / M->Remaining, 0.f, 1.f));
@@ -329,9 +401,20 @@ void UExtensionWorldSubsystem::MoveMass(FPureMassFragment& F, float Delta)
 /** 世界退出：移除所有记录的 Actor RootMotionSource，清空叠层/移动/令牌并销毁 Presentation，最后调用父类。 */
 void UExtensionWorldSubsystem::Deinitialize()
 {
+    auto RetiredStacks = MoveTemp(Stacks);
+    for (auto& Stack : RetiredStacks)
+    {
+        if (Stack.Context)
+        {
+            Stack.Context->bCancelled = true;
+        }
+        if (Stack.ReleasedCallback)
+        {
+            Stack.ReleasedCallback();
+        }
+    }
     for (auto& M : Moves)
-        if (auto* A = Cast<ACharacter>(M.Target.Actor.Get()))
-            A->GetCharacterMovement()->RemoveRootMotionSourceByID(M.RootMotionId);
+        ReleaseOwnedRootMotion(M);
     Moves.Reset();
     Stacks.Reset();
     Replaced.Reset();

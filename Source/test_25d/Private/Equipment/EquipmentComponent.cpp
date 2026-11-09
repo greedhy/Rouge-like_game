@@ -551,7 +551,7 @@ void UEquipmentComponent::EndPlay(const EEndPlayReason::Type Reason)
     if (GetOwner()->HasAuthority())
     {
         ++WeaponGeneration;
-        CommitWeaponSet({}, {});
+        CommitWeaponSet({}, {}, false);
         ClearEffects();
     }
     Super::EndPlay(Reason);

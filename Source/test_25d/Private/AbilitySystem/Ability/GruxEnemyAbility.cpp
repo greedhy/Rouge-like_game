@@ -76,7 +76,8 @@ void UGruxEnemyAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, const
 {
     Stage = 0;
     bCharging = false;
-    ChargedTargets.Reset();
+    ChargeAction.Reset();
+    ArmorSource = {};
     AppliedArmor.Invalidate();
     const auto* Config = Cast<UGruxAttackConfig>(AttackConfig);
     FrozenConfig = Config ? DuplicateObject<UGruxAttackConfig>(Config, this) : nullptr;
@@ -91,34 +92,11 @@ bool UGruxEnemyAbility::UpdateAim()
         return false;
     if (Kind != EGruxAttackKind::Charge || Stage != 0 || !FrozenConfig)
         return true;
-    const auto* Capsule = Golem->GetCapsuleComponent();
-    const FVector Direction = FRotator(0, Yaw, 0).Vector();
-    const FVector Start = Golem->GetActorLocation();
-    float Length = FrozenConfig->Tuning.Length;
-    FHitResult Hit;
-    if (GetWorld()->SweepSingleByObjectType(
-            Hit, Start, Start + Direction * Length, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic),
-            FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight() - 2),
-            FCollisionQueryParams(SCENE_QUERY_STAT(GruxChargePlan), false, Golem.Get())))
-        Length = FMath::Max(0.f, Hit.Distance - 2.f);
-    const auto* Director = ADungeonRunDirector::Find(GetWorld());
-    const int32 Room = Director ? Director->GetRoomIndex(Start) : INDEX_NONE;
-    float Safe = 0;
-    for (float D = FMath::Min(25.f, Length); D <= Length + .01f; D = FMath::Min(D + 25.f, Length))
-    {
-        FVector Floor;
-        const FVector Point = Center + Direction * D;
-        if (!StoneGolemGeometry::Project(GetWorld(), Golem.Get(), Point, Snapshot.HeightTolerance, Floor) ||
-            (Director && Director->GetRoomIndex(Point) != Room))
-            break;
-        Safe = D;
-        if (D >= Length)
-            break;
-    }
-    if (Safe < 25)
-        return false;
-    Snapshot.Length = Safe;
-    return true;
+    FAbilitySourceToken Source;
+    FString Error;
+    Snapshot.Length = FrozenConfig->Tuning.Length;
+    return AbilityExecutionIdentity::CaptureSource(Golem.Get(), Source, Error) &&
+           AbilityEnemySpecialActions::PlanCharge(Source, Center, Yaw, Snapshot);
 }
 // 结束前段表现，换入冻结的后续段参数，并重新建立独立预警。
 bool UGruxEnemyAbility::BeginFollowup()
@@ -137,6 +115,11 @@ bool UGruxEnemyAbility::BeginFollowup()
     bMontageStarted = false;
     bHit = false;
     bCharging = false;
+    if (ChargeAction)
+    {
+        ChargeAction->Stop();
+        ChargeAction.Reset();
+    }
     LockedSurface.Reset();
     LockedTriangles.Reset();
     if (!UpdateAim())
@@ -195,7 +178,7 @@ void UGruxEnemyAbility::ObserveMontage()
 // 解除本技能记录的蒙太奇委托并释放弱引用。
 void UGruxEnemyAbility::ClearMontageDelegates()
 {
-    if (ObservedMontage.IsValid() && Golem.IsValid())
+    if (ObservedMontage.IsValid() && Golem.IsValid() && Golem->IsAttackCurrent(Serial, Lease))
         if (auto* Anim = Golem->GetMesh()->GetAnimInstance())
         {
             FOnMontageBlendingOutStarted Blend;
@@ -216,10 +199,17 @@ void UGruxEnemyAbility::ResolveHit()
             Abort();
             return;
         }
-        AppliedArmor = Actor->ApplyRoarArmor(FrozenConfig->RoarArmor, FrozenConfig->RoarDuration);
+        FString Error;
+        if (!AbilityExecutionIdentity::CaptureSource(Actor, ArmorSource, Error))
+        {
+            Abort();
+            return;
+        }
+        AppliedArmor =
+            AbilityEnemySpecialActions::ApplyRoar(ArmorSource, FrozenConfig->RoarArmor, FrozenConfig->RoarDuration);
         if (!IsActive() || !Actor->IsAttackCurrent(Serial, Lease))
         {
-            Actor->RemoveRoarArmor(AppliedArmor);
+            AbilityEnemySpecialActions::RemoveRoar(ArmorSource, AppliedArmor);
             return;
         }
         if (!AppliedArmor.IsValid())
@@ -232,12 +222,57 @@ void UGruxEnemyAbility::ResolveHit()
     }
     if (Kind == EGruxAttackKind::Charge && Stage == 0)
     {
-        ChargeStart = Golem->GetActorLocation();
-        PreviousChargePosition = ChargeStart;
-        ChargeStarted = GetWorld()->GetTimeSeconds();
+        FAbilityNodeInput Input;
+        FString Error;
+        if (!AbilityExecutionIdentity::CaptureSource(Golem.Get(), Input.SourceToken, Error))
+        {
+            Abort();
+            return;
+        }
+        Input.Origin = Center;
+        Input.Direction = FRotator(0, Yaw, 0).Vector();
+        Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+        Input.DamageParams.DamageGameplayEffectClass = SnapshotDamageEffect;
+        Input.DamageParams.DamageType = SnapshotDamageType;
+        Input.DamageParams.BaseDamage = SnapshotDamage;
+        if (SelectedTarget.IsValid())
+        {
+            FAbilityTargetToken Target;
+            if (AbilityExecutionIdentity::CaptureTarget(
+                    Input.SourceToken, FPureMassCombatTarget::FromActor(SelectedTarget.Get()), Target, Error))
+            {
+                Input.LiveTargetToken = Target;
+            }
+        }
+        auto* Settings = NewObject<UAbilityEnemySpecialNodeConfig>(this);
+        Settings->Kind = EAbilityEnemySpecialKind::Charge;
+        Settings->Shape = Snapshot;
+        Settings->LockedSurface = LockedSurface;
+        Settings->LockedTriangles = LockedTriangles;
+        Settings->Duration = FrozenConfig->ChargeDuration;
+        const int32 ActionSerial = Serial, ActionLease = Lease;
+        const TWeakObjectPtr<UGruxEnemyAbility> WeakThis(this);
+        FAbilityCharacterActionCallbacks Callbacks;
+        Callbacks.IsCurrent = [WeakThis, ActionSerial, ActionLease]()
+        {
+            auto* Self = WeakThis.Get();
+            return Self && Self->IsActive() && Self->Golem.IsValid() &&
+                   Self->Golem->IsAttackCurrent(ActionSerial, ActionLease) && !Self->Golem->bIsStunned;
+        };
+        Callbacks.BeforeActorDamage = [WeakThis](AActor* Target)
+        {
+            if (auto* Self = WeakThis.Get())
+            {
+                Self->ReportOffensiveAttack(Target);
+            }
+        };
+        ChargeAction = MakeShared<FAbilityEnemyAreaAction>();
+        if (!ChargeAction->Start(Input, *Settings, MoveTemp(Callbacks), GetWorld()->GetTimeSeconds(), Error))
+        {
+            Abort();
+            return;
+        }
         bCharging = true;
-        const auto* Director = ADungeonRunDirector::Find(GetWorld());
-        ChargeRoom = Director ? Director->GetRoomIndex(ChargeStart) : INDEX_NONE;
         Golem->ShowActiveFootprint(Serial);
         return;
     }
@@ -252,68 +287,43 @@ void UGruxEnemyAbility::AdvanceCharge()
         return;
     }
     auto* Anim = Golem->GetMesh()->GetAnimInstance();
-    if (!Anim || !Anim->Montage_IsActive(Snapshot.Montage))
+    if (!Anim || !Anim->Montage_IsActive(Snapshot.Montage) || !ChargeAction)
     {
         Abort();
         return;
     }
-    const float Alpha =
-        FMath::Clamp(float(GetWorld()->GetTimeSeconds() - ChargeStarted) / FrozenConfig->ChargeDuration, 0.f, 1.f);
-    FVector Next = ChargeStart + FRotator(0, Yaw, 0).Vector() * Snapshot.Length * Alpha;
-    FVector Floor;
-    const float Half = Golem->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-    if (!StoneGolemGeometry::Project(GetWorld(), Golem.Get(), Next - FVector(0, 0, Half), Snapshot.HeightTolerance,
-                                     Floor))
+    // 保留局部共享引用：命中观察者可同步EndAbility并清空成员。
+    const auto Running = ChargeAction;
+    const auto Result = Running->Advance(GetWorld()->GetTimeSeconds());
+    if (!IsActive())
+    {
+        return;
+    }
+    if (Result == EAbilityEnemyActionState::Failed)
     {
         Abort();
-        return;
     }
-    Next.Z = Floor.Z + Half + 2;
-    if (const auto* D = ADungeonRunDirector::Find(GetWorld()); D && D->GetRoomIndex(Next) != ChargeRoom)
+    else if (Result == EAbilityEnemyActionState::Completed)
     {
-        Abort();
-        return;
-    }
-    // 位移可能同步触发取消或回收；移动后先重验租约，再收集命中。
-    FHitResult Hit;
-    Golem->SetActorLocation(Next, true, &Hit);
-    // Swept movement can synchronously trigger damage, cancellation or pool retirement.
-    if (!IsActive() || !Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease))
-        return;
-    const FVector Actual = Golem->GetActorLocation();
-    TArray<AActor*> Candidates;
-    GatherTargets(Candidates);
-    TArray<AActor*> Hits;
-    // 用上一实际位置到当前位置的线段扫掠判定，整个冲锋对同一目标仅伤害一次。
-    for (auto* Target : Candidates)
-    {
-        FVector Point = Target->GetActorLocation();
-        Point.Z = 0;
-        FVector A = PreviousChargePosition, B = Actual;
-        A.Z = B.Z = 0;
-        if (!ChargedTargets.Contains(Target) && FMath::PointDistToSegment(Point, A, B) <= Snapshot.Width * .5f)
-        {
-            ChargedTargets.Add(Target);
-            Hits.Add(Target);
-        }
-    }
-    ApplyHitTargets(Hits);
-    if (!IsActive() || !Golem.IsValid())
-        return;
-    PreviousChargePosition = Actual;
-    if (Hit.bBlockingHit || Alpha >= 1.f)
         bCharging = false;
+    }
 }
 // 解除蒙太奇委托，取消时撤回本次护甲，并清空冲锋状态后走公共收尾。
 void UGruxEnemyAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                    FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled)
 {
+    CloseExecutionSession(Cancelled);
     ClearMontageDelegates();
     if (Cancelled)
-        if (auto* Actor = Cast<AGruxEnemyCharacter>(Golem.Get()))
-            Actor->RemoveRoarArmor(AppliedArmor);
+    {
+        AbilityEnemySpecialActions::RemoveRoar(ArmorSource, AppliedArmor);
+    }
     bCharging = false;
-    ChargedTargets.Reset();
+    if (ChargeAction)
+    {
+        ChargeAction->Stop();
+        ChargeAction.Reset();
+    }
     FrozenConfig = nullptr;
     AppliedArmor.Invalidate();
     Super::EndAbility(Handle, Info, Activation, Replicate, Cancelled);

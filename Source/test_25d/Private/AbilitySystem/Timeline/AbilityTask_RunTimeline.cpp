@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "AbilitySystem/Ability/MyGameplayAbility.h"
 
 // 任务由GameplayTasks组件逐帧更新，无独立全局ticker或持久单例。
 UAbilityTask_RunTimeline::UAbilityTask_RunTimeline()
@@ -19,12 +20,35 @@ UAbilityTask_RunTimeline* UAbilityTask_RunTimeline::RunAbilityTimeline(UGameplay
     auto* Task = NewAbilityTask<UAbilityTask_RunTimeline>(OwningAbility);
     Task->Montage = InMontage;
     Task->Definition = InDefinition;
+    if (const auto* ProjectAbility = Cast<UMyGameplayAbility>(OwningAbility))
+    {
+        Task->ExecutionSession = ProjectAbility->GetExecutionSession();
+        Task->bUsesExecutionSession = true;
+    }
     return Task;
 }
 
 // 服务端解析值快照并在播放之前安装监听，零时刻通知也不会因监听晚建立而丢失。
 void UAbilityTask_RunTimeline::Activate()
 {
+    if (bUsesExecutionSession)
+    {
+        const auto Session = ExecutionSession.Pin();
+        if (!Session || !Session->IsSourceCurrent())
+        {
+            Finish(true);
+            return;
+        }
+        const TWeakObjectPtr<UAbilityTask_RunTimeline> WeakTask(this);
+        Session->AddCleanup(
+            [WeakTask]()
+            {
+                if (auto* Task = WeakTask.Get())
+                {
+                    Task->EndTask();
+                }
+            });
+    }
     auto* ASC = AbilitySystemComponent.Get();
     const auto* Info = Ability ? Ability->GetCurrentActorInfo() : nullptr;
     FString Error;
@@ -100,6 +124,12 @@ void UAbilityTask_RunTimeline::TickTask(float DeltaTime)
     {
         return;
     }
+    const auto Session = ExecutionSession.Pin();
+    if (bUsesExecutionSession && (!Session || !Session->IsSourceCurrent()))
+    {
+        Finish(true);
+        return;
+    }
     if (!OwnsMontage())
     {
         Finish(true);
@@ -145,6 +175,12 @@ void UAbilityTask_RunTimeline::ReceiveEvent(const FGameplayEventData* Payload)
     }
     if (ShouldBroadcastAbilityTaskDelegates())
     {
+        const auto Session = ExecutionSession.Pin();
+        if (bUsesExecutionSession &&
+            (!Session || !Session->IsSourceCurrent() || !Session->PublishSignal(TEXT("Notify"), Payload->EventTag)))
+        {
+            return;
+        }
         OnEvent.Broadcast(Payload->EventTag, *Payload);
     }
 }

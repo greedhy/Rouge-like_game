@@ -20,6 +20,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
+#include "GameplayEffect.h"
 #include "Game/MyGameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "MyGameplayTags.h"
@@ -244,6 +245,64 @@ bool FArcaneNovaCatalog::RunTest(const FString& Parameters)
     const FGameplayAbilitySpec* Restored = ASC->FindAbilitySpecFromHandle(ExistingHandle);
     TestEqual(TEXT("Existing rank preserved"), Restored->Level, 3);
     TestTrue(TEXT("Existing slot preserved"), Restored->GetDynamicSpecSourceTags().HasTagExact(Tags.InputTag_2));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FArcaneNovaReportLife, "test_25d.UnifiedGA.Nova.ReportCannotRetargetNewLife",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+/** 原生报告仍只通知最近目标一次；报告观察者回收批次中另一目标后，旧Nova不得击中新生命。 */
+bool FArcaneNovaReportLife::RunTest(const FString&)
+{
+    UClass* NovaClass = LoadNovaClass();
+    if (!TestNotNull(TEXT("Original Nova asset loads"), NovaClass))
+    {
+        return false;
+    }
+    FNovaTestWorld Fixture;
+    auto* Source = Fixture.Spawn(FVector::ZeroVector, TEXT("Player"));
+    auto* Near = Fixture.Spawn(FVector(150, 0, 0), TEXT("Enemy"));
+    auto* Reused = Fixture.Spawn(FVector(300, 0, 0), TEXT("Enemy"));
+    Reused->EnableDungeonPooling(0.f);
+    const int32 OriginalLease = Reused->GetDungeonPoolLease();
+    auto* ASC = CastChecked<UMyAbilitySystemComponent>(Source->GetAbilitySystemComponent());
+    const auto Handle = ASC->GiveAbility(FGameplayAbilitySpec(NovaClass, 1));
+    auto* Ability = ASC->FindAbilitySpecFromHandle(Handle)->GetPrimaryInstance();
+    // 使用真实ASC施加观察而非伤害数值；此夹具不加载GameMode，原伤害ExecCalc另有完整回归。
+    FindFProperty<FClassProperty>(UMyDamageGameplayAbility::StaticClass(), TEXT("DamageEffectClass"))
+        ->SetObjectPropertyValue_InContainer(Ability, UGameplayEffect::StaticClass());
+    int32 NearEffects = 0;
+    int32 ReusedEffects = 0;
+    int32 Reports = 0;
+    const auto NearObserver = Near->GetAbilitySystemComponent()->OnGameplayEffectAppliedDelegateToSelf.AddLambda(
+        [&](UAbilitySystemComponent*, const FGameplayEffectSpec&, FActiveGameplayEffectHandle)
+        {
+            ++NearEffects;
+        });
+    const auto ReusedObserver = Reused->GetAbilitySystemComponent()->OnGameplayEffectAppliedDelegateToSelf.AddLambda(
+        [&](UAbilitySystemComponent*, const FGameplayEffectSpec&, FActiveGameplayEffectHandle)
+        {
+            ++ReusedEffects;
+        });
+    const auto ReportObserver = ASC->OffensiveAttackTargeted.AddLambda(
+        [&](UGameplayAbility*, AActor* Target)
+        {
+            ++Reports;
+            TestTrue(TEXT("Original nearest-target report is retained"), Target == Near);
+            Reused->SleepForDungeonPool(false);
+            TestTrue(TEXT("Observer recycles another target in the captured batch"),
+                     Reused->WakeFromDungeonPool(FTransform(FVector(300, 0, 0)), NAME_None));
+        });
+    TestTrue(TEXT("Native Nova activates"), ASC->TryActivateAbility(Handle));
+    TestEqual(TEXT("Native offensive report remains once per cast"), Reports, 1);
+    TestTrue(TEXT("Observer actually produced a new target life"), Reused->GetDungeonPoolLease() != OriginalLease);
+    TestEqual(TEXT("Unchanged captured target receives one actual GE"), NearEffects, 1);
+    TestEqual(TEXT("Recycled target receives no old-cast GE"), ReusedEffects, 0);
+    TestFalse(TEXT("Instant native ability ends"), ASC->FindAbilitySpecFromHandle(Handle)->IsActive());
+    TestEqual(TEXT("Native cost is still paid once"), ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()),
+              80.f);
+    ASC->OffensiveAttackTargeted.Remove(ReportObserver);
+    Near->GetAbilitySystemComponent()->OnGameplayEffectAppliedDelegateToSelf.Remove(NearObserver);
+    Reused->GetAbilitySystemComponent()->OnGameplayEffectAppliedDelegateToSelf.Remove(ReusedObserver);
     return true;
 }
 #endif

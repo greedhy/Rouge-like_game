@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：出生/池唤醒初始化 GAS → 战斗死亡 → 共享掉落排队 → 死亡表现与池回收/销毁。
 
 #include "Character/EnemyCharacter.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
@@ -114,6 +114,11 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
     // Mark terminal state before loot/ability callbacks can reenter Die.
     bDead = true;
     InvalidateEnemyAttack();
+    // 在对象池提前返回之前快照奖励；bDead 已置位，重入不会再次排队。
+    if (auto* Loot = GetWorld()->GetSubsystem<USharedLootSubsystem>())
+    {
+        Loot->QueueEnemyLoot(*this);
+    }
     if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
         Manager->UnregisterEnemy(this);
     if (ActorHasTag(TEXT("DungeonPoolManaged")))
@@ -133,8 +138,7 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
     SetLifeSpan(LifeSpan);
     if (MyAIController && MyAIController->GetBlackboardComponent())
         MyAIController->GetBlackboardComponent()->SetValueAsBool(FName("Dead"), true);
-    if (!ActorHasTag(TEXT("DungeonEncounter")))
-        SpawnLoot();
+    // 原 SpawnLoot 蓝图事件保留资产兼容，但死亡不再调用，避免和共享规则重复掉落。
     Super::Die(DeathImpulse);
 }
 
@@ -143,6 +147,12 @@ void AEnemyCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
         Manager->UnregisterEnemy(this);
     Super::EndPlay(EndPlayReason);
+}
+
+// 对地图放置和导演生成的敌人应用同一分类表，不依赖特定 GameMode。
+EEnemyLootRank AEnemyCharacter::GetLootRank() const
+{
+    return GetDefault<USharedLootSettings>()->ResolveRank(GetClass(), LootRank);
 }
 
 void AEnemyCharacter::PossessedBy(AController* NewController)
@@ -165,6 +175,8 @@ void AEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AEnemyCharacter, DungeonPoolLife);
+    DOREPLIFETIME(AEnemyCharacter, Level);
+    DOREPLIFETIME(AEnemyCharacter, LootRank);
     DOREPLIFETIME(AEnemyCharacter, bDungeonEncounter);
     DOREPLIFETIME(AEnemyCharacter, bDungeonPoolCorpse);
     DOREPLIFETIME(AEnemyCharacter, DungeonPoolDeathImpulse);

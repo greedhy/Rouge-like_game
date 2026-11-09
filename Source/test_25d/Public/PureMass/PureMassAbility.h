@@ -35,8 +35,6 @@ public:
                                      const FPureMassCombatTarget& Target, const FVector& Requested, FVector& Resolved);
 
 private:
-    UPROPERTY()
-    TObjectPtr<APureMassRuntime> MassRuntime;
     FTimerHandle MassTargetTimeout;
     bool bTargetConsumed = false;
     UFUNCTION()
@@ -45,9 +43,6 @@ private:
     UFUNCTION()
     /** Beam 松键任务回调，进入 AbortMass 取消持续技能。 */
     void Released(float HeldTime);
-    UFUNCTION()
-    /** Runtime OnDestroyed 回调：先清引用，正常结束仍激活的 GA，避免重复销毁。 */
-    void RuntimeDestroyed(AActor* Actor);
     /** 超时或失败统一入口，对仍激活技能调用取消式 EndAbility。 */
     void AbortMass();
     /** 防重复提交，必要时先投影地表；Commit 后建立 Context、计算各行为起点并生成 Runtime，成功后转向并通知环绕攻击。 */

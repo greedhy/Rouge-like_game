@@ -1,5 +1,7 @@
 // 主要调用链：GAS 激活检查 -> ActivateAbility -> 定时 Advance -> Hit -> EndAbility；消耗与冷却复用本文件定义的 GE。
 #include "AbilitySystem/Ability/SwordShieldAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 #include "Character/SwordShieldPlayer.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
@@ -101,6 +103,10 @@ bool USwordShieldAbility::CanActivateAbility(FGameplayAbilitySpecHandle H, const
 {
     const auto* C = Config(I);
     auto* P = I ? Cast<ASwordShieldPlayer>(I->AvatarActor.Get()) : nullptr;
+    if (UAbilityMovementOwnershipComponent::HasActiveClaim(P))
+    {
+        return false;
+    }
     if (!P || !C || !C->Validate() || !I->AbilitySystemComponent.IsValid() || P->IsDungeonDowned() ||
         P->IsDead_Implementation() || P->bIsStunned || !P->GetMesh()->GetAnimInstance() || !DamageEffectClass ||
         !DamageType.IsValid())
@@ -211,9 +217,12 @@ void USwordShieldAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FG
     // 格挡窗口独立持有 GE；结束或进入反击时必须移除，避免状态残留。
     if (Mode == EMode::Guard)
     {
-        auto Spec = ASC->MakeOutgoingSpec(USwordGuardEffect::StaticClass(), 1, ASC->MakeEffectContext());
-        if (Spec.IsValid())
-            GuardHandle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+        FAbilitySourceToken Source;
+        FString Error;
+        if (AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
+        {
+            GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source);
+        }
     }
     GetWorld()->GetTimerManager().SetTimer(Timer, this, &ThisClass::Advance, .01f, true);
 }
@@ -251,7 +260,19 @@ void USwordShieldAbility::Advance()
             return;
         }
         bHit = true;
-        Hit();
+        const TWeakObjectPtr<USwordShieldAbility> WeakThis(this);
+        if (!DispatchExecutionAction(TEXT("SwordShield.Strike"), 0,
+                                     [WeakThis](int32)
+                                     {
+                                         if (auto* Self = WeakThis.Get())
+                                         {
+                                             Self->Hit();
+                                         }
+                                     }))
+        {
+            Stop(true);
+            return;
+        }
         if (!IsActive())
             return;
     }
@@ -261,44 +282,34 @@ void USwordShieldAbility::Advance()
 // 筛选范围内合法且无遮挡的目标，应用伤害并播放命中表现。
 void USwordShieldAbility::Hit()
 {
-    if (!Player.IsValid())
-        return;
-    TArray<AActor*> Targets;
-    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Player.Get(), Targets, {Player.Get()}, Strike.Radius + 100,
-                                                        Player->GetActorLocation());
-    for (auto* Target : Targets)
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!Player.IsValid() || !AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
     {
-        // Damage/death delegates may cancel this ability while processing an earlier target.
-        if (!IsActive() || !Player.IsValid() || Player->IsDungeonDowned() || Player->IsDead_Implementation())
-            return;
-        if (!IsValid(Target) || !Target->Implements<UCombatInterface>() || ICombatInterface::Execute_IsDead(Target) ||
-            !UMyAbilitySystemLibrary::IsNotFriend(Player.Get(), Target) ||
-            !ADungeonRunDirector::AllowsCombat(Player.Get(), Target) ||
-            !Strike.Contains(Player->GetActorLocation(), LockedForward, Target->GetActorLocation()))
-            continue;
-        FHitResult Wall;
-        FCollisionQueryParams Query(SCENE_QUERY_STAT(SwordMeleeWall), false, Player.Get());
-        Query.AddIgnoredActor(Target);
-        if (GetWorld()->LineTraceSingleByObjectType(Wall, Player->GetActorLocation(), Target->GetActorLocation(),
-                                                    FCollisionObjectQueryParams(ECC_WorldStatic), Query))
-            continue;
-        auto Params = MakeDamageEffectParamsFromClassDefaults(Target);
-        if (!Params.TargetAbilitySystemComponent)
-            continue;
-        Params.BaseDamage = Strike.Damage;
-        Params.DebuffChance = 0;
-        Params.bIsRadialDamage = false;
-        ReportOffensiveAttack(Target);
-        // 通过共享GAS伤害通路结算Actor目标。
-        UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
-        if (Player.IsValid() && Player->SwordConfig)
-            Player->ShowSwordImpact(Player->SwordConfig->HitEffect, Target->GetActorLocation());
+        return;
     }
+    auto* Settings = NewObject<UAbilityCharacterStrikeNodeConfig>(this);
+    Settings->Profile = EAbilityCharacterStrikeProfile::SwordShieldActor;
+    Settings->Strike = Strike;
+    Settings->HitEffect = Player->SwordConfig ? Player->SwordConfig->HitEffect.Get() : nullptr;
+    FAbilityCharacterActionCallbacks Callbacks;
+    Callbacks.IsCurrent = [this, Session = GetExecutionSession()]()
+    {
+        return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
+               Player.IsValid() && !Player->IsDungeonDowned() && !Player->IsDead_Implementation();
+    };
+    Callbacks.BeforeActorDamage = [this](AActor* Target)
+    {
+        ReportOffensiveAttack(Target);
+    };
+    AbilityCharacterActions::ExecuteStrike(Source, MakeDamageEffectParamsFromClassDefaults(), *Settings,
+                                           Player->GetActorLocation(), LockedForward, Callbacks);
 }
 // 清除定时器、技能效果和动画占用，按角色状态恢复移动并结束 GAS 激活。
 void USwordShieldAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                      FGameplayAbilityActivationInfo A, bool Replicate, bool Cancelled)
 {
+    CloseExecutionSession(Cancelled);
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timer);
     // 只清理本次能力持有的格挡句柄和蒙太奇，避免影响其他能力。

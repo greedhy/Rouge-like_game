@@ -82,3 +82,51 @@ bool UPrototypeCastContext::ReserveSpawn(int32 Depth)
     ++Spawned;
     return true;
 }
+
+bool UPrototypeCastContext::CaptureSourceLife(FString& Error)
+{
+    if (bSourceLifeCaptured)
+    {
+        if (!ValidateSourceLife())
+        {
+            Error = TEXT("The original cast source life is no longer valid.");
+            return false;
+        }
+        Error.Reset();
+        return true;
+    }
+    bSourceLifeCaptured = AbilityExecutionIdentity::CaptureSource(Caster.Get(), SourceLife, Error);
+    return bSourceLifeCaptured;
+}
+
+bool UPrototypeCastContext::ValidateSourceLife()
+{
+    AActor* Avatar = nullptr;
+    if (!bSourceLifeCaptured || !AbilityExecutionIdentity::ResolveSource(SourceLife, Avatar) || Avatar != Caster.Get())
+    {
+        bCancelled = true;
+        return false;
+    }
+    return !bCancelled;
+}
+
+bool UPrototypeCastContext::ResolveTargetLife(const FPureMassCombatTarget& Target, FVector& Location)
+{
+    Location = FVector::ZeroVector;
+    if (!ValidateSourceLife())
+    {
+        return false;
+    }
+    if (const FAbilityTargetToken* Existing = TargetLives.Find(Target))
+    {
+        return AbilityExecutionIdentity::ResolveTarget(SourceLife, *Existing, Location);
+    }
+    FAbilityTargetToken Captured;
+    FString Error;
+    if (!AbilityExecutionIdentity::CaptureTarget(SourceLife, Target, Captured, Error))
+    {
+        return false;
+    }
+    TargetLives.Add(Target, Captured);
+    return AbilityExecutionIdentity::ResolveTarget(SourceLife, Captured, Location);
+}

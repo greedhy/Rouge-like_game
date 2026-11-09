@@ -138,14 +138,14 @@ namespace DungeonPlayerRunTests
         const FPrimaryAssetId Item{FPrimaryAssetType(TEXT("BackpackItem")), FName(TEXT("HealthPotion"))};
     };
 } // namespace DungeonPlayerRunTests
-using namespace DungeonPlayerRunTests;
+// 测试夹具在各用例中显式限定命名空间，避免 Unity 合并编译污染其它文件的同名 FFixture。
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerDown, "test_25d.Roguelike.Player.DownedDoesNotRespawn",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 /** 执行 test_25d.Roguelike.Player.DownedDoesNotRespawn 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerDown::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     F.Pawn->Die(FVector(1));
     F.Pawn->Die(FVector(1));
     TestTrue(TEXT("Death enters dungeon downed state"), F.Pawn->IsDungeonDowned());
@@ -176,7 +176,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerRevive, "test_25d.Roguelike.Playe
 /** 执行 test_25d.Roguelike.Player.RevivePreservesLoadout 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerRevive::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     // Another system owns one tag count. Revival must release only the dungeon's count.
     F.ASC->AddLooseGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed);
     F.Pawn->Die(FVector::ZeroVector);
@@ -217,7 +217,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerPassiveRevival,
 /** 执行 test_25d.Roguelike.Player.ReviveRestoresOnlyActivePassives 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerPassiveRevival::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     FGameplayAbilitySpec PassiveSpec(UDungeonPlayerRunTestPassive::StaticClass(), 2);
     PassiveSpec.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().Abilities_Status_Equipped);
     const auto Passive = F.ASC->GiveAbility(PassiveSpec);
@@ -245,7 +245,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerNoToggleReplay,
 /** 执行 test_25d.Roguelike.Player.ReviveNeverRestartsLegacyPassiveToggle 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerNoToggleReplay::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     FGameplayAbilitySpec Spec(UDungeonPlayerRunTestToggle::StaticClass(), 1);
     Spec.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().Abilities_Status_Equipped);
     const auto Toggle = F.ASC->GiveAbility(Spec);
@@ -264,7 +264,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerNoUnequippedReplay,
 /** 执行 test_25d.Roguelike.Player.ReviveRespectsChangedPassiveLoadout 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerNoUnequippedReplay::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     FGameplayAbilitySpec Spec(UDungeonPlayerRunTestPassive::StaticClass(), 1);
     Spec.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().Abilities_Status_Equipped);
     Spec.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().InputTag_Passive_1);
@@ -290,7 +290,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerDirectActivationBlock,
 /** 执行 test_25d.Roguelike.Player.DownedBlocksDirectAbilityActivation 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerDirectActivationBlock::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     const auto Handle = F.ASC->GiveAbility(FGameplayAbilitySpec(UDungeonPlayerRunTestTaggedAbility::StaticClass(), 1));
     TestTrue(TEXT("Tagged skill can activate while living"), F.ASC->TryActivateAbility(Handle));
     F.ASC->CancelAbilityHandle(Handle);
@@ -311,7 +311,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerReviveValidation, "test_25d.Rogue
 /** 执行 test_25d.Roguelike.Player.ReviveValidation 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerReviveValidation::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     F.Pawn->Die(FVector::ZeroVector);
     for (const float Fraction :
          {0.f, -1.f, 1.1f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
@@ -338,7 +338,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerNoStaleDamage,
 /** 执行 test_25d.Roguelike.Player.ReviveDiscardsDamageReceivedWhileDowned 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerNoStaleDamage::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     F.Pawn->Die(FVector::ZeroVector);
     TestTrue(TEXT("First real damage effect applied while downed"), F.ApplyInstantDamage(11.f));
     TestTrue(TEXT("Second real damage effect applied while downed"), F.ApplyInstantDamage(13.f));
@@ -360,7 +360,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerDebuffCleanup,
 /** 执行 test_25d.Roguelike.Player.ReviveClearsPeriodicDebuffsAndRetainsBuffs 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerDebuffCleanup::RunTest(const FString&)
 {
-    FFixture F;
+    DungeonPlayerRunTests::FFixture F;
     const auto Buff = F.ApplyBeneficialArmor();
     const auto BeforeDown = F.ApplyPeriodicBurn();
     TestTrue(TEXT("Real periodic burn applied before down"), BeforeDown.IsValid());
@@ -398,7 +398,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPlayerClientAuthority, "test_25d.Roguel
 /** 执行 test_25d.Roguelike.Player.ClientCannotDownOrRevive 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FDungeonPlayerClientAuthority::RunTest(const FString&)
 {
-    FFixture F(EWorldType::PIE);
+    DungeonPlayerRunTests::FFixture F(EWorldType::PIE);
     F.World->SetPlayInEditorInitialNetMode(NM_Client);
     F.Pawn->SetTestRole(ROLE_SimulatedProxy);
     TestFalse(TEXT("Client fixture has no authority"), F.Pawn->HasAuthority());

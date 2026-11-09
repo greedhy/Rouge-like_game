@@ -114,6 +114,12 @@ void AStanderWeaponProjectile::Tick(float Delta)
     Super::Tick(Delta);
     if (!HasAuthority())
         return;
+    AActor* OriginalAvatar = nullptr;
+    if (ExecutionSource.IsSet() && !AbilityExecutionIdentity::ResolveSource(ExecutionSource.GetValue(), OriginalAvatar))
+    {
+        Destroy();
+        return;
+    }
     if (!Caster.IsValid() || Caster->IsDungeonDowned() || Caster->IsDead_Implementation() ||
         !AllowsLocation(Caster->GetActorLocation()))
     {

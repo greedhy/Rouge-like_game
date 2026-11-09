@@ -1,4 +1,8 @@
+// 调用链：GAS Commit -> Shape.ArcaneNova 捕获目标生命 -> 原目标报告 -> 共享伤害/Cue -> End。
 #include "AbilitySystem/Ability/MyArcaneNova.h"
+#include "AbilitySystem/Unified/Nodes/AbilityNovaNode.h"
+#include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "UObject/StrongObjectPtr.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -44,77 +48,91 @@ float UMyArcaneNova::GetNovaDamage(int32 Level) const
 
 void UMyArcaneNova::GatherNovaTargets(AActor* SourceAvatar, TArray<AActor*>& OutTargets) const
 {
-    OutTargets.Reset();
-    if (!IsValid(SourceAvatar) || !FMath::IsFinite(NovaRadius) || NovaRadius <= 0.f)
-        return;
-    TArray<AActor*> Candidates;
-    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(SourceAvatar, Candidates, {SourceAvatar}, NovaRadius,
-                                                        SourceAvatar->GetActorLocation());
-    for (AActor* Target : Candidates)
-    {
-        if (IsValid(Target) && Target != SourceAvatar && Target->Implements<UCombatInterface>() &&
-            !ICombatInterface::Execute_IsDead(Target) && UMyAbilitySystemLibrary::IsNotFriend(SourceAvatar, Target) &&
-            FVector::DistSquared(SourceAvatar->GetActorLocation(), Target->GetActorLocation()) <=
-                FMath::Square(NovaRadius) &&
-            UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target))
-        {
-            OutTargets.AddUnique(Target);
-        }
-    }
+    AbilityNovaNodes::GatherActorTargets(SourceAvatar,
+                                         IsValid(SourceAvatar) ? SourceAvatar->GetActorLocation() : FVector::ZeroVector,
+                                         NovaRadius, OutTargets);
 }
 
 void UMyArcaneNova::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
                                     const FGameplayAbilityActivationInfo ActivationInfo,
                                     const FGameplayEventData* TriggerEventData)
 {
-    // All gameplay work is performed on the server. Do not forward to a Blueprint Activate event.
+    const auto Session = GetExecutionSession();
+    FAbilityNodeInput Input;
+    FString Error;
+    // 先锁定本次生命，提交仍由原 GA 单次执行；图中不再重复扣费或激活另一个 GA。
     if (!ActorInfo || !ActorInfo->IsNetAuthority() || !CanActivateAbility(Handle, ActorInfo) ||
+        !AbilityExecutionIdentity::CaptureSource(ActorInfo->AvatarActor.Get(), Input.SourceToken, Error) ||
         !CommitAbility(Handle, ActorInfo, ActivationInfo))
+    {
+        if (GetExecutionSession() == Session)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        }
+        return;
+    }
+
+    AActor* Avatar = nullptr;
+    if (GetExecutionSession() != Session || (Session && !Session->IsSourceCurrent()))
+    {
+        if (IsActive() && GetExecutionSession() == Session)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        }
+        return;
+    }
+    if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
-
-    AActor* Avatar = ActorInfo->AvatarActor.Get();
-    TArray<AActor*> Targets;
-    GatherNovaTargets(Avatar, Targets);
-    Targets.Sort(
-        [Avatar](const AActor& A, const AActor& B)
-        {
-            return FVector::DistSquared(Avatar->GetActorLocation(), A.GetActorLocation()) <
-                   FVector::DistSquared(Avatar->GetActorLocation(), B.GetActorLocation());
-        });
-    if (!Targets.IsEmpty())
-        ReportOffensiveAttack(Targets[0]);
-    for (AActor* Target : Targets)
+    Input.Origin = Avatar->GetActorLocation();
+    Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+    Input.DamageParams.BaseDamage = GetNovaDamage(GetAbilityLevel());
+    Input.Level = GetAbilityLevel();
+    auto* Context = NewObject<UAbilityNovaNodeContext>(this);
+    const TWeakObjectPtr<UMyArcaneNova> WeakThis(this);
+    Context->BeforeActorDamage = [WeakThis, Session](AActor* Target)
     {
-        if (!IsValid(Target) || ICombatInterface::Execute_IsDead(Target))
-            continue;
-        FDamageEffectParams Params = MakeDamageEffectParamsFromClassDefaults(Target);
-        if (!IsValid(Params.TargetAbilitySystemComponent))
-            continue;
-        Params.BaseDamage = GetNovaDamage(GetAbilityLevel());
-        // The overlap already selects targets. Each target receives one full-strength GE.
-        Params.bIsRadialDamage = false;
-        Params.KnockbackForce = FVector::ZeroVector;
-        UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
-    }
-
-    if (NovaCueTag.IsValid())
-    {
-        FGameplayCueParameters Cue;
-        Cue.Location = Avatar->GetActorLocation();
-        if (const ACharacter* Character = Cast<ACharacter>(Avatar))
+        auto* Self = WeakThis.Get();
+        if (Self && Self->IsActive() && Self->GetExecutionSession() == Session &&
+            (!Session || Session->IsSourceCurrent()))
         {
-            Cue.Location.Z -= Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+            Self->ReportOffensiveAttack(Target);
         }
-        Cue.Normal = FVector::UpVector;
-        Cue.RawMagnitude = NovaRadius;
-        Cue.Instigator = Avatar;
-        Cue.EffectCauser = Avatar;
-        ActorInfo->AbilitySystemComponent->ExecuteGameplayCue(NovaCueTag, Cue);
+    };
+    Input.Context = Context;
+    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
+    Graph->SchemaVersion = 2;
+    Graph->CompatibilityProfile = TEXT("UnifiedV2");
+    FAbilityGraphNode Node;
+    Node.NodeId = FGuid::NewGuid();
+    Node.TypeId = TEXT("Shape.ArcaneNova");
+    auto* Config = NewObject<UAbilityNovaNodeConfig>(Graph);
+    Config->Radius = NovaRadius;
+    Config->CueTag = NovaCueTag;
+    Node.Config = Config;
+    Graph->Nodes.Add(Node);
+    Graph->EntryNodeId = Node.NodeId;
+    const TStrongObjectPtr<UAbilityGraphInstance> Run(NewObject<UAbilityGraphInstance>(this));
+    if (Session)
+    {
+        const TWeakObjectPtr<UAbilityGraphInstance> WeakRun(Run.Get());
+        Session->AddCleanup(
+            [WeakRun]()
+            {
+                if (auto* Instance = WeakRun.Get())
+                {
+                    Instance->Cancel();
+                }
+            });
     }
-    EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+    const bool bStarted = Run->StartWithInput(Graph, Input, {}, Error);
+    // 伤害/Cue可能同步结束并重激活；只结束发起该图的原会话。
+    if (IsActive() && GetExecutionSession() == Session)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, !bStarted || (Session && !Session->IsSourceCurrent()));
+    }
 }
 
 FString UMyArcaneNova::GetDescription(int32 Level)

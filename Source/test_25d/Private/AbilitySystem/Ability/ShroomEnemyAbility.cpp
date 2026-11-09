@@ -47,6 +47,7 @@ void UShroomSporeAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FG
                                           FGameplayAbilityActivationInfo A, const FGameplayEventData* E)
 {
     bFieldActive = false;
+    FieldAction.Reset();
     if (const auto* Config = Cast<UShroomSporeConfig>(AttackConfig))
     {
         FieldDuration = Config->Duration;
@@ -63,8 +64,11 @@ void UShroomSporeAbility::ResolveHit()
         return;
     }
     bFieldActive = true;
-    Clock.Reset(GetWorld()->GetTimeSeconds(), FieldPeriod, FieldDuration);
     Golem->ShowActiveFootprint(Serial, &Center);
+    if (!IsActive() || !Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease))
+    {
+        return;
+    }
     if (auto* Anim = Golem->GetMesh()->GetAnimInstance())
     {
         const int32 OwnedSerial = Serial, OwnedLease = Lease;
@@ -81,11 +85,61 @@ void UShroomSporeAbility::ResolveHit()
         End.BindWeakLambda(this, Interrupted);
         Anim->Montage_SetEndDelegate(End, Snapshot.Montage);
     }
-    if (Clock.Consume(GetWorld()->GetTimeSeconds()))
+    FAbilityNodeInput Input;
+    FString Error;
+    if (!AbilityExecutionIdentity::CaptureSource(Golem.Get(), Input.SourceToken, Error))
     {
-        TArray<AActor*> Targets;
-        GatherTargets(Targets);
-        ApplyHitTargets(Targets);
+        Abort();
+        return;
+    }
+    Input.Origin = Center;
+    Input.Direction = FRotator(0, Yaw, 0).Vector();
+    Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+    Input.DamageParams.DamageGameplayEffectClass = SnapshotDamageEffect;
+    Input.DamageParams.DamageType = SnapshotDamageType;
+    Input.DamageParams.BaseDamage = SnapshotDamage;
+    if (SelectedTarget.IsValid())
+    {
+        FAbilityTargetToken Target;
+        if (AbilityExecutionIdentity::CaptureTarget(
+                Input.SourceToken, FPureMassCombatTarget::FromActor(SelectedTarget.Get()), Target, Error))
+        {
+            Input.LiveTargetToken = Target;
+        }
+    }
+    auto* Settings = NewObject<UAbilityEnemySpecialNodeConfig>(this);
+    Settings->Kind = EAbilityEnemySpecialKind::Spore;
+    Settings->Shape = Snapshot;
+    Settings->LockedSurface = LockedSurface;
+    Settings->LockedTriangles = LockedTriangles;
+    Settings->Duration = FieldDuration;
+    Settings->Period = FieldPeriod;
+    const int32 ActionSerial = Serial, ActionLease = Lease;
+    const TWeakObjectPtr<UShroomSporeAbility> WeakThis(this);
+    FAbilityCharacterActionCallbacks Callbacks;
+    Callbacks.IsCurrent = [WeakThis, ActionSerial, ActionLease]()
+    {
+        auto* Self = WeakThis.Get();
+        return Self && Self->IsActive() && Self->Golem.IsValid() &&
+               Self->Golem->IsAttackCurrent(ActionSerial, ActionLease) && !Self->Golem->bIsStunned;
+    };
+    Callbacks.BeforeActorDamage = [WeakThis](AActor* Target)
+    {
+        if (auto* Self = WeakThis.Get())
+        {
+            Self->ReportOffensiveAttack(Target);
+        }
+    };
+    FieldAction = MakeShared<FAbilityEnemyAreaAction>();
+    if (!FieldAction->Start(Input, *Settings, MoveTemp(Callbacks), GetWorld()->GetTimeSeconds(), Error))
+    {
+        Abort();
+        return;
+    }
+    const auto Running = FieldAction;
+    if (Running->Advance(GetWorld()->GetTimeSeconds()) == EAbilityEnemyActionState::Failed && IsActive())
+    {
+        Abort();
     }
 }
 // 区域生效前复用父类时序，生效后检查租约并按时钟结算或到期结束。
@@ -103,24 +157,32 @@ void UShroomSporeAbility::Advance()
         Abort();
         return;
     }
-    const double Now = GetWorld()->GetTimeSeconds();
-    if (Now >= Clock.Ends)
+    const auto Running = FieldAction;
+    const auto Result = Running ? Running->Advance(GetWorld()->GetTimeSeconds()) : EAbilityEnemyActionState::Failed;
+    if (!IsActive())
     {
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
         return;
     }
-    if (Clock.Consume(Now))
+    if (Result == EAbilityEnemyActionState::Completed)
     {
-        TArray<AActor*> Targets;
-        GatherTargets(Targets);
-        ApplyHitTargets(Targets);
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+    }
+    else if (Result == EAbilityEnemyActionState::Failed)
+    {
+        Abort();
     }
 }
 // 解除持续区域绑定的动画委托，再清理公共攻击状态。
 void UShroomSporeAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                      FGameplayAbilityActivationInfo A, bool R, bool C)
 {
-    if (bFieldActive && Golem.IsValid())
+    CloseExecutionSession(C);
+    if (FieldAction)
+    {
+        FieldAction->Stop();
+        FieldAction.Reset();
+    }
+    if (bFieldActive && Golem.IsValid() && Golem->IsAttackCurrent(Serial, Lease))
         if (auto* Anim = Golem->GetMesh()->GetAnimInstance())
         {
             FOnMontageBlendingOutStarted Blend;

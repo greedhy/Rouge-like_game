@@ -1,13 +1,13 @@
-/**
- * 扩展行为执行器：Execute/Emit -> Spawn -> FinishSpawning/BeginPlay；后续引擎 Tick 驱动周期、弹体、转移和结束。Hit 分流 Actor GE 与 Mass 伤害；Stack/Displace 将状态交给世界子系统。Node/端点/结束状态复制给客户端，Context 不复制。Finish 清理地表并延迟销毁；EndPlay 为地表清理兜底。
- * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
- */
+/** Extension GA / graph strategy -> Spawn or SpawnDriven -> extension driver. Graph owns scheduling; host owns replicated visuals. Stack continuations stay in the world subsystem and release the graph invocation explicitly. */
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "PureMass/PureMassCombatTarget.h"
 #include "AbilitySystem/PrototypeExtensions/ExtensionNode.h"
+#include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
 #include "ExtensionRuntime.generated.h"
+
+class FExtensionAbilityDriver;
 
 UCLASS()
 class TEST_25D_API AExtensionRuntime : public AActor
@@ -17,7 +17,7 @@ public:
     /** 构造复制 Actor、移动复制及 Niagara 子组件；在 PostUpdateWork Tick 推进，Visual 随 Actor 销毁。 */
     AExtensionRuntime();
     /** 服务器验证施法者、整图与坐标，限制地表数和共享生成预算；延迟生成期间写入 Context/目标/事件中心后 FinishSpawning。 */
-    static AExtensionRuntime* Spawn(UExtensionCastContext* Context, UExtensionNode* Node, FVector Position,
+    static AExtensionRuntime* Spawn(UPrototypeCastContext* Context, UExtensionNode* Node, FVector Position,
                                     FVector Direction, FPureMassCombatTarget Target = {}, int32 Depth = 0,
                                     FVector Center = FVector::ZeroVector, bool bConfirmedHit = false);
     /** 初始化本地表现；服务器按 Behavior 执行 Burst、转交 Stack、发起 Chain、解析 Attach、请求 Displace 或创建 Surface。 */
@@ -31,7 +31,7 @@ public:
     UPROPERTY(ReplicatedUsing = RefreshVisual, BlueprintReadOnly)
     TObjectPtr<UExtensionNode> Node;
     UPROPERTY()
-    TObjectPtr<UExtensionCastContext> Context;
+    TObjectPtr<UPrototypeCastContext> Context;
     UPROPERTY(Replicated, BlueprintReadOnly)
     FVector BeamEnd;
     UPROPERTY(Replicated, BlueprintReadOnly)
@@ -43,24 +43,35 @@ public:
     /** 幂等结束；仅正常结束且施法者有效时生成 CompleteChild，销毁地表，更新表现和复制状态，再保留 0.35 秒销毁窗口。 */
     void Finish(bool Cancelled = false);
     /** 只读返回当前混合目标快照；调用者仍需 Resolve 验证它是否存活。 */
-    FPureMassCombatTarget GetTarget() const
+    FPureMassCombatTarget GetTarget() const;
+
+    /** Graph-owned invocation: installs child admission before BeginPlay and disables autonomous gameplay ticking. */
+    static AExtensionRuntime* SpawnDriven(UPrototypeCastContext* C, UExtensionNode* N, FVector P, FVector D,
+                                          FPureMassCombatTarget T, int32 InDepth, FVector EventCenter,
+                                          bool ConfirmedHit, FLegacyAbilityChildAdmission Admission,
+                                          UExtensionNode* PresentationConfig = nullptr);
+    /** The graph advances the extracted strategy while the actor only updates replicated presentation. */
+    TSharedPtr<FExtensionAbilityDriver> GetDriver() const
     {
-        return Target;
+        return Driver;
     }
 
 private:
+    friend class FExtensionAbilityDriver;
+    TSharedPtr<FExtensionAbilityDriver> Driver;
+    bool bExternallyDriven = false;
+    /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
+    UPROPERTY()
+    TObjectPtr<UExtensionNode> ExecutionNode;
+    static AExtensionRuntime* SpawnInternal(UPrototypeCastContext* C, UExtensionNode* N, FVector P, FVector D,
+                                            FPureMassCombatTarget T, int32 InDepth, FVector EventCenter,
+                                            bool ConfirmedHit, FLegacyAbilityChildAdmission Admission, bool bDriven,
+                                            UExtensionNode* PresentationConfig);
     UPROPERTY()
     TObjectPtr<class UNiagaraComponent> Visual;
     UPROPERTY()
     TObjectPtr<class ATerrainSurface> Surface;
-    FPureMassCombatTarget Target;
-    TSet<FPureMassCombatTarget> HitTargets;
-    TArray<FGuid> Moves;
-    FVector Direction, Center, LastPosition;
-    int32 Depth = 0, Transfers = 0, Hits = 0;
-    float Age = 0, Clock = 0, Travel = 0;
     bool bPresented = false;
-    bool bConfirmedHit = false;
     /** 行为连接入口：共享 Context，以 Depth+1 生成子节点，传递命中位置/中心及服务端确认命中快照；不再次 Commit。 */
     bool Emit(UExtensionNode* Child, FVector Position, FPureMassCombatTarget Candidate, FVector EventCenter,
               bool bFromConfirmedHit = false);

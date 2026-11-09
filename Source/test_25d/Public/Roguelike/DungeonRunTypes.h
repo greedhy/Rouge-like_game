@@ -1,3 +1,4 @@
+// 数据链：RunModel 维护房间等级与阶段 → Director 复制快照 → HUD 展示。
 #pragma once
 #include "CoreMinimal.h"
 #include "Roguelike/DungeonGenerationTypes.h"
@@ -38,6 +39,8 @@ struct TEST_25D_API FDungeonRoomProgress
     GENERATED_BODY()
     UPROPERTY(BlueprintReadOnly)
     FName RoomId;
+    UPROPERTY(BlueprintReadOnly)
+    int32 RoomLevel = 1;
     UPROPERTY(BlueprintReadOnly)
     EDungeonRoomRole Role = EDungeonRoomRole::Entrance;
     UPROPERTY(BlueprintReadOnly)

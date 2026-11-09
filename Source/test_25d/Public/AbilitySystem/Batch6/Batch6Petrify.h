@@ -84,4 +84,11 @@ public:
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                  const FGameplayAbilityActivationInfo Activation,
                                  const FGameplayEventData* Data) override;
+    /** 同步状态回调可取消施法；结束时先取消图，阻止后续目标生效。 */
+    virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
+                            FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled) override;
+
+private:
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityGraphInstance> Batch6Execution;
 };

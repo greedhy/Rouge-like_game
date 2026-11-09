@@ -112,7 +112,7 @@ void UPureMassSubsystem::AdaptLegacyProjectile(AActor* Actor)
     Adapter->RegisterComponent();
 }
 // 由生成入口创建实体，校验房间与导航落点后发布首份战斗快照。
-int32 UPureMassSubsystem::SpawnMonster(UPureMassMonsterType* Type, FVector Location, FName Room)
+int32 UPureMassSubsystem::SpawnMonster(UPureMassMonsterType* Type, FVector Location, FName Room, int32 LevelOverride)
 {
     check(IsInGameThread());
     if (!bEnabled || !IsAuthority() || !Mass || !IsValid(Type) || Location.ContainsNaN() ||
@@ -140,6 +140,7 @@ int32 UPureMassSubsystem::SpawnMonster(UPureMassMonsterType* Type, FVector Locat
     FPureMassFragment& Fragment = Manager.GetFragmentDataChecked<FPureMassFragment>(Handle);
     Fragment.Id = int32(NextId++);
     Fragment.Type = Type;
+    Fragment.Level = FMath::Clamp(LevelOverride > 0 ? LevelOverride : Type->Level, 1, 10000);
     Fragment.Location = Location;
     Fragment.Room = Room;
     Fragment.Health = Fragment.MaxHealth = Type->Health;
@@ -286,7 +287,7 @@ float UPureMassSubsystem::EvaluateDamage(const FPureMassFragment& Fragment, cons
     bBlocked = FMath::FRand() * 100.f < FMath::Clamp(FinitePositive(Type->BlockChance), 0.f, 100.f);
     if (bBlocked)
         Value *= .5f;
-    const float ArmorCoefficient = BalanceCurve(this, TEXT("EffectiveArmor"), Type->Level, 1.f);
+    const float ArmorCoefficient = BalanceCurve(this, TEXT("EffectiveArmor"), Fragment.Level, 1.f);
     // Legacy ExecCalc currently uses EffectiveArmor for critical resistance too; preserve its balance.
     const float CriticalChance = Attribute(ASC, UMyAttributeSet::GetCriticalHitChanceAttribute()) -
                                  FinitePositive(Type->CriticalResistance) * ArmorCoefficient;
@@ -299,22 +300,31 @@ float UPureMassSubsystem::EvaluateDamage(const FPureMassFragment& Fragment, cons
     const float EffectiveArmor = FinitePositive(Type->Armor) * (1.f - Penetration * .01f);
     return FinitePositive(Value * FMath::Clamp(1.f - EffectiveArmor * ArmorCoefficient * .01f, 0.f, 1.f));
 }
-// 扣除生命并汇总伤害数字；致死时先移除查询身份，再发放经验。
+// 按结算伤害显示数字、按剩余生命限制扣血及返回值；致死时先移除查询身份，再发放经验。
 float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked,
                                          bool bCritical, FVector DeathImpulse)
 {
     if (Fragment.Health <= 0 || !IsRoomDamageSourceAllowed(Fragment.Room, Source))
+    {
         return 0;
-    const float Removed = FMath::Min(Fragment.Health, FinitePositive(Amount));
+    }
+    // ApplyDamage 已计算抗性、格挡、暴击和护甲；持续伤害/地表入口直接提供本次结算量。
+    // 与 Actor IncomingDamage 飘字保持一致，过量伤害也显示结算值；Removed 只用于真实扣血和结果返回。
+    const float EvaluatedDamage = FinitePositive(Amount);
+    const float Removed = FMath::Min(Fragment.Health, EvaluatedDamage);
     if (Removed <= 0)
+    {
         return 0;
+    }
     Fragment.Health -= Removed;
     if (IsValid(Source))
     {
         const auto* Pawn = Cast<APawn>(Source);
         auto* PC = Cast<APureMassPlayerController>(Pawn ? Pawn->GetController() : Source->GetInstigatorController());
         if (PC && PC->GetWorld() == GetWorld())
-            PC->QueueMassDamageNumber(Fragment.Id, Fragment.Location, Removed, bBlocked, bCritical);
+        {
+            PC->QueueMassDamageNumber(Fragment.Id, Fragment.Location, EvaluatedDamage, bBlocked, bCritical);
+        }
     }
     if (Fragment.Health > 0)
     {

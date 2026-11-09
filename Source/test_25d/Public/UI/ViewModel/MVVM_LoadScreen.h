@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MVVMViewModelBase.h"
+#include "Game/PlayerProfession.h"
 #include "MVVM_LoadScreen.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlotSelected);
@@ -43,6 +44,7 @@ public:
     UFUNCTION(BlueprintCallable)
     void PlayButtonPressed();
 
+    bool ConfirmNewSlotProfession(EPlayerProfession Profession);
     void LoadData();
 
     void SetNumLoadSlots(int32 InNumLoadSlots);
@@ -53,6 +55,8 @@ public:
     }
 
 private:
+    int32 PendingNewSlot = INDEX_NONE;
+    FString PendingPlayerName;
     UPROPERTY()
     TMap<int32, UMVVM_LoadSlot*> LoadSlots;
 

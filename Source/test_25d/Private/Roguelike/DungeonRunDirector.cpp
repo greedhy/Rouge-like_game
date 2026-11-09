@@ -560,7 +560,8 @@ void ADungeonRunDirector::PumpSpawnQueue()
             FVector P;
             if (FindSpawnPosition(Profile->MonsterType->Radius, Profile->MonsterType->HalfHeight, P))
             {
-                const int32 Id = Mass->SpawnMonster(Profile->MonsterType, P, Model.Rooms[Job.Room].RoomId);
+                const int32 Id = Mass->SpawnMonster(Profile->MonsterType, P, Model.Rooms[Job.Room].RoomId,
+                                                  Model.Rooms[Job.Room].RoomLevel);
                 Spawned = Id != INDEX_NONE;
                 if (Spawned)
                 {
@@ -591,6 +592,10 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
     if (!Class || ActorTargets.Num() + MassTargets.Num() >= Profile->EncounterCapacity())
         return false;
     const auto* CDO = Class->GetDefaultObject<AEnemyCharacter>();
+    const auto* LootRules = GetDefault<USharedLootSettings>();
+    const EEnemyLootRank Rank = LootRules->ResolveRank(Class, bIsBoss ? EEnemyLootRank::Boss :
+        Class.Get() == Profile->EliteClass.Get() ? EEnemyLootRank::Elite : CDO->LootRank);
+    const int32 EnemyLevel = LootRules->MonsterLevel(Model.Rooms[Model.ActiveRoom].RoomLevel, Rank);
     FVector P;
     if (!FindSpawnPosition(CDO->GetCapsuleComponent()->GetScaledCapsuleRadius(),
                            CDO->GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), P))
@@ -608,6 +613,12 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
         else
             ++PoolMisses;
     }
+    // 唤醒会按 Level 重建 GAS 默认属性，必须先更新本次生命的等级与身份。
+    if (Reused)
+    {
+        Enemy->SetLevel(EnemyLevel);
+        Enemy->LootRank = Rank;
+    }
     if (Reused && !Enemy->WakeFromDungeonPool(Transform, RoomId))
     {
         Enemy->Destroy();
@@ -619,6 +630,8 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
     if (!Enemy)
         return false;
     Enemy->bDungeonEncounter = true;
+    Enemy->SetLevel(EnemyLevel);
+    Enemy->LootRank = Rank;
     Enemy->Tags.AddUnique(TEXT("DungeonEncounter"));
     Enemy->MonsterRoomId = Model.Rooms[Model.ActiveRoom].RoomId;
     const FName Key = ReservedId.IsNone() ? FName(*FString::Printf(TEXT("A%d"), ++ActorSequence)) : ReservedId;
@@ -676,6 +689,7 @@ AEnemyCharacter* ADungeonRunDirector::SpawnSummonedEnemy(AEnemyCharacter* Summon
     Minion->Tags.AddUnique(TEXT("SourceOwnedSummon"));
     Minion->MonsterRoomId = Summoner->MonsterRoomId;
     Minion->SummoningSource = Summoner;
+    Minion->SetLevel(Summoner->Level);
     // FinishSpawning 会执行构造、组件初始化与出生碰撞检查，也可能同步销毁对象。
     // 此时尚未成为遭遇目标，失败不能触发 OnActorDestroyed -> Unexpected。
     // 成员身份在 BeginPlay 前设置；只有成功完成生成的服务端对象才提交账本与监听。
@@ -837,6 +851,11 @@ void ADungeonRunDirector::CompleteEncounter()
     if (Room == INDEX_NONE)
         return;
     const auto RoomRole = Model.Rooms[Room].Role;
+    // FinishEncounter 只成功一次，子系统另以 RunId/RoomId 去重；共享地面物品不按玩家重复发放。
+    if (auto* Loot = GetWorld()->GetSubsystem<USharedLootSubsystem>())
+    {
+        Loot->QueueRoomLoot(RunId, Model.Rooms[Room].RoomId, Model.Rooms[Room].RoomLevel, GetRoomCenter(Room));
+    }
     const int32 Coins = RoomRole == EDungeonRoomRole::Boss    ? Profile->BossCoins
                         : RoomRole == EDungeonRoomRole::Elite ? Profile->EliteCoins
                                                               : Profile->CombatCoins;

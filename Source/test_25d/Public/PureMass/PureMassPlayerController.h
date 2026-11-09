@@ -65,6 +65,7 @@ protected:
 
 private:
     friend class FPlayerBasicInputTest;
+    friend class FPureMassDamageNumberSemanticsTest;
     // 向所属客户端发送积累的伤害数字后清空批次。
     void FlushMassDamageNumbers();
     // 向所属客户端批量传输伤害表现数据。

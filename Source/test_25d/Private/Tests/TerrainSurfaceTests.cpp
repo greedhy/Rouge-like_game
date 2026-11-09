@@ -82,7 +82,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTerrainContactTest, "test_25d.Terrain.Grounded
 /** 执行 test_25d.Terrain.GroundedFootprintAndTeams 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FTerrainContactTest::RunTest(const FString&)
 {
-    FWorld F;
+    TerrainTests::FWorld F;
     auto* S = F.Surface(ETerrainSurfaceType::Lava);
     TestTrue(TEXT("Grounded creature on surface"), S->CanAffectCharacter(F.Character));
     S->bAffectEnemies = false;
@@ -103,7 +103,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTerrainDamageTest, "test_25d.Terrain.PeriodicD
 /** 执行 test_25d.Terrain.PeriodicDamageMergesTilesAndExpires 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FTerrainDamageTest::RunTest(const FString&)
 {
-    FWorld F;
+    TerrainTests::FWorld F;
     auto* A = F.Surface(ETerrainSurfaceType::Lava);
     auto* B = F.Surface(ETerrainSurfaceType::Lava);
     F.Advance(2.2f, {A, B});
@@ -129,7 +129,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTerrainMovementTest, "test_25d.Terrain.SlowRoo
 /** 执行 test_25d.Terrain.SlowRootAndStunComposition 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FTerrainMovementTest::RunTest(const FString&)
 {
-    FWorld F;
+    TerrainTests::FWorld F;
     auto* Ice = F.Surface(ETerrainSurfaceType::Frost);
     auto* Vines = F.Surface(ETerrainSurfaceType::Vines);
     F.Advance(.1f, {Ice});
@@ -158,7 +158,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTerrainCleanupTest, "test_25d.Terrain.DeathDes
 /** 执行 test_25d.Terrain.DeathDestroyAndStrongestSource 回归，失败信息由下方断言交给自动化框架收集。 */
 bool FTerrainCleanupTest::RunTest(const FString&)
 {
-    FWorld F;
+    TerrainTests::FWorld F;
     auto* A = F.Surface(ETerrainSurfaceType::Lava);
     auto* B = F.Surface(ETerrainSurfaceType::Lava);
     B->Config->DamagePerSecond = 12;

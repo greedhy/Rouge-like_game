@@ -247,6 +247,7 @@ void AMyPlayerState::CopyProperties(APlayerState* PlayerState)
     {
         DestinationState->SetBackpackPersistencePlayerId(BackpackPersistencePlayerId);
         DestinationState->ImportBackpackSnapshot(ExportBackpackSnapshot());
+        DestinationState->Profession = Profession;
         DestinationState->TravelPlayerSlot = TravelPlayerSlot;
         DestinationState->TravelProgress = TravelProgress;
         DestinationState->TravelHealth = TravelHealth;
@@ -264,6 +265,7 @@ void AMyPlayerState::OverrideWith(APlayerState* PlayerState)
     Super::OverrideWith(PlayerState);
     if (const AMyPlayerState* SourceState = Cast<AMyPlayerState>(PlayerState))
     {
+        Profession = SourceState->Profession;
         SetBackpackPersistencePlayerId(SourceState->GetBackpackPersistencePlayerId());
         ImportBackpackSnapshot(SourceState->ExportBackpackSnapshot());
     }

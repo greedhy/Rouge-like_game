@@ -2,34 +2,8 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityEnemySpecialNodeExecutions.h"
 #include "ShroomEnemyAbility.generated.h"
-
-/** Server field cadence: consume at most one due pulse, never replay missed slots. */
-struct FShroomPulseClock
-{
-    double Started = 0, Ends = 0;
-    float Period = 1;
-    int32 NextSlot = 0;
-    // 以当前时刻重置区域起止时间和下一个脉冲槽位。
-    void Reset(double Now, float InPeriod, float Duration)
-    {
-        Started = Now;
-        Ends = Now + Duration;
-        Period = InPeriod;
-        NextSlot = 0;
-    }
-    // 只消费当前到期槽位一次，跳过卡顿期间错过的脉冲，避免补发伤害。
-    bool Consume(double Now)
-    {
-        if (!FMath::IsFinite(Now) || !FMath::IsFinite(Period) || Period <= 0 || Now < Started || Now >= Ends)
-            return false;
-        const int32 Slot = FMath::FloorToInt((Now - Started) / Period + 1.e-6);
-        if (Slot < NextSlot)
-            return false;
-        NextSlot = Slot + 1;
-        return true;
-    }
-};
 
 UCLASS(BlueprintType)
 class TEST_25D_API UShroomSporeConfig : public UStoneGolemAttackConfig
@@ -76,7 +50,7 @@ protected:
     virtual void Advance() override;
 
 private:
-    FShroomPulseClock Clock;
+    TSharedPtr<FAbilityEnemyAreaAction> FieldAction;
     float FieldDuration = 3, FieldPeriod = 1;
     bool bFieldActive = false;
 };

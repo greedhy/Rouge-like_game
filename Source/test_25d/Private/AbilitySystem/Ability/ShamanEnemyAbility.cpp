@@ -1,5 +1,6 @@
 // 主要调用链：公共预警 GA → 召唤配置快照 → 接触窗口调用角色 Summon；施法与爆发直接复用公共范围攻击。
 #include "AbilitySystem/Ability/ShamanEnemyAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityEnemyActionNodeExecutions.h"
 #include "Character/ShamanEnemyCharacter.h"
 #include "NativeGameplayTags.h"
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_ShCast, "Abilities.Shaman.Cast");
@@ -40,7 +41,12 @@ void UShamanSummonAbility::ResolveHit()
     if (!Actor || !Actor->IsAttackCurrent(Serial, Lease))
         return;
     Actor->ShowImpact(Serial, Center);
-    Actor->Summon(SummonSnapshot, Lease);
+    FAbilitySourceToken Source;
+    FString Error;
+    if (SummonSnapshot && AbilityExecutionIdentity::CaptureSource(Actor, Source, Error))
+    {
+        AbilityEnemyActions::SummonShamanMinions(Source, *SummonSnapshot);
+    }
 }
 // 复制本次召唤配置，避免预警期间配置变化影响结果。
 void UShamanSummonAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,

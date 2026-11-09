@@ -7,14 +7,17 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "AbilitySystem/PrototypeExtensions/ExtensionNode.h"
 #include "PureMass/PureMassCombatTarget.h"
+#include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
 #include "ExtensionWorldSubsystem.generated.h"
+
+struct FRootMotionSource;
 
 USTRUCT()
 struct FExtensionStackState
 {
     GENERATED_BODY()
     UPROPERTY()
-    TObjectPtr<UExtensionCastContext> Context;
+    TObjectPtr<UPrototypeCastContext> Context;
     UPROPERTY()
     TObjectPtr<UExtensionNode> Node;
     FPureMassCombatTarget Target;
@@ -22,6 +25,9 @@ struct FExtensionStackState
     int32 Depth = 0, Layers = 0, VisualId = 0;
     float Remaining = 0;
     bool bPending = false;
+    // 非复制的调用出口；仅在服务器保存。记录移除或替换时必须通知旧执行释放等待状态。
+    FLegacyAbilityChildAdmission ChildAdmission;
+    TFunction<void()> ReleasedCallback;
 };
 
 USTRUCT()
@@ -29,7 +35,7 @@ struct FExtensionMoveState
 {
     GENERATED_BODY()
     UPROPERTY()
-    TObjectPtr<UExtensionCastContext> Context;
+    TObjectPtr<UPrototypeCastContext> Context;
     UPROPERTY()
     TObjectPtr<UExtensionNode> Node;
     FPureMassCombatTarget Target;
@@ -37,6 +43,8 @@ struct FExtensionMoveState
     FVector Destination;
     float Remaining = 0;
     uint16 RootMotionId = 0;
+    /** Exact applied resource, not a reusable uint16 ID: cleanup must never mark a later source with the same ID. */
+    TSharedPtr<FRootMotionSource> OwnedRootMotion;
 };
 
 UCLASS()
@@ -56,9 +64,10 @@ public:
     UFUNCTION(BlueprintCallable)
     /** 服务器主动清理入口：标记此施法者的持久上下文取消，结束其 Runtime，再 Tick(0) 立即处理无效记录。 */
     void CancelCasterEffects(AActor* Caster);
-    bool AddStack(UExtensionCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target, FVector Position,
-                  FVector Direction, int32 Depth, bool bConfirmedHit = false);
-    FGuid RequestDisplacement(UExtensionCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target,
+    bool AddStack(UPrototypeCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target, FVector Position,
+                  FVector Direction, int32 Depth, bool bConfirmedHit = false,
+                  FLegacyAbilityChildAdmission ChildAdmission = {}, TFunction<void()> ReleasedCallback = {});
+    FGuid RequestDisplacement(UPrototypeCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target,
                               FVector Center, FVector Direction);
     /** Mass 处理器逐实体调用：插值到终点并再次约束碰撞，更新 Remaining；清空旧路径并短暂占用移动，避免同帧导航覆盖。 */
     void MoveMass(struct FPureMassFragment& Fragment, float Delta);
@@ -75,7 +84,7 @@ public:
     /** 按施法者、EffectId、混合目标查当前层数；没有匹配记录返回零。 */
     int32 LayersFor(AActor* Caster, FName EffectId, FPureMassCombatTarget Target) const;
     /** Runtime/子系统共用守卫：检查 Context 未取消、弱引用有效、Actor 未销毁且战斗接口未死亡。 */
-    static bool CasterAlive(const UPrototypeCastContext* Context);
+    static bool CasterAlive(UPrototypeCastContext* Context);
     /** Actor/Mass 位移共用几何约束：胶囊扫掠、落地坡度/高度和可用导航投影；失败保留起点，不穿墙或越悬崖。 */
     static bool ConstrainMove(UWorld* World, AActor* Ignore, FVector Start, FVector Desired, float Radius,
                               float HalfHeight, FVector& Result);

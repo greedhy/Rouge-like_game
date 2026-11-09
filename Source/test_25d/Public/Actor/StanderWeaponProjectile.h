@@ -10,6 +10,7 @@
 #include "GameFramework/Actor.h"
 #include "MyAbilityTypes.h"
 #include "Player/StanderWeaponActionConfig.h"
+#include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 #include "StanderWeaponProjectile.generated.h"
 class AStanderPlayer;
 class UNiagaraComponent;
@@ -24,12 +25,18 @@ public:
     // 服务器校验发射参数，记录施法者、武器代次和地牢归属，设置寿命与飞行特效。
     void Initialize(AStanderPlayer* Source, const FStanderWeaponActionEvent& Event, const FDamageEffectParams& Params,
                     FVector Direction);
+    /** 共享动作在Initialize前写入原ASC/Avatar生命，普通结束不取消飞行，重绑定使旧弹体失效。 */
+    void SetExecutionSourceToken(const FAbilitySourceToken& Source)
+    {
+        ExecutionSource = Source;
+    }
     // 服务器验证来源仍有效，扫掠本帧路径并处理目标、墙体及房间边界命中。
     virtual void Tick(float Delta) override;
     // 注册飞行特效资源的网络复制字段。
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 
 private:
+    TOptional<FAbilitySourceToken> ExecutionSource;
     TWeakObjectPtr<AStanderPlayer> Caster;
     UPROPERTY()
     FDamageEffectParams DamageParams;

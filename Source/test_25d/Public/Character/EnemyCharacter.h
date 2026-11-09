@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 接口链：出生/池唤醒 → GAS 敌人生命周期 → 死亡共享掉落与回收；身份由 GetLootRank 解析。
 
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "Interface/HighLightInterface.h"
 #include "Interface/IEnemyInterface.h"
 #include "UI/WidgetController/OverlayWidgetController.h"
+#include "Equipment/SharedLootSubsystem.h"
 
 #include "EnemyCharacter.generated.h"
 
@@ -71,8 +72,13 @@ public:
     virtual void MulticastHandleDeath_Implementation(const FVector& DeathImpulse) override;
     virtual void PossessedBy(AController* NewController) override;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Class Defaults")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Character Class Defaults")
     int32 Level = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Loot")
+    EEnemyLootRank LootRank = EEnemyLootRank::Normal;
+    /** 所有模式按共享类表和本次生命覆盖值解析掉落身份。 */
+    UFUNCTION(BlueprintPure, Category = "Loot")
+    EEnemyLootRank GetLootRank() const;
     UPROPERTY(BlueprintReadOnly, Category = "Combat")
     bool bHitReacting = false;
 

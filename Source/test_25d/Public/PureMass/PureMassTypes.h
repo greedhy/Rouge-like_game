@@ -132,6 +132,8 @@ struct TEST_25D_API FPureMassFragment : public FMassFragment
 {
     GENERATED_BODY()
     int32 Id = INDEX_NONE;
+    // 每个实体的等级，房间覆盖不会修改共享 MonsterType 资产。
+    int32 Level = 1;
     TWeakObjectPtr<UPureMassMonsterType> Type;
     FVector Location = FVector::ZeroVector;
     FVector Velocity = FVector::ZeroVector;

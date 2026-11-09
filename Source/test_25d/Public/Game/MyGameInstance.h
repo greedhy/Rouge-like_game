@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "Game/PlayerProfession.h"
 #include "MyGameInstance.generated.h"
 
 /**
@@ -26,4 +27,7 @@ public:
 
     UPROPERTY()
     int32 LoadSlotIndex = 0;
+
+    // Read the selected save rather than retaining a separate mutable profession choice.
+    EPlayerProfession GetSelectedProfession() const;
 };

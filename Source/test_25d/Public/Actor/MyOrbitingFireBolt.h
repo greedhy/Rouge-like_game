@@ -1,3 +1,4 @@
+/** Orbit GA / extracted driver -> LaunchAt -> movement overlap -> inherited damage; optional cast guard checks life before damage. */
 #pragma once
 
 #include "CoreMinimal.h"
@@ -5,6 +6,7 @@
 #include "MyOrbitingFireBolt.generated.h"
 
 class UOrbitingFireBoltConfig;
+class UPrototypeCastContext;
 
 // Reuses FireBolt's visual Blueprint and MyProjectile's damage/impact implementation.
 UCLASS()
@@ -18,6 +20,8 @@ public:
     {
         OrbitPhase = PhaseDegrees;
     }
+    /** Bind the original cast life when this bolt belongs to an extracted graph invocation. */
+    void SetCastContext(UPrototypeCastContext* Context);
     void LaunchAt(AActor* Target);
     void ReturnToOrbit();
     bool IsLaunched() const
@@ -38,6 +42,10 @@ protected:
     void MulticastImpact();
 
 private:
+    /** The context owner is the parent invocation; a retired context can never silently disable the guard. */
+    TWeakObjectPtr<UPrototypeCastContext> CastContext;
+    bool bHasCastLifeGuard = false;
+    bool ValidateCastLife(AActor* Target = nullptr) const;
     TWeakObjectPtr<AActor> OrbitAvatar;
     TWeakObjectPtr<AActor> AttackTarget;
     UPROPERTY()

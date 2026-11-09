@@ -86,6 +86,14 @@ void UExtensionAbility::Execute(FVector P, FPureMassCombatTarget T)
     auto* N = CastChecked<UExtensionNode>(Prototype);
     auto* Avatar = GetAvatarActorFromActorInfo();
     SetOffensiveAttackTarget(T.Actor.Get());
+    FString GraphError;
+    UAbilityGraphDefinition* Graph = PrepareUnifiedGraph(TEXT("LegacyExtension.v1"), GraphError);
+    if (!Graph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Unified GA %s: %s"), *GetName(), *GraphError);
+        Abort();
+        return;
+    }
     if (!CanActivateAbility(CurrentSpecHandle, CurrentActorInfo) ||
         !CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
     {
@@ -107,7 +115,7 @@ void UExtensionAbility::Execute(FVector P, FPureMassCombatTarget T)
     }
     if (N->Behavior == EExtensionKind::Chain)
         Origin = Avatar->GetActorLocation();
-    if (!AExtensionRuntime::Spawn(CastContext, N, Origin, Direction, T, 0, Origin))
+    if (!StartUnifiedGraph(Graph, CastContext, Origin, Direction, T, false, GraphError))
     {
         Abort();
         return;

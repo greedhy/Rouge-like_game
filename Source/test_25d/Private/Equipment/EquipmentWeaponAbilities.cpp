@@ -8,15 +8,31 @@
 #include "MyGameplayTags.h"
 #include "Abilities/GameplayAbility.h"
 
-// 从装备记录中查找带武器能力组的定义。
-UWeaponSetConfig* UEquipmentComponent::WeaponSetFor(const TArray<FEquipmentSlot>& Records) const
+// Find the same avatar for authority-side grants and client-side visuals.
+AStanderPlayer* UEquipmentComponent::FindStanderAvatar() const
+{
+    const auto* State = Cast<AMyPlayerState>(GetOwner());
+    if (auto* Player = State ? Cast<AStanderPlayer>(State->GetPawn()) : nullptr)
+    {
+        return Player;
+    }
+    // A restored PlayerState can be available before its pawn link or ActorInfo.
+    const auto* AbilitySystem = ASC();
+    return AbilitySystem && AbilitySystem->AbilityActorInfo.IsValid()
+               ? Cast<AStanderPlayer>(AbilitySystem->GetAvatarActor())
+               : nullptr;
+}
+
+// Inventory weapon sets override the avatar's default action set.
+UWeaponSetConfig* UEquipmentComponent::WeaponSetFor(const TArray<FEquipmentSlot>& Records, bool bIncludeDefault) const
 {
     for (const auto& Record : Records)
         if (const auto* Def = Definition(Record.ItemDefinitionId); Def && Def->WeaponSet)
             return Def->WeaponSet;
-    return nullptr;
+    const auto* Player = bIncludeDefault ? FindStanderAvatar() : nullptr;
+    return Player ? Player->DefaultWeaponSet.Get() : nullptr;
 }
-// 返回当前装备记录对应的武器配置。
+// 返回当前装备或角色默认的武器动作组。
 UWeaponSetConfig* UEquipmentComponent::GetWeaponSet() const
 {
     return WeaponSetFor(Slots);
@@ -61,20 +77,13 @@ bool UEquipmentComponent::PrepareWeaponSet(const TArray<FEquipmentSlot>& Records
     if (!A)
         return WeaponSetFor(Records) == nullptr && WeaponHandles.IsEmpty();
     auto* Set = WeaponSetFor(Records);
-    FGuid Instance;
-    for (const auto& R : Records)
-        if (const auto* D = Definition(R.ItemDefinitionId); D && D->WeaponSet)
-        {
-            Instance = R.ItemInstanceId;
-            break;
-        }
     int32 Count = 0;
     for (const auto& R : Records)
         if (const auto* D = Definition(R.ItemDefinitionId); D && D->WeaponSet)
             ++Count;
     if (Count > 1 || (Set && (!Set->Validate() || !Cast<AStanderPlayer>(A->GetAvatarActor()))))
         return false;
-    if (Set == AppliedWeaponSet.Get() && Instance == AppliedWeaponInstance && WeaponASC.Get() == A)
+    if (Set == AppliedWeaponSet.Get() && WeaponASC.Get() == A)
     {
         bool Complete = true;
         for (auto H : WeaponHandles)
@@ -124,12 +133,12 @@ bool UEquipmentComponent::PrepareWeaponSet(const TArray<FEquipmentSlot>& Records
 }
 // 撤销旧武器能力、恢复被挤出能力，再为新武器分配输入槽并刷新外观。
 void UEquipmentComponent::CommitWeaponSet(const TArray<FEquipmentSlot>& Records,
-                                          const TArray<FGameplayAbilitySpecHandle>& Prepared)
+                                          const TArray<FGameplayAbilitySpecHandle>& Prepared, bool bIncludeDefault)
 {
     auto* A = Cast<UMyAbilitySystemComponent>(ASC());
     if (!A)
         return;
-    auto* Set = WeaponSetFor(Records);
+    auto* Set = WeaponSetFor(Records, bIncludeDefault);
     FGuid Instance;
     for (const auto& R : Records)
         if (const auto* D = Definition(R.ItemDefinitionId); D && D->WeaponSet)
@@ -137,9 +146,16 @@ void UEquipmentComponent::CommitWeaponSet(const TArray<FEquipmentSlot>& Records,
             Instance = R.ItemInstanceId;
             break;
         }
-    if (Prepared.IsEmpty() && Set == AppliedWeaponSet.Get() && Instance == AppliedWeaponInstance &&
-        WeaponASC.Get() == A)
+    // Equipping the physical version of the same set keeps its existing handles and user slot assignments.
+    if (Prepared.IsEmpty() && Set == AppliedWeaponSet.Get() && WeaponASC.Get() == A)
+    {
+        if (Instance != AppliedWeaponInstance)
+        {
+            ++WeaponGeneration;
+            AppliedWeaponInstance = Instance;
+        }
         return;
+    }
     // 世代推进使旧武器上下文失效，随后清理旧能力并恢复被挤出的普通技能。
     ++WeaponGeneration;
     const auto& Tags = FMyGameplayTags::Get();
@@ -204,23 +220,15 @@ void UEquipmentComponent::CommitWeaponSet(const TArray<FEquipmentSlot>& Records,
                 A->ClientEquipAbility(A->GetAbilityTagFromSpec(*S), A->GetStatusFromSpec(*S), Slot, FGameplayTag());
             }
         }
-    RefreshWeaponVisuals();
+    if (bIncludeDefault)
+    {
+        RefreshWeaponVisuals();
+    }
 }
 // 定位玩家状态当前角色并应用装备武器外观。
 void UEquipmentComponent::RefreshWeaponVisuals()
 {
-    auto* State = Cast<AMyPlayerState>(GetOwner());
-    auto* Player = State ? Cast<AStanderPlayer>(State->GetPawn()) : nullptr;
-    if (!Player)
-    {
-        // 初次读档可先恢复 PlayerState 的背包/装备快照，再由角色初始化绑定 ASC。
-        // GetAvatarActor 要求 AbilityActorInfo 已分配；此时只延后表现，不能为了刷新外观伪造 ActorInfo。
-        // 角色 BeginPlay/后续装备对账会再次调用本入口，已恢复的装备记录仍保留。
-        if (auto* A = ASC(); A && A->AbilityActorInfo.IsValid())
-        {
-            Player = Cast<AStanderPlayer>(A->GetAvatarActor());
-        }
-    }
+    auto* Player = FindStanderAvatar();
     if (Player)
     {
         Player->ApplyWeaponSetVisuals(GetWeaponSet());

@@ -36,3 +36,12 @@ Stander 武器和时间轴集成测试依赖本地已制作 DA/GA，因此本机
 
 先审核统一方案，再将可验证的现有代码基线合并到远端 main 并读回 SHA，之后才创建统一框架开发分支。
 统一环境的阶段实现不能被宣称为全部旧 GA 已迁移；以设计中的兼容矩阵及验收记录为完成依据。
+
+## 已完成的主分支合并
+
+- 候选提交：`2d91aedc76a29aa9cda16452252c14fe3b22ae2e`、`8327a9045d9fa01f465f8067d06acac8a4f03ab3`。
+- GitHub：[PR #1](https://github.com/greedhy/Rouge-like_game/pull/1)，已经合并。
+- 读回并 fetch 验证的远端 main：`f21c74e4769a30410f73fb81469e6b60565df3fd`，包含上述两个候选提交。
+- 新开发分支：`codex/unified-ga-environment`，从该合并基线创建。P0 门槛已满足。
+
+新框架的开发及测试发生在上述合并之后，没有混入本次主分支基线提交。

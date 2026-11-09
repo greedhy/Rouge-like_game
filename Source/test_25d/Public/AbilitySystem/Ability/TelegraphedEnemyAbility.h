@@ -94,7 +94,7 @@ public:
 
 // Existing behavior-tree attack tag routes through this server-only selector.
 UCLASS()
-class TEST_25D_API UTelegraphedSelectAttack : public UGameplayAbility
+class TEST_25D_API UTelegraphedSelectAttack : public UMyGameplayAbility
 {
     GENERATED_BODY()
 public:

@@ -2,6 +2,7 @@
 #pragma once
 #include "AbilitySystem/Ability/MyDamageGameplayAbility.h"
 #include "Player/StanderCombatConfig.h"
+#include "AbilitySystem/Timeline/AbilityTimelineDefinition.h"
 #include "StanderAbility.generated.h"
 class AStanderPlayer;
 
@@ -12,6 +13,9 @@ class TEST_25D_API UStanderAbility : public UMyDamageGameplayAbility
 public:
     // 设置该技能的默认执行策略、模式和激活约束。
     UStanderAbility();
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation")
+    TObjectPtr<UAbilityTimelineDefinition> Timeline;
     // 激活前检查角色状态、配置及伤害依赖，再交给 GAS 检查通用条件。
     virtual bool CanActivateAbility(FGameplayAbilitySpecHandle, const FGameplayAbilityActorInfo*,
                                     const FGameplayTagContainer* = nullptr, const FGameplayTagContainer* = nullptr,
@@ -78,6 +82,9 @@ private:
     void GuardHit(UAbilitySystemComponent*, const FGameplayEffectSpec&, FActiveGameplayEffectHandle);
     TWeakObjectPtr<AStanderPlayer> Player;
     FSwordStrike Strike;
+    FAbilityTimelineSnapshot StrikeTimeline;
+    float StrikeDuration = 0.f;
+    float AppliedTimelineRate = 0.f;
     FTimerHandle Timer;
     FDelegateHandle GuardListener;
     FActiveGameplayEffectHandle GuardHandle;

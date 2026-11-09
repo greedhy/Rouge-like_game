@@ -49,6 +49,10 @@ namespace PureMassCombatTests
             Caster->SetRootComponent(Root);
             Root->RegisterComponent();
             Caster->SetActorLocation(FVector(-500, 0, 0));
+            // 迁移后的异步施法绑定真实 ASC/Avatar 生命。夹具补齐生产入口始终具有的 ASC，保留无战斗角色模型。
+            auto* CasterASC = NewObject<UAbilitySystemComponent>(Caster);
+            CasterASC->RegisterComponent();
+            CasterASC->InitAbilityActorInfo(Caster, Caster);
             Type = NewObject<UPureMassMonsterType>(World);
             Type->Health = 1000.f;
             Type->Radius = 20.f;
@@ -308,9 +312,7 @@ bool FPureMassOrbitSpawnOrigin::RunTest(const FString&)
     using namespace PureMassCombatTests;
     FFixture F;
     F.Caster->SetActorLocation(FVector(1000, 0, 0));
-    auto* ASC = NewObject<UAbilitySystemComponent>(F.Caster);
-    ASC->RegisterComponent();
-    ASC->InitAbilityActorInfo(F.Caster, F.Caster);
+    auto* ASC = F.Caster->FindComponentByClass<UAbilitySystemComponent>();
     ASC->AddAttributeSetSubobject(NewObject<UMyAttributeSet>(F.Caster));
     ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxManaAttribute(), 100.f);
     ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 100.f);

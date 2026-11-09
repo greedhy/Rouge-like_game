@@ -1,3 +1,4 @@
+// 调用链：输入/GAS -> 单次 Commit -> Shape.ArcaneNova 注册动作 -> Actor/Mass 伤害和原 Cue。
 #pragma once
 
 #include "CoreMinimal.h"

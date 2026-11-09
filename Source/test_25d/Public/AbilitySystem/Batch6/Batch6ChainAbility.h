@@ -1,10 +1,11 @@
 /**
- * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> 广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
+ * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> Delivery.ForkedChain图策略的广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
  * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
  */
 #pragma once
 #include "CoreMinimal.h"
 #include "AbilitySystem/Prototypes/PrototypeAbility.h"
+#include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 #include "Batch6ChainAbility.generated.h"
 
 class UNiagaraSystem;
@@ -89,6 +90,10 @@ public:
                             FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled) override;
 
 private:
+    /** 本次异步选点固定来源，结束时取消同步图，防止伤害回调继续分叉。 */
+    FAbilitySourceToken ActivationSource;
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityGraphInstance> Batch6Execution;
     bool bResolved = false;
     FTimerHandle Timeout;
     UFUNCTION()

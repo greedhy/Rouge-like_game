@@ -165,7 +165,7 @@ UAbilityInfo* UMyAbilitySystemLibrary::GetAbilityInfo(const UObject* WorldContex
     AMyGameModeBase* GameMode = Cast<AMyGameModeBase>(UGameplayStatics::GetGameMode(WorldContextObject));
     if (GameMode == nullptr)
         return nullptr;
-    return GameMode->AbilityInfo;
+    return GameMode->GetAbilityInfoForActor(Cast<AActor>(WorldContextObject));
 }
 
 bool UMyAbilitySystemLibrary::IsBlockedHit(const FGameplayEffectContextHandle& EffectContextHandle)

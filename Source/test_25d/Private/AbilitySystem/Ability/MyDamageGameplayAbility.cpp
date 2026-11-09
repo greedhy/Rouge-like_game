@@ -42,6 +42,7 @@ void UMyDamageGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Handl
                                           const FGameplayAbilityActivationInfo ActivationInfo,
                                           bool bReplicateEndAbility, bool bWasCancelled)
 {
+    CloseExecutionSession(bWasCancelled);
     bAttackCommitted = false;
     OffensiveAttackTarget.Reset();
     Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);

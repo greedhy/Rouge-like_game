@@ -1,5 +1,6 @@
 // 主要调用链：哥布林/食尸鬼复用公共预警 GA；投石在接触窗口生成弹体，由弹体负责后续碰撞伤害。
 #include "AbilitySystem/Ability/LegacyMonsterAbility.h"
+#include "AbilitySystem/Unified/Nodes/AbilityEnemyActionNodeExecutions.h"
 #include "Actor/EnemySlingProjectile.h"
 #include "Character/TelegraphedEnemyCharacter.h"
 #include "NativeGameplayTags.h"
@@ -59,52 +60,38 @@ bool UGoblinSlingAbility::UpdateAim()
 void UGoblinSlingAbility::ResolveHit()
 {
     const auto* C = Cast<USlingAttackConfig>(AttackConfig);
-    if (!C || !C->ValidateProjectile() || !Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease))
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!C || !C->ValidateProjectile() || !Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease) ||
+        !AbilityExecutionIdentity::CaptureSource(Golem.Get(), Source, Error))
     {
         Abort();
         return;
     }
-    auto* Source = Golem.Get();
-    const FVector Start = Source->GetMesh()->GetSocketLocation(C->MuzzleSocket);
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(SlingMuzzle), false, Source);
-    FHitResult Hit;
-    if (GetWorld()->LineTraceSingleByObjectType(Hit, Source->GetActorLocation(), Start,
-                                                FCollisionObjectQueryParams(ECC_WorldStatic), Query))
-    {
-        Abort();
-        return;
-    }
-    const FTransform Transform((LockedAim - Start).Rotation(), Start);
-    auto* Shot = GetWorld()->SpawnActorDeferred<AEnemySlingProjectile>(C->ProjectileClass, Transform, Source, Source,
-                                                                       ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    auto Params = MakeDamageEffectParamsFromClassDefaults();
+    Params.DamageGameplayEffectClass = SnapshotDamageEffect;
+    Params.DamageType = SnapshotDamageType;
+    Params.BaseDamage = SnapshotDamage;
+    auto* Shot = AbilityEnemyActions::FireSling(Source, *C, LockedAim, Params,
+                                                [this](AEnemySlingProjectile* Prepared)
+                                                {
+                                                    Launched = Prepared;
+                                                });
     if (!Shot)
     {
         Abort();
         return;
     }
-    Shot->InitializeSource(Source);
-    Shot->DamageEffectParams = MakeDamageEffectParamsFromClassDefaults();
-    Shot->DamageEffectParams.DamageGameplayEffectClass = SnapshotDamageEffect;
-    Shot->DamageEffectParams.DamageType = SnapshotDamageType;
-    Shot->DamageEffectParams.BaseDamage = SnapshotDamage;
-    Shot->DamageEffectParams.DebuffChance = 0;
-    Shot->DamageEffectParams.bIsRadialDamage = false;
-    Shot->ProjectileMovement->InitialSpeed = C->Speed;
-    Shot->ProjectileMovement->MaxSpeed = C->Speed;
-    Shot->ProjectileMovement->bInitialVelocityInLocalSpace = false;
-    Shot->ProjectileMovement->Velocity = Transform.GetRotation().GetForwardVector() * C->Speed;
-    Shot->Sphere->IgnoreActorWhenMoving(Source, true);
-    Launched = Shot;
-    UGameplayStatics::FinishSpawningActor(Shot, Transform);
-    if (IsValid(Shot))
-        Shot->SetLifeSpan(C->Lifetime);
     if (Golem.IsValid() && Golem->IsAttackCurrent(Serial, Lease))
-        Golem->ShowImpact(Serial, Start);
+    {
+        Golem->ShowImpact(Serial, Shot->GetActorLocation());
+    }
 }
 // 取消时销毁已发射弹体，释放引用后执行公共收尾。
 void UGoblinSlingAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                      FGameplayAbilityActivationInfo A, bool R, bool C)
 {
+    CloseExecutionSession(C);
     if (C && Launched.IsValid())
         Launched->Destroy();
     Launched.Reset();

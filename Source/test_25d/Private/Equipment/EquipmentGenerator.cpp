@@ -95,7 +95,7 @@ bool FEquipmentGenerator::ValidateRoll(const FEquipmentRollData& R, FString* E)
 }
 // 从物品定义关联的数据表生成可复现随机装备；所有检查通过后才写入最终输出。
 bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBackpackItemDefEntry& D, int32 L,
-                                   int32 Seed, FEquipmentRollData& Out, FString& E)
+                                   int32 Seed, FEquipmentRollData& Out, FString& E, bool bRequireAffix)
 {
     E.Reset();
     Out = {};
@@ -139,7 +139,10 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBac
             V->MaxSuffixes < 0 || V->MaxSuffixes > 6)
             return Bad(TEXT("Invalid rarity"));
         Seen.Add(N);
-        Total += V->Weight;
+        if (!bRequireAffix || (V->MaxAffixes > 0 && V->MaxPrefixes + V->MaxSuffixes > 0))
+        {
+            Total += V->Weight;
+        }
     }
     if (Total <= 0)
         return Bad(TEXT("No weighted rarity"));
@@ -148,7 +151,7 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBac
     for (FName N : Names)
     {
         auto* V = C.Rarities->FindRow<FEquipmentRarityRow>(N, TEXT("Generate"));
-        if (V->Weight <= 0)
+        if (V->Weight <= 0 || (bRequireAffix && (V->MaxAffixes == 0 || V->MaxPrefixes + V->MaxSuffixes == 0)))
             continue;
         Q = V;
         R.RarityId = N;
@@ -195,7 +198,7 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBac
         }
     }
     // 按稀有度决定目标数量；每轮剔除互斥组和前后缀超额项，再无放回抽取。
-    const int32 Count = RNG.RandRange(Q->MinAffixes, Q->MaxAffixes);
+    const int32 Count = RNG.RandRange(bRequireAffix ? FMath::Max(1, Q->MinAffixes) : Q->MinAffixes, Q->MaxAffixes);
     int32 Prefixes = 0, Suffixes = 0;
     TSet<FName> Groups;
     for (int32 I = 0; I < Count; ++I)
@@ -239,6 +242,11 @@ bool FEquipmentGenerator::Generate(const UBackpackItemDefinitions& C, const FBac
         if (!V.Row->ExclusiveGroup.IsNone())
             Groups.Add(V.Row->ExclusiveGroup);
         Candidates.RemoveAt(Index);
+    }
+    // 奖励不能静默降级成白装；无可用词缀时保留失败，由掉落队列报告并重试。
+    if (bRequireAffix && R.Affixes.IsEmpty())
+    {
+        return Bad(TEXT("No eligible affix for guaranteed equipment"));
     }
     if (!ValidateRoll(R, &E))
         return false;
