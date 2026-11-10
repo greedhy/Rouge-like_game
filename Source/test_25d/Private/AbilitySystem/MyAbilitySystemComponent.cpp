@@ -20,6 +20,111 @@
 #include "Game/LoadScreenSaveGame.h"
 #include "Interface/PlayerInterface.h"
 #include "test_25d/MyLogChannels.h"
+#include "AbilitySystem/Ability/StanderAbility.h"
+#include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Net/UnrealNetwork.h"
+
+// Simulated proxies still receive GAS's normal montage state. This is the missing owner view.
+void UMyAbilitySystemComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME_CONDITION(UMyAbilitySystemComponent, StanderOwnerMontage, COND_OwnerOnly);
+}
+
+// Mirror the authoritative montage clock, including timeline rate changes and interrupted stops.
+void UMyAbilitySystemComponent::PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker)
+{
+    Super::PreReplication(ChangedPropertyTracker);
+    const auto* Ability = GetAnimatingAbility();
+    const auto& Rep = GetRepAnimMontageInfo();
+    auto* Montage = Cast<UAnimMontage>(Rep.Animation);
+    if (Ability && Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::ServerOnly &&
+        (Ability->IsA<UStanderWeaponActionAbility>() || Ability->IsA<UStanderAbility>()) && Montage &&
+        GetAvatarActor())
+    {
+        StanderOwnerMontage.Avatar = GetAvatarActor();
+        StanderOwnerMontage.Montage = Montage;
+        StanderOwnerMontage.PlayInstanceId = Rep.PlayInstanceId;
+        StanderOwnerMontage.Position = Rep.Position;
+        StanderOwnerMontage.Rate = Rep.PlayRate;
+        StanderOwnerMontage.BlendTime = Rep.BlendTime;
+        StanderOwnerMontage.bStopped = Rep.IsStopped;
+    }
+    else if (!StanderOwnerMontage.bStopped)
+    {
+        // GAS may clear AnimatingAbility as part of ending the GA before this replication frame.
+        StanderOwnerMontage.bStopped = true;
+        StanderOwnerMontage.BlendTime = Rep.Animation == StanderOwnerMontage.Montage && Rep.IsStopped
+                                           ? Rep.BlendTime
+                                           : .08f;
+    }
+}
+
+void UMyAbilitySystemComponent::OnRep_StanderOwnerMontage()
+{
+    RefreshStanderOwnerMontage();
+}
+
+// Presentation only: no ability activation, ASC montage ownership, cost, or gameplay dispatch.
+void UMyAbilitySystemComponent::RefreshStanderOwnerMontage()
+{
+    if (!AbilityActorInfo.IsValid() || AbilityActorInfo->IsNetAuthority() ||
+        !AbilityActorInfo->IsLocallyControlled())
+    {
+        return;
+    }
+    const auto& State = StanderOwnerMontage;
+    auto* Anim = AbilityActorInfo->GetAnimInstance();
+    auto* PreviousAnim = OwnerPlaybackAnim.Get();
+    auto* PreviousMontage = OwnerPlaybackMontage.Get();
+    const auto* PreviousInstance = PreviousAnim && PreviousMontage
+                                       ? PreviousAnim->GetActiveInstanceForMontage(PreviousMontage)
+                                       : nullptr;
+    const bool bOwnsPrevious = PreviousInstance && PreviousInstance->GetInstanceID() == OwnerPlaybackInstance;
+    if (State.bStopped || State.Avatar != GetAvatarActor() || !Anim || !State.Montage)
+    {
+        if (bOwnsPrevious)
+        {
+            PreviousAnim->Montage_Stop(FMath::Max(0.f, State.BlendTime), PreviousMontage);
+        }
+        OwnerPlaybackInstance = INDEX_NONE;
+        OwnerPlaybackAnim.Reset();
+        OwnerPlaybackMontage.Reset();
+        return;
+    }
+
+    const bool bNewPlay = PreviousAnim != Anim || PreviousMontage != State.Montage ||
+                          OwnerPlaybackId != State.PlayInstanceId;
+    if (bNewPlay)
+    {
+        if (bOwnsPrevious && (PreviousAnim != Anim || PreviousMontage != State.Montage))
+        {
+            PreviousAnim->Montage_Stop(.08f, PreviousMontage);
+        }
+        if (Anim->Montage_Play(State.Montage, State.Rate, EMontagePlayReturnType::MontageLength,
+                               State.Position, false) <= 0.f)
+        {
+            return;
+        }
+        const auto* Instance = Anim->GetActiveInstanceForMontage(State.Montage);
+        OwnerPlaybackAnim = Anim;
+        OwnerPlaybackMontage = State.Montage;
+        OwnerPlaybackId = State.PlayInstanceId;
+        OwnerPlaybackInstance = Instance ? Instance->GetInstanceID() : INDEX_NONE;
+        return;
+    }
+    if (bOwnsPrevious)
+    {
+        Anim->Montage_SetPlayRate(State.Montage, State.Rate);
+        if (FMath::Abs(Anim->Montage_GetPosition(State.Montage) - State.Position) > .1f)
+        {
+            Anim->Montage_SetPosition(State.Montage, State.Position);
+        }
+    }
+}
+
 
 // 绑定自身效果应用委托，交给客户端回调提取资产标签。
 void UMyAbilitySystemComponent::AbilityActorInfoSet()

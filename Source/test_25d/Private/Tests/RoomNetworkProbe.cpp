@@ -11,6 +11,12 @@
 #include "Game/LoadScreenSaveGame.h"
 #include "Game/MyGameInstance.h"
 #include "Player/MyPlayerState.h"
+#include "Character/StanderPlayer.h"
+#include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "EngineUtils.h"
+#include "Containers/Ticker.h"
 #include "Components/WidgetSwitcher.h"
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
@@ -32,6 +38,7 @@ void TickRoomNetworkProbe(URoomSubsystem* Rooms)
     static FString Role, Run, Folder, LastCommandError, TestSlot;
     static bool bParsed = false, bEnabled = false;
     static int32 LastId = -1;
+    static TSet<FString> SeenStanderMontages;
     // 启动参数只解析一次，限制报告目录标识，默认不启用探针。
     if (!bParsed)
     {
@@ -50,7 +57,33 @@ void TickRoomNetworkProbe(URoomSubsystem* Rooms)
         bEnabled = Safe(Role) && Safe(Run) && !IsRunningCommandlet();
         Folder = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Rooms/Network"), Run);
         if (bEnabled)
+        {
             IFileManager::Get().MakeDirectory(*Folder, true);
+            // The room status poll runs every 250 ms; fast melee montages can finish in that interval.
+            const TWeakObjectPtr<URoomSubsystem> WeakRooms(Rooms);
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+                [WeakRooms](float)
+                {
+                    if (!WeakRooms.IsValid())
+                    {
+                        return false;
+                    }
+                    if (auto* World = WeakRooms->GetWorld(); World && World->HasBegunPlay())
+                    {
+                        for (TActorIterator<AStanderPlayer> It(World); It; ++It)
+                        {
+                            const auto* Anim = It->GetMesh()->GetAnimInstance();
+                            const auto* Montage = Anim ? Anim->GetCurrentActiveMontage() : nullptr;
+                            if (Montage)
+                            {
+                                const FString View = It->IsLocallyControlled() ? TEXT("owner:") : TEXT("remote:");
+                                SeenStanderMontages.Add(View + Montage->GetName());
+                            }
+                        }
+                    }
+                    return true;
+                }));
+        }
     }
     if (!bEnabled || !Rooms->GetWorld() || !Rooms->GetWorld()->HasBegunPlay())
         return;
@@ -94,7 +127,10 @@ void TickRoomNetworkProbe(URoomSubsystem* Rooms)
                     Slot->SetMapName(GM->DefaultMapName);
                     Slot->MapAssetName = GM->DefaultMap.ToSoftObjectPath().GetAssetName();
                     Slot->PlayerStartTag = GM->DefaultPlayerStartTag;
-                    GM->SaveSlotData(Slot, 0);
+                    FString Profession;
+                    Command->TryGetStringField(TEXT("field"), Profession);
+                    const bool bStander = Profession == TEXT("Stander");
+                    GM->SaveSlotData(Slot, 0, bStander ? EPlayerProfession::Stander : EPlayerProfession::Mage);
                     HUD->LoadScreenViewModel->SelectSlotButtonPressed(0);
                     HUD->LoadScreenViewModel->PlayButtonPressed();
                 }
@@ -117,6 +153,20 @@ void TickRoomNetworkProbe(URoomSubsystem* Rooms)
                     Text->SetText(FText::FromString(Value));
                 else
                     LastCommandError = TEXT("Input missing");
+            }
+            else if (Op == TEXT("ability_input"))
+            {
+                auto* Pawn = Cast<AStanderPlayer>(PC->GetPawn());
+                auto* ASC = Pawn ? Cast<UMyAbilitySystemComponent>(Pawn->GetAbilitySystemComponent()) : nullptr;
+                const auto InputTag = FGameplayTag::RequestGameplayTag(FName(*Value), false);
+                if (ASC && InputTag.IsValid())
+                {
+                    ASC->AbilityInputTagHeld(InputTag);
+                }
+                else
+                {
+                    LastCommandError = TEXT("Standard ASC or input tag missing");
+                }
             }
             else if (Op == TEXT("screenshot"))
                 FScreenshotRequest::RequestScreenshot(FPaths::Combine(Folder, Role + TEXT("-ui.png")), true, false);
@@ -165,6 +215,13 @@ void TickRoomNetworkProbe(URoomSubsystem* Rooms)
             if (P)
                 Players.Add(MakeShared<FJsonValueString>(P->GetPlayerName()));
     State->SetArrayField(TEXT("players"), Players);
+    State->SetBoolField(TEXT("local_stander"), Cast<AStanderPlayer>(PC->GetPawn()) != nullptr);
+    TArray<TSharedPtr<FJsonValue>> Montages;
+    for (const FString& Montage : SeenStanderMontages)
+    {
+        Montages.Add(MakeShared<FJsonValueString>(Montage));
+    }
+    State->SetArrayField(TEXT("stander_montages"), Montages);
     FString Output;
     FJsonSerializer::Serialize(State, TJsonWriterFactory<>::Create(&Output));
     FFileHelper::SaveStringToFile(Output, *FPaths::Combine(Folder, Role + TEXT("-state.json")),

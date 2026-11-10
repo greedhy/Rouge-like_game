@@ -26,9 +26,28 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FDeactivatePassiveAbility, const FGameplayTa
 DECLARE_MULTICAST_DELEGATE_TwoParams(FActivatePassiveEffect, const FGameplayTag& /*AbilityTag*/, bool /*bActivate*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOffensiveAttackTargeted, UGameplayAbility*, AActor*);
 
-/**
- * 
- */
+// Presentation snapshot for the owning client of a server-only Standard montage.
+USTRUCT()
+struct FStanderOwnerMontageState
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    TObjectPtr<AActor> Avatar;
+    UPROPERTY()
+    TObjectPtr<UAnimMontage> Montage;
+    UPROPERTY()
+    float Rate = 1.f;
+    UPROPERTY()
+    float Position = 0.f;
+    UPROPERTY()
+    float BlendTime = .08f;
+    UPROPERTY()
+    uint8 PlayInstanceId = 0;
+    UPROPERTY()
+    bool bStopped = true;
+};
+
 UCLASS()
 class TEST_25D_API UMyAbilitySystemComponent : public UAbilitySystemComponent
 {
@@ -36,6 +55,11 @@ class TEST_25D_API UMyAbilitySystemComponent : public UAbilitySystemComponent
 public:
     // 绑定自身效果应用委托，交给客户端回调提取资产标签。
     void AbilityActorInfoSet();
+    virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+    // Replay the latest owner snapshot after a weapon or avatar refreshes its AnimInstance.
+    void RefreshStanderOwnerMontage();
 
     FEffectAssectTags EffectAssectTags;
     FAbilitiesGiven AbilitiesGiven;
@@ -123,4 +147,16 @@ protected:
 
     UFUNCTION(Client, Reliable)
     void ClientUpdateAbilityStatus(const FGameplayTag& AbilityTag, const FGameplayTag& StatusTag, int32 AbilityLevel);
+
+private:
+    UPROPERTY(ReplicatedUsing = OnRep_StanderOwnerMontage)
+    FStanderOwnerMontageState StanderOwnerMontage;
+
+    UFUNCTION()
+    void OnRep_StanderOwnerMontage();
+
+    TWeakObjectPtr<UAnimInstance> OwnerPlaybackAnim;
+    TWeakObjectPtr<UAnimMontage> OwnerPlaybackMontage;
+    int32 OwnerPlaybackInstance = INDEX_NONE;
+    uint8 OwnerPlaybackId = 0;
 };

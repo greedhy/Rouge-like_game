@@ -1,5 +1,6 @@
 // 主要调用链：BeginPlay -> 装备组件 RefreshWeaponVisuals -> ApplyWeaponSetVisuals；骨骼武器组件替代继承的静态剑盾外观。
 #include "Character/StanderPlayer.h"
+#include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -55,5 +56,14 @@ void AStanderPlayer::ApplyWeaponSetVisuals(UWeaponSetConfig* Set)
           Set ? Set->OffhandSocket : DefaultOffhandSocket, Set ? Set->OffhandTransform : DefaultOffhandTransform);
     auto Anim = Set ? Set->AnimClass : DefaultAnimClass;
     if (GetMesh()->GetAnimClass() != Anim)
+    {
         GetMesh()->SetAnimInstanceClass(Anim);
+    }
+    if (auto* State = GetPlayerState<AMyPlayerState>())
+    {
+        if (auto* ASC = Cast<UMyAbilitySystemComponent>(State->GetAbilitySystemComponent()))
+        {
+            ASC->RefreshStanderOwnerMontage();
+        }
+    }
 }
