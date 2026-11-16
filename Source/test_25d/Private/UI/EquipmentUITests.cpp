@@ -31,6 +31,7 @@ bool FEquipmentUIEligibilityTest::RunTest(const FString& Parameters)
 }
 #include "UI/ViewModel/MVVM_Backpack.h"
 #include "Backpack/ReplicatedInventory.h"
+#include "Tests/EquipmentTestEffects.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquipmentUIDetailsTest, "test_25d.Equipment.UI.SavedRollDetails",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FEquipmentUIDetailsTest::RunTest(const FString& Parameters)
@@ -54,6 +55,10 @@ bool FEquipmentUIDetailsTest::RunTest(const FString& Parameters)
     VM->SelectSlot(0);
     TestEqual(TEXT("Legacy name stays unchanged"), VM->GetSelectedItemName().ToString(), FString(TEXT("Ring")));
     TestTrue(TEXT("Legacy roll has no random description"), VM->GetSelectedItemDescription().IsEmpty());
+    Definitions->Items[0].bEquippable = true;
+    Definitions->Items[0].EquipEffect = UEquipmentTestArmor::StaticClass();
+    TestTrue(TEXT("Fixed equipment shows its configured armor effect"),
+             VM->GetSelectedItemDescription().ToString().Contains(TEXT("护甲")));
     Slot.RollData.GenerationVersion = 1;
     Slot.RollData.ItemLevel = 17;
     Slot.RollData.RarityId = TEXT("Rare");

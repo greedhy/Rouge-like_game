@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：BeginPlay 创建存档 VM 和 Widget → 初始化视图并加载存档 → 依选择打开房间或职业界面。
 
 #include "UI/HUD/LoadScreenHUD.h"
 
@@ -17,9 +17,9 @@ void ALoadScreenHUD::BeginPlay()
     LoadScreenViewModel = NewObject<UMVVM_LoadScreen>(this, LoadScreenViewModelClass);
     LoadScreenViewModel->InitializeLoadSlots();
 
-    LoadScreenWidget = CreateWidget<ULoadScreenWidget>(GetWorld(), LoadScreenWidgetClass);
+    LoadScreenWidget = CreateWidget<ULoadScreenWidget>(GetOwningPlayerController(), LoadScreenWidgetClass);
     LoadScreenWidget->AddToViewport();
-    LoadScreenWidget->BlueprintInitializeWidget();
+    LoadScreenWidget->InitializeSaveScreen(LoadScreenViewModel);
 
     LoadScreenViewModel->LoadData();
     if (auto* Rooms = GetGameInstance()->GetSubsystem<URoomSubsystem>();

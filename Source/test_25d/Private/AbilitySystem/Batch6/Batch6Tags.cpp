@@ -13,5 +13,6 @@ BATCH6_TAG(PetrifyingGaze)
 BATCH6_TAG(SolarFireball)
 BATCH6_TAG(GlacialStorm)
 BATCH6_TAG(FissionChain)
+BATCH6_TAG(SequentialChain)
 BATCH6_TAG(EarthShockwave)
 #undef BATCH6_TAG

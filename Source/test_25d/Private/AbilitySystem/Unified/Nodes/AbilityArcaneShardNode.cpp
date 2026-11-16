@@ -11,6 +11,8 @@
 #include "TimerManager.h"
 #include "Interface/CombatInterface.h"
 #include "Roguelike/DungeonRunDirector.h"
+#include "Equipment/EquipmentAbilityModifiers.h"
+#include "MyGameplayTags.h"
 
 FAbilityDamageResult AbilityArcaneShardNodes::ApplyLegacyActor(const FAbilitySourceToken& Source,
                                                                const FAbilitySourceToken& TargetLife,
@@ -51,6 +53,10 @@ bool UAbilityArcaneShardNodeConfig::Validate(FString& Error) const
     {
         Error = TEXT(
             "Arcane shards require 1..11 points, a positive finite interval/radius/tail and nonnegative first delay.");
+    }
+    if (EquipmentAbilityTag.IsValid() && EquipmentAbilityTag != FMyGameplayTags::Get().Abilities_Arcane_ArcaneShards)
+    {
+        Error = TEXT("Shard equipment rules require the exact Shards identity.");
     }
     return Error.IsEmpty();
 }
@@ -100,6 +106,14 @@ bool UAbilityArcaneShardNodeExecution::Start(UAbilityGraphInstance& Owner, const
     Super::Start(Owner, Id, Config, InInput, Error);
     Settings =
         DuplicateObject<UAbilityArcaneShardNodeConfig>(CastChecked<UAbilityArcaneShardNodeConfig>(&Config), this);
+    ResolvedDamage = Input.DamageParams;
+    int32 ExtraChainTargets = 0;
+    if (!EquipmentAbilityModifiers::ApplySpellRules(Input.SourceToken, Settings->EquipmentAbilityTag, Settings->Radius,
+                                                    ResolvedDamage, ExtraChainTargets))
+    {
+        Error = TEXT("Shard equipment parameters failed to resolve.");
+        return false;
+    }
     Prepared = Cast<UAbilityArcaneShardContext>(Input.Context.Get());
     if (!Prepared)
     {
@@ -232,7 +246,7 @@ void UAbilityArcaneShardNodeExecution::SpawnNext()
         {
             continue;
         }
-        auto Params = Input.DamageParams;
+        auto Params = ResolvedDamage;
         Params.RadialDamageOrigin = Location;
         FRotator ImpulseRotation = (TargetLocation - Location).GetSafeNormal().Rotation();
         ImpulseRotation.Pitch = 15.f;

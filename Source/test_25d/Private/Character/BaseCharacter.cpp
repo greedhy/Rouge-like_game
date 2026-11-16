@@ -274,6 +274,17 @@ void ABaseCharacter::AddCharacterAbilities()
     MyASC->AddCharacterPassiveAbilities(StartupPassiveAbility);
 }
 
+void ABaseCharacter::EnsureIntrinsicCharacterAbilities()
+{
+    if (HasAuthority())
+    {
+        if (auto* ASC = Cast<UMyAbilitySystemComponent>(GetAbilitySystemComponent()))
+        {
+            ASC->EnsureIntrinsicStartupAbilities(StartupAbility);
+        }
+    }
+}
+
 // 为角色和武器创建动态材质，再交由蓝图时间线推进溶解。
 void ABaseCharacter::Dissolve()
 {

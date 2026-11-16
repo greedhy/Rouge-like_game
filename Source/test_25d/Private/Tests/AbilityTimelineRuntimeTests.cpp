@@ -3,6 +3,7 @@
 #include "AbilityTimelineTestAbility.h"
 #include "AbilitySystem/Timeline/AnimNotify_AbilityTimelineEvent.h"
 #include "Misc/AutomationTest.h"
+#include "MyGameplayTags.h"
 #include "Character/EnemyCharacter.h"
 #include "AbilitySystemComponent.h"
 #include "Animation/AnimInstance.h"
@@ -303,6 +304,12 @@ bool FTimelineGuard::RunTest(const FString&)
         auto* Action = CastChecked<UStanderWeaponActionAbility>(EquippedSpec->GetPrimaryInstance());
         TestTrue(Label + TEXT(" action config valid"), Action->ActionConfig->Validate());
         const auto Handle = EquippedSpec->Handle;
+        const FString ActionName = Action->ActionConfig->ActionTag.ToString();
+        if (ActionName.EndsWith(TEXT(".Attack2")) || ActionName.EndsWith(TEXT(".Attack3")))
+        {
+            TestFalse(Label + TEXT(" requires predecessor"), ASC->TryActivateAbility(Handle));
+            continue; // 实际连段由 StanderCombo.AuthoredWeaponInput 从左键推进。
+        }
         bool bEndedNormally = false;
         const auto EndHandle = ASC->OnAbilityEnded.AddLambda(
             [&](const FAbilityEndedData& Ended)
@@ -316,7 +323,14 @@ bool FTimelineGuard::RunTest(const FString&)
         ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 1000);
         if (Entry.InputTag.IsValid())
         {
-            ASC->AbilityInputTagHeld(Entry.InputTag);
+            if (Entry.InputTag == FMyGameplayTags::Get().InputTag_LMB)
+            {
+                ASC->AbilityInputTagPressed(Entry.InputTag);
+            }
+            else
+            {
+                ASC->AbilityInputTagHeld(Entry.InputTag);
+            }
         }
         else
         {

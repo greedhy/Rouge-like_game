@@ -5,6 +5,8 @@ description: 在 test_25d UE5 GAS 项目中制作、修改和验证装备资产�
 
 # 制作表格驱动的装备
 
+固定暗金、百分比取舍和装备技能/套装联动先读 `skills/build-unique-equipment/SKILL.md` 与 `docs/unique-equipment-production-workflow.md`；下文Channel1限制属于普通/随机装备，专用暗金子类可按其校验使用Channel2复合乘法。
+
 在当前 test_25d 项目根目录工作。先阅读 `docs/equipment-production-workflow.md`、`docs/equipment-development-standard.md`、`docs/2026-10-30-equipment-tables.md`，并核对实际代码与资产；文档不授权扩展主动能力、随机词条或 UI 改版。
 
 ## 数据与职责

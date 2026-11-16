@@ -92,7 +92,7 @@ void UGoblinSlingAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGamepl
                                      FGameplayAbilityActivationInfo A, bool R, bool C)
 {
     CloseExecutionSession(C);
-    if (C && Launched.IsValid())
+    if (C && Launched.IsValid() && !Launched->HasBeenParryReflected())
         Launched->Destroy();
     Launched.Reset();
     Super::EndAbility(H, I, A, R, C);

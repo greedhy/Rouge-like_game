@@ -22,4 +22,8 @@ public:
     // 多播命中特效，在指定世界位置播放剑盾打击表现。
     UFUNCTION(NetMulticast, Unreliable)
     void ShowSwordImpact(UNiagaraSystem* Effect, FVector Location);
+
+    // 对应接触动作开始时给当前角色脚下播放短期跟随特效。
+    UFUNCTION(NetMulticast, Unreliable)
+    void ShowEquipmentBodyEffect(UNiagaraSystem* Effect, float Duration);
 };

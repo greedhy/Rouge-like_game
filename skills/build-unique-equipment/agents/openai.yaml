@@ -1,0 +1,4 @@
+interface:
+  display_name: "制作暗金与套装"
+  short_description: "在 test_25d 中制作表格驱动的暗金、技能变体及套装并验证真实行为"
+  default_prompt: "使用 $build-unique-equipment 制作一批有收益与代价的暗金或套装，保留现有装备数据并验证穿脱和技能效果。"

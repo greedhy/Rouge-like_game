@@ -22,6 +22,11 @@ bool UStanderWeaponActionConfig::Validate() const
     float Previous = -1;
     for (const auto& E : Events)
     {
+        FString ParryError;
+        if (E.Parry.bEnabled && (E.Kind != EStanderWeaponActionKind::Guard || !E.Parry.Validate(ParryError)))
+        {
+            return false;
+        }
         if (!FMath::IsFinite(E.Time) || E.Time < Previous || E.Time < 0 || E.Time >= Montage->GetPlayLength() ||
             !FMath::IsFinite(E.Damage) || E.Damage < 0 || !FMath::IsFinite(E.Radius) || E.Radius <= 0 ||
             !FMath::IsFinite(E.Angle) || E.Angle <= 0 || E.Angle > 360 || E.DeathImpulse.ContainsNaN() ||

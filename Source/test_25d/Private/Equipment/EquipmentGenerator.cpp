@@ -1,5 +1,7 @@
 // 调用链：Generate 校验目录和等级 → 固定种子抽取基础属性/稀有度/词缀 → ValidateRoll → 提交结果；展示与属性汇总只消费生成数据。
 #include "Equipment/EquipmentGenerator.h"
+#include "Equipment/EquipmentGameplayEffect.h"
+#include "Equipment/UniqueEquipmentGameplayEffect.h"
 #include "Equipment/EquipmentStats.h"
 #include "Backpack/ItemDefinition.h"
 namespace
@@ -305,6 +307,120 @@ FText FEquipmentGenerator::MakeDescription(const FEquipmentRollData& R)
         AppendStats(Affix.Stats);
     }
     return FText::FromString(S);
+}
+
+// 固定装备从已有 GE 和装备等级读静态值，随机装备继续使用实例保存的结果。
+FText FEquipmentGenerator::MakeDescription(const FBackpackItemDefEntry* Definition, const FEquipmentRollData& Roll)
+{
+    if (Roll.GenerationVersion > 0)
+    {
+        return MakeDescription(Roll);
+    }
+    if (!Definition || !Definition->bEquippable || !Definition->EquipEffect)
+    {
+        return FText::GetEmpty();
+    }
+
+    const UEquipmentGameplayEffect* Effect = Definition->EquipEffect.GetDefaultObject();
+    const auto* Unique = Cast<UUniqueEquipmentGameplayEffect>(Effect);
+    TArray<FString> Lines;
+    if (Unique)
+    {
+        Lines.Add(TEXT("暗金装备"));
+    }
+    for (const FGameplayModifierInfo& Modifier : Effect->Modifiers)
+    {
+        float Value = 0.f;
+        if (!Modifier.Attribute.IsValid() ||
+            !Modifier.ModifierMagnitude.GetStaticMagnitudeIfPossible(Definition->EquipEffectLevel, Value))
+        {
+            continue;
+        }
+        const FEquipmentStatDefinition* Stat = EquipmentStats::All().FindByPredicate(
+            [&Modifier](const FEquipmentStatDefinition& Entry)
+            {
+                return Entry.Attribute == Modifier.Attribute;
+            });
+        const FString Label = Stat ? FString(Stat->Label) : Modifier.Attribute.GetName();
+        if (Modifier.ModifierOp == EGameplayModOp::MultiplyCompound)
+        {
+            Lines.Add(FString::Printf(TEXT("%s %+g%%（独立相乘）"), *Label, (Value - 1.f) * 100.f));
+        }
+        else
+        {
+            Lines.Add(FString::Printf(TEXT("%s %+g"), *Label, Value));
+        }
+    }
+    if (Unique)
+    {
+        if (!Unique->UniqueDescription.IsEmpty())
+        {
+            Lines.Add(Unique->UniqueDescription.ToString());
+        }
+        const auto& Projectile = Unique->ProjectileRule;
+        const float Level = Definition->EquipEffectLevel;
+        if (Projectile.AbilityTag.IsValid() && Projectile.IsValid(Level))
+        {
+            Lines.Add(FString::Printf(TEXT("额外 %d 枚投射物；每弹基础伤害和持续伤害为原来的 %g%%；最小散射角 %g°"),
+                                      FMath::FloorToInt(Projectile.ExtraProjectiles.GetValueAtLevel(Level)),
+                                      Projectile.DamageMultiplier.GetValueAtLevel(Level) * 100.f,
+                                      Projectile.MinimumSpread.GetValueAtLevel(Level)));
+            if (Projectile.bDisableHoming)
+            {
+                Lines.Add(TEXT("投射物不再追踪目标"));
+            }
+        }
+        const auto& Melee = Unique->MeleeRule;
+        if (Melee.AbilityTag.IsValid() && Melee.IsValid(Level))
+        {
+            Lines.Add(FString::Printf(TEXT("对应近战技能的基础伤害为原来的 %g%%"),
+                                      Melee.DamageMultiplier.GetValueAtLevel(Level) * 100.f));
+            if (Melee.BodyEffect)
+            {
+                Lines.Add(FString::Printf(TEXT("技能接触时出现周身特效，持续 %g 秒"),
+                                          Melee.BodyEffectDuration.GetValueAtLevel(Level)));
+            }
+            if (!Melee.RequiredSetTags.IsEmpty())
+            {
+                Lines.Add(FString::Printf(TEXT("套装齐全时，对应近战技能的基础伤害改为原来的 %g%%"),
+                                          Melee.SetDamageMultiplier.GetValueAtLevel(Level) * 100.f));
+            }
+        }
+        if (!Unique->SetDescription.IsEmpty())
+        {
+            Lines.Add(Unique->SetDescription.ToString());
+        }
+        const auto& Spell = Unique->SpellRule;
+        if ((Spell.AbilityTag.IsValid() || Spell.FamilyTag.IsValid()) && Spell.IsValid(Level))
+        {
+            Lines.Add(FString::Printf(TEXT("对应法术的基础伤害和持续伤害为原来的 %g%%，作用半径为 %g%%"),
+                                      Spell.DamageMultiplier.GetValueAtLevel(Level) * 100.f,
+                                      Spell.RadiusMultiplier.GetValueAtLevel(Level) * 100.f));
+            const int32 Extra = FMath::FloorToInt(Spell.ExtraChainTargets.GetValueAtLevel(Level));
+            if (Extra > 0)
+            {
+                Lines.Add(FString::Printf(TEXT("额外连锁 %d 个目标"), Extra));
+            }
+            if (!Spell.RequiredSetTags.IsEmpty())
+            {
+                Lines.Add(FString::Printf(TEXT("套装齐全时，法术伤害倍率改为 %g%%"),
+                                          Spell.SetDamageMultiplier.GetValueAtLevel(Level) * 100.f));
+            }
+        }
+        if (Projectile.AbilityTag.IsValid() && !Projectile.RequiredSetTags.IsEmpty() && Projectile.IsValid(Level))
+        {
+            Lines.Add(FString::Printf(TEXT("套装齐全时，每弹基础伤害和持续伤害改为原来的 %g%%"),
+                                      Projectile.SetDamageMultiplier.GetValueAtLevel(Level) * 100.f));
+        }
+    }
+    else
+    {
+        for (const FGameplayTag& Tag : Effect->GetGrantedTags())
+        {
+            Lines.Add(Tag.ToString());
+        }
+    }
+    return FText::FromString(FString::Join(Lines, TEXT("\n")));
 }
 
 // 核对随机数据与物品定义的随机开关及生成配置一致性；缺失定义仅接受旧版空数据。

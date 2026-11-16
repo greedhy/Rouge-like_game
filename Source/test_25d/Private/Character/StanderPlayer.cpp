@@ -1,12 +1,14 @@
 // 主要调用链：BeginPlay -> 装备组件 RefreshWeaponVisuals -> ApplyWeaponSetVisuals；骨骼武器组件替代继承的静态剑盾外观。
 #include "Character/StanderPlayer.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "AbilitySystem/Combo/StanderComboComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 // 创建武器表现组件并设置挂接、碰撞及角色默认参数。
 AStanderPlayer::AStanderPlayer()
 {
+    ComboComponent = CreateDefaultSubobject<UStanderComboComponent>(TEXT("StanderCombo"));
     StanderSword = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("StanderSword"));
     StanderSword->SetupAttachment(GetMesh(), TEXT("ik_hand_r"));
     StanderSword->SetCollisionEnabled(ECollisionEnabled::NoCollision);

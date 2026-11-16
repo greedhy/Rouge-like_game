@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "UniqueBloodglassRing",
+      "label": "血玻戒指",
+      "icon": "19204_1",
+      "slots": ["Ring.Left", "Ring.Right"],
+      "stats": {"ArmorPene": 2.2, "MaxHealth": 0.70},
+      "description": "以生命上限换取护甲穿透；穿透收益遵循现有伤害结算。"
+    },
+    {
+      "id": "UniqueStonePactArmor",
+      "label": "磐石契甲",
+      "icon": "24119_1",
+      "slots": ["Chest"],
+      "stats": {"Armor": 2.5, "MaxMana": 0.60},
+      "description": "大幅增强护甲，但缩小法力储备。"
+    },
+    {
+      "id": "UniqueAshenCrown",
+      "label": "灰烬冠",
+      "icon": "24393_1",
+      "slots": ["Helmet"],
+      "stats": {"MaxMana": 2.0, "ManaRegeneration": 2.0, "MaxHealth": 0.65},
+      "description": "以生命上限换取法力容量与恢复。",
+      "tag": "Equipment.Unique.AshenCrown",
+      "set_description": "灰烬誓约：同时装备灰烬冠与灰烬棱晶，增强散射火球的单枚伤害。"
+    },
+    {
+      "id": "UniqueAshenPrism",
+      "label": "灰烬棱晶",
+      "icon": "86021_1",
+      "slots": ["MagicStone"],
+      "stats": {"MaxMana": 0.75},
+      "description": "火球改为失去追踪的散射弹幕；单枚弹体伤害降低。",
+      "tag": "Equipment.Unique.AshenPrism",
+      "set_description": "灰烬誓约：同时装备灰烬冠与灰烬棱晶，增强散射火球的单枚伤害。",
+      "projectile_ability_tag": "Abilities.Fire.FireBolt",
+      "projectile": {"ExtraProjectiles": 2.0, "DamageMultiplier": 0.55, "MinimumSpread": 40.0, "SetDamageMultiplier": 0.70},
+      "disable_homing": true,
+      "required_set_tags": ["Equipment.Unique.AshenCrown", "Equipment.Unique.AshenPrism"]
+    },
+    {
+      "id": "UniqueCinderOathBoots",
+      "label": "熔誓战靴",
+      "icon": "51613_1",
+      "slots": ["Boots"],
+      "stats": {"Armor": 0.70},
+      "description": "剑盾普通攻击接触伤害转为火焰并提高伤害；护甲降低。",
+      "melee_ability_tag": "Abilities.StanderWeapons.Sword_Shield.Attack1",
+      "melee": {"DamageMultiplier": 1.8},
+      "damage_type": "Damage.Fire",
+      "hit_effect": "/Game/CompositionBatch6/NS_SolarExplosionFlame"
+    },
+    {
+      "id": "UniqueStormforgedHelm",
+      "label": "雷铸战盔",
+      "icon": "41139_1",
+      "slots": ["Helmet"],
+      "stats": {"MaxMana": 0.70},
+      "description": "剑盾环斩（默认键1，Skill7_Around）的接触伤害转为雷电并提高伤害；最大法力降低，不额外附加眩晕。",
+      "tag": "Equipment.Unique.StormforgedHelm",
+      "set_description": "雷铸誓约：同时装备雷铸战盔与风暴锁甲，进一步增强剑盾环斩的接触伤害。",
+      "melee_ability_tag": "Abilities.StanderWeapons.Sword_Shield.Skill7_Around",
+      "melee": {"DamageMultiplier": 1.6, "SetDamageMultiplier": 2.3},
+      "damage_type": "Damage.Thunder",
+      "hit_effect": "/Game/Art/CompositionEffects/NS_StormSeal_Pulse",
+      "required_set_tags": ["Equipment.Unique.StormforgedHelm", "Equipment.Unique.StormboundMail"]
+    },
+    {
+      "id": "UniqueStormboundMail",
+      "label": "风暴锁甲",
+      "icon": "64755_1",
+      "slots": ["Chest"],
+      "stats": {"MaxHealth": 1.6, "Armor": 0.65},
+      "description": "以护甲换取更高生命上限；提高上限不会立即恢复生命。",
+      "tag": "Equipment.Unique.StormboundMail",
+      "set_description": "雷铸誓约：同时装备雷铸战盔与风暴锁甲，进一步增强剑盾环斩的接触伤害。"
+    },
+    {
+      "id": "UniqueGamblersRing",
+      "label": "孤注赌戒",
+      "icon": "25186_1",
+      "slots": ["Ring.Left", "Ring.Right"],
+      "stats": {"CriticalHitChance": 2.0, "CriticalHitDamage": 1.8, "Armor": 0.60},
+      "description": "以护甲换取暴击属性；暴击伤害属性倍率不等于最终伤害倍率，零基础属性不会凭空增加。"
+    },
+    {
+      "id": "UniqueStillwaterStone",
+      "label": "静海魔石",
+      "icon": "44769_1",
+      "slots": ["MagicStone"],
+      "stats": {"ManaRegeneration": 3.0, "MaxMana": 1.5, "CriticalHitDamage": 0.50},
+      "description": "以暴击伤害属性换取法力续航；提高法力上限不会立即补满法力。"
+    },
+    {
+      "id": "UniqueArcaneHorizonRobe",
+      "label": "广域法袍",
+      "icon": "60684_1",
+      "slots": ["Chest"],
+      "stats": {"Armor": 0.75},
+      "description": "扩大奥术新星和奥术碎片的作用半径，以单次伤害与护甲换取覆盖范围。",
+      "tag": "Equipment.Unique.ArcaneHorizonRobe",
+      "set_description": "折空仪式同时穿戴广域法袍和奇点兜帽时，法袍恢复奥术范围系列的基础伤害倍率。",
+      "spell_family_tag": "Equipment.AbilityFamily.ArcaneArea",
+      "spell": {"DamageMultiplier": 0.8, "RadiusMultiplier": 1.4, "ExtraChainTargets": 0, "SetDamageMultiplier": 1.0},
+      "required_set_tags": ["Equipment.Unique.ArcaneHorizonRobe", "Equipment.Unique.SingularityHood"]
+    },
+    {
+      "id": "UniqueSingularityHood",
+      "label": "奇点兜帽",
+      "icon": "60697_1",
+      "slots": ["Helmet"],
+      "stats": {"MaxMana": 0.80},
+      "description": "压缩奥术新星的作用半径，集中冲击伤害并降低最大法力。",
+      "tag": "Equipment.Unique.SingularityHood",
+      "set_description": "折空仪式同时穿戴广域法袍和奇点兜帽时，法袍恢复奥术范围系列的基础伤害倍率。",
+      "spell_ability_tag": "Abilities.Arcane.ArcaneNova",
+      "spell": {"DamageMultiplier": 1.45, "RadiusMultiplier": 0.8, "ExtraChainTargets": 0}
+    },
+    {
+      "id": "UniqueForkstormRing",
+      "label": "分雷戒",
+      "icon": "18824_1",
+      "slots": ["Ring.Left", "Ring.Right"],
+      "stats": {"ManaRegeneration": 0.75},
+      "description": "扩大闪电引导的二次索敌范围并接入更多连锁目标，降低每个目标所受基础伤害及法力恢复。",
+      "spell_ability_tag": "Abilities.Thunder.Electrocute",
+      "spell": {"DamageMultiplier": 0.72, "RadiusMultiplier": 1.22, "ExtraChainTargets": 2}
+    },
+    {
+      "id": "UniqueFrostWakeHelm",
+      "label": "霜旋战盔",
+      "icon": "61409_1",
+      "slots": ["Helmet"],
+      "stats": {"Armor": 0.72},
+      "description": "剑盾环斩转为水系伤害，挥击时有寒霜在脚下盘旋。护甲降低。",
+      "melee_ability_tag": "Abilities.StanderWeapons.Sword_Shield.Skill7_Around",
+      "melee": {"DamageMultiplier": 1.6, "BodyEffectDuration": 0.9},
+      "damage_type": "Damage.Water",
+      "body_effect": "/Game/CompositionBatch6/NS_GlacialStorm"
+    },
+    {
+      "id": "UniqueSolarStepBoots",
+      "label": "日炎踏靴",
+      "icon": "51613_1",
+      "slots": ["Boots"],
+      "stats": {"Armor": 0.85, "MaxMana": 0.8},
+      "description": "剑盾突进行动的接触伤害转为火焰，火环随角色短暂移动。护甲和最大法力降低。",
+      "melee_ability_tag": "Abilities.StanderWeapons.Sword_Shield.Skill6_Move",
+      "melee": {"DamageMultiplier": 1.5, "BodyEffectDuration": 0.8},
+      "damage_type": "Damage.Fire",
+      "body_effect": "/Game/CompositionBatch6/NS_StarFlameHalo"
+    }
+  ]
+}

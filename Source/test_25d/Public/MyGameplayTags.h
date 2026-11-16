@@ -56,6 +56,7 @@ public:
     FGameplayTag InputTag_4;
     FGameplayTag InputTag_Backpack;
     FGameplayTag InputTag_Pickup;
+    FGameplayTag InputTag_Dodge;
 
     FGameplayTag InputTag_Passive_1;
     FGameplayTag InputTag_Passive_2;

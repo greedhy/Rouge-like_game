@@ -28,7 +28,8 @@ public:
               meta = (DisplayName = "Run Ability Timeline", HidePin = "OwningAbility", DefaultToSelf = "OwningAbility",
                       BlueprintInternalUseOnly = "true"))
     static UAbilityTask_RunTimeline* RunAbilityTimeline(UGameplayAbility* OwningAbility, UAnimMontage* Montage,
-                                                        UAbilityTimelineDefinition* Definition);
+                                                        UAbilityTimelineDefinition* Definition,
+                                                        bool bAllowEndBlendOut = false);
 
     UPROPERTY(BlueprintAssignable)
     FAbilityTimelinePosition OnPosition;
@@ -85,6 +86,7 @@ private:
     float LastPosition = 0;
     float LastRate = 0;
     bool bFinishing = false;
+    bool bAllowEndBlendOut = false;
     /** 只接受创建任务时的会话，不从可重复激活的GA读取下一次施法。 */
     TWeakPtr<FAbilityExecutionSession> ExecutionSession;
     bool bUsesExecutionSession = false;

@@ -4,6 +4,11 @@
 // 组合基础剑盾、死亡冲量及特殊攻击参数检查。
 bool UStanderCombatConfig::ValidateStander() const
 {
+    FString ParryError;
+    if (GuardParry.bEnabled && !GuardParry.Validate(ParryError))
+    {
+        return false;
+    }
     return Validate() && ValidateDeathImpulses() && Lift.Validate() && ShieldBash.Validate() &&
            FMath::IsFinite(LiftMana) && LiftMana >= 0 && FMath::IsFinite(LiftCooldown) && LiftCooldown >= 0 &&
            FMath::IsFinite(ShieldBashMana) && ShieldBashMana >= 0 && FMath::IsFinite(ShieldBashCooldown) &&

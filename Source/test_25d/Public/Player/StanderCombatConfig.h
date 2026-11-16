@@ -1,6 +1,7 @@
 // 主要调用链：Stander 技能激活调用 ValidateStander -> 突进时 DashFraction -> 命中时 WorldDeathImpulse 转换死亡冲量。
 #pragma once
 #include "Player/SwordShieldConfig.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
 #include "StanderCombatConfig.generated.h"
 
 UCLASS(BlueprintType)
@@ -8,6 +9,9 @@ class TEST_25D_API UStanderCombatConfig : public USwordShieldConfig
 {
     GENERATED_BODY()
 public:
+    /** 默认关闭；标准人物格挡资产显式开启，保留其他旧格挡行为。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FGuardParrySettings GuardParry;
     // Local impulse: X follows locked attack direction, Y is right, Z is up. Death only.
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     TArray<FVector> ComboDeathImpulses = {FVector(900, 0, 250), FVector(1000, 0, 300), FVector(1200, 0, 450)};

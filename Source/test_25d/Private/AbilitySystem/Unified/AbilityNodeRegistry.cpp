@@ -16,6 +16,8 @@
 #include "AbilitySystem/Unified/Nodes/AbilityEnemySpecialNodeExecutions.h"
 #include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 #include "AbilitySystem/Unified/Nodes/AbilityGameplayEffectNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityWorldTimeNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityDefenseNodes.h"
 
 bool FAbilityNodeRegistry::Register(const FAbilityNodeDescriptor& Descriptor, FString& Error)
 {
@@ -111,6 +113,8 @@ bool FAbilityNodeRegistry::IsLegacyProfile(FName Profile)
 
 void FAbilityNodeRegistry::RegisterBuiltins()
 {
+    AbilityWorldTimeNodes::Register(*this);
+    AbilityDefenseNodes::Register(*this);
     FAbilityNodeDescriptor Delay;
     Delay.TypeId = TEXT("Control.Delay");
     Delay.ConfigClass = UAbilityDelayNodeConfig::StaticClass();

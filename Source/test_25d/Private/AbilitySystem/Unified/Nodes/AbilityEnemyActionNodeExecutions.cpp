@@ -112,7 +112,7 @@ bool UAbilityEnemySlingNodeExecution::Start(UAbilityGraphInstance& Owner, const 
     Projectile = AbilityEnemyActions::FireSling(Input.SourceToken, *Settings.Settings, Aim, Input.DamageParams);
     if (bStopped || Owner.IsFinished())
     {
-        if (Projectile.IsValid())
+        if (Projectile.IsValid() && !Projectile->HasBeenParryReflected())
         {
             Projectile->Destroy();
         }
@@ -146,7 +146,7 @@ void UAbilityEnemySlingNodeExecution::Stop(EAbilityGraphEndReason Reason)
     if (IsValid(Actor))
     {
         Actor->OnDestroyed.RemoveDynamic(this, &ThisClass::ProjectileDestroyed);
-        if (Reason != EAbilityGraphEndReason::Completed)
+        if (Reason != EAbilityGraphEndReason::Completed && !Actor->HasBeenParryReflected())
         {
             Actor->Destroy();
         }

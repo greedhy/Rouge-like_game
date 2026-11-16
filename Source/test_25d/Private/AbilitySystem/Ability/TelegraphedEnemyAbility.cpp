@@ -103,6 +103,7 @@ void UTelegraphedEnemyAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle
                                                FGameplayAbilityActivationInfo Activation, const FGameplayEventData*)
 {
     Serial = 0;
+    DodgeAttackId = FGuid::NewGuid();
     bHit = false;
     bLocked = false;
     bMontageStarted = false;
@@ -290,6 +291,14 @@ void UTelegraphedEnemyAbility::ResolveHit()
                                     Snapshot.HeightTolerance, Projected))
         Impact = Projected;
     Golem->ShowImpact(Serial, Impact);
+    FAbilitySourceToken Source;
+    FString Error;
+    if (!AbilityExecutionIdentity::CaptureSource(Golem.Get(), Source, Error))
+    {
+        return;
+    }
+    AbilityCharacterActions::ObserveTelegraphedAttack(Source, Snapshot, Center, Yaw, LockedSurface,
+        LockedTriangles, SelectedTarget.Get(), DodgeAttackId);
     TArray<AActor*> Targets;
     GatherTargets(Targets);
     ApplyHitTargets(Targets);
@@ -318,7 +327,7 @@ void UTelegraphedEnemyAbility::ApplyHitTargets(const TArray<AActor*>& Targets)
         return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
                Golem.IsValid() && Golem->IsAttackCurrent(Serial, Lease);
     };
-    AbilityCharacterActions::ApplyTelegraphedTargets(Source, Params, Snapshot, Targets, Callbacks);
+    AbilityCharacterActions::ApplyTelegraphedTargets(Source, Params, Snapshot, Targets, Callbacks, DodgeAttackId);
 }
 // 将异常、中断或失效统一转入取消收尾。
 void UTelegraphedEnemyAbility::Abort()

@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Interface/CombatInterface.h"
+#include "Equipment/EquipmentAbilityModifiers.h"
 
 bool FAbilityActorProjectileSettings::Validate(FString& Error) const
 {
@@ -77,28 +78,35 @@ TArray<AMyProjectile*> AbilityTraditionalActions::SpawnProjectiles(const FAbilit
     {
         return Spawned;
     }
-    FRotator Rotation = (AimPoint - Origin).Rotation();
-    if (Settings.bOverridePitch)
-    {
-        Rotation.Pitch = Settings.PitchOverride;
-    }
-    const int32 Count =
+    int32 Count =
         Settings.bLimitCountToLevel ? FMath::Min(Settings.Count, FMath::FloorToInt(Level)) : Settings.Count;
     if (Count <= 0)
     {
         return Spawned;
     }
+    // 原技能先限制数量，暗金再追加；副本固定本次发射结果，后续换装不重写在途弹体。
+    auto LaunchSettings = Settings;
+    auto LaunchDamage = Damage;
+    if (!EquipmentAbilityModifiers::ApplyProjectileRules(Source, LaunchSettings, LaunchDamage, Count))
+    {
+        return Spawned;
+    }
+    FRotator Rotation = (AimPoint - Origin).Rotation();
+    if (LaunchSettings.bOverridePitch)
+    {
+        Rotation.Pitch = LaunchSettings.PitchOverride;
+    }
     const auto Rotations =
-        UMyAbilitySystemLibrary::EvenlySpacedRotators(Rotation.Vector(), FVector::UpVector, Settings.Spread, Count);
+        UMyAbilitySystemLibrary::EvenlySpacedRotators(Rotation.Vector(), FVector::UpVector, LaunchSettings.Spread, Count);
     for (const FRotator& Direction : Rotations)
     {
         const FTransform Transform(Direction, Origin);
-        AMyProjectile* Projectile = CreateProjectileDeferred(Source, Damage, Settings.ProjectileClass, Transform);
+        AMyProjectile* Projectile = CreateProjectileDeferred(Source, LaunchDamage, LaunchSettings.ProjectileClass, Transform);
         if (!Projectile)
         {
             continue;
         }
-        if (Settings.bConfigureHoming)
+        if (LaunchSettings.bConfigureHoming)
         {
             if (IsValid(HomingTarget) && HomingTarget->Implements<UCombatInterface>())
             {
@@ -112,8 +120,8 @@ TArray<AMyProjectile*> AbilityTraditionalActions::SpawnProjectiles(const FAbilit
                 Projectile->ProjectileMovement->HomingTargetComponent = Projectile->HomingTargetSceneComponent;
             }
             Projectile->ProjectileMovement->HomingAccelerationMagnitude =
-                FMath::FRandRange(Settings.HomingAccelerationMin, Settings.HomingAccelerationMax);
-            Projectile->ProjectileMovement->bIsHomingProjectile = Settings.bLaunchHoming;
+                FMath::FRandRange(LaunchSettings.HomingAccelerationMin, LaunchSettings.HomingAccelerationMax);
+            Projectile->ProjectileMovement->bIsHomingProjectile = LaunchSettings.bLaunchHoming;
         }
         Projectile->FinishSpawning(Transform);
         if (IsValid(Projectile))

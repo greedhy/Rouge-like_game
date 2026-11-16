@@ -1,3 +1,4 @@
+// 调用链：人物菜单装备页 → 读取装备快照与背包选择 → 悬停与对比 → 现有服务器换装请求。
 #pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
@@ -10,7 +11,7 @@ class UInventoryModel;
 class UTexture2D;
 class SVerticalBox;
 
-/** Native companion to the backpack; occupies only its own viewport rectangle. */
+/** 人物菜单中的装备页。 */
 UCLASS()
 class TEST_25D_API UEquipmentPanel : public UUserWidget
 {
@@ -38,13 +39,18 @@ private:
     TArray<TObjectPtr<UTexture2D>> IconTextures;
     TSharedPtr<SVerticalBox> Rows;
     TSharedPtr<SVerticalBox> ElementRows;
+    TSharedPtr<SVerticalBox> Comparison;
     TArray<TSharedPtr<FSlateBrush>> IconBrushes;
     FSlateBrush BackgroundBrush;
     FText Status;
+    FGameplayTag ComparisonSlot;
+    FDelegateHandle SelectionHandle;
     UFUNCTION()
     void RefreshEquipment();
     UFUNCTION()
     void OnResult(bool bSucceeded);
+    void RefreshComparison();
+    const struct FEquipmentSlot* FindEquipped(FGameplayTag Slot) const;
     void Bind();
     void Unbind();
 };

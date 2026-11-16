@@ -1,6 +1,5 @@
-/**
- * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> Delivery.ForkedChain图策略的广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
- * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
+/** 调用链：GA 选点与 Commit -> RunGraph Task -> 叉状或逐跳策略 -> 共享伤害与复制光束。
+ *  源技能结束时 GAS 销毁任务并取消剩余跳跃，已出现的光束由其表现 Actor 到期清理。
  */
 #pragma once
 #include "CoreMinimal.h"
@@ -65,7 +64,7 @@ class TEST_25D_API UBatch6ChainAbility : public UPrototypeAbility
 public:
     /** 构造每 Actor 实例化、本地预测输入 GA，默认关闭基础 Debuff/击退概率。 */
     UBatch6ChainAbility();
-    /** UI 生成当前等级伤害、总目标、深度、分叉数和费用说明。 */
+    /** UI 显示当前等级伤害、目标上限与传导方式。 */
     virtual FString GetDescription(int32 Level) override;
     /** 服务器 Commit 回调，使用 UPureMassAbility 的原生扣蓝 GE。 */
     virtual void ApplyCost(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
@@ -80,6 +79,11 @@ public:
     float JumpRadius = 400;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Chain")
     float CastRange = 1200;
+    /** 原技能默认使用叉状齐射，新技能资产开启逐跳模式。 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Chain")
+    bool bSequentialChain = false;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Chain")
+    float JumpDelay = 0.1f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Chain")
     TObjectPtr<UNiagaraSystem> BeamSystem;
     /** 清目标去重标记，创建鼠标目标任务并设置三秒超时；实际攻击在服务器 ReceiveTarget 中完成。 */
@@ -90,15 +94,15 @@ public:
                             FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled) override;
 
 private:
-    /** 本次异步选点固定来源，结束时取消同步图，防止伤害回调继续分叉。 */
+    /** 本次异步选点固定来源，GAS 结束时销毁运行图的 AbilityTask。 */
     FAbilitySourceToken ActivationSource;
-    UPROPERTY(Transient)
-    TObjectPtr<UAbilityGraphInstance> Batch6Execution;
     bool bResolved = false;
     FTimerHandle Timeout;
     UFUNCTION()
-    /** 服务器消费一次目标请求，查询瞄准点附近首目标并校验距离遮挡；Commit 后广度优先结算、生成复制连线宿主并结束。 */
+    /** 服务器验证首目标和费用，然后由 AbilityTask 持有并推进所选图策略。 */
     void ReceiveTarget(const FGameplayAbilityTargetDataHandle& Data);
+    UFUNCTION()
+    void GraphFinished(bool bCancelled);
     /** 目标无效或超时统一取消入口，仅结束仍激活的技能。 */
     void Abort();
 };

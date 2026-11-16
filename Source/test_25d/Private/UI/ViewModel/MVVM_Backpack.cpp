@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：背包槽位点击或模型更新 → VM 刷新槽位 → FieldNotify 与装备页选择通知。
 
 #include "UI/ViewModel/MVVM_Backpack.h"
 
@@ -72,6 +72,7 @@ void UMVVM_Backpack::RebuildFromModel()
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetSelectedItemName);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetSelectedItemDescription);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetSelectedStackText);
+    OnSelectionChanged.Broadcast();
 }
 
 void UMVVM_Backpack::RequestDrop(int32 SlotIndex)
@@ -227,6 +228,8 @@ void UMVVM_Backpack::SelectSlot(int32 SlotIndex)
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetSelectedStackText);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetCanUseSelectedItem);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetCanDropSelectedItem);
+    OnSelectionChanged.Broadcast();
+    OnSlotClicked.Broadcast();
 }
 
 bool UMVVM_Backpack::RequestUseSelectedItem()
@@ -263,8 +266,12 @@ FText UMVVM_Backpack::GetSelectedItemName() const
 
 FText UMVVM_Backpack::GetSelectedItemDescription() const
 {
-    return HasSelectedItem() ? FEquipmentGenerator::MakeDescription(Model->GetSlots()[CurrentSelectedIndex].RollData)
-                             : FText::GetEmpty();
+    if (!HasSelectedItem())
+    {
+        return FText::GetEmpty();
+    }
+    const FInventorySlot& Item = Model->GetSlots()[CurrentSelectedIndex];
+    return FEquipmentGenerator::MakeDescription(Model->FindItemDefinition(Item.ItemDefinitionId), Item.RollData);
 }
 
 void UMVVM_Backpack::ResetSelection()
@@ -282,4 +289,5 @@ void UMVVM_Backpack::ResetSelection()
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetSelectedStackText);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetCanUseSelectedItem);
     UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(GetCanDropSelectedItem);
+    OnSelectionChanged.Broadcast();
 }

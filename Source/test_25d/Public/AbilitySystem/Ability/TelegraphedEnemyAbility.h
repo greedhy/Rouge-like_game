@@ -66,6 +66,7 @@ protected:
     TWeakObjectPtr<ATelegraphedEnemyCharacter> Golem;
     TWeakObjectPtr<AActor> SelectedTarget;
     FTimerHandle UpdateTimer;
+    FGuid DodgeAttackId;
     int32 Serial = 0, Lease = 0;
     double Started = 0, LastWarning = 0;
     FVector Center = FVector::ZeroVector;

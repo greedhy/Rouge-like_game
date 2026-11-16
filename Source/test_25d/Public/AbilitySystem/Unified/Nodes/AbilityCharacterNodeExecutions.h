@@ -29,6 +29,9 @@ public:
     EAbilityCharacterStrikeProfile Profile = EAbilityCharacterStrikeProfile::StanderMixed;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FSwordStrike Strike;
+    /** 精确匹配装备的近战规则；默认空值保持既有节点行为。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTag EquipmentAbilityTag;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FVector LocalDeathImpulse = FVector(800, 0, 300);
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -61,16 +64,21 @@ namespace AbilityCharacterActions
                                                                  const FVector& Origin, const FVector& Forward,
                                                                  int32 OriginRoom);
     /** Duration<0表示由动画窗口关闭；句柄仅属于本次动作，不移除别的技能的格挡。 */
-    TEST_25D_API FActiveGameplayEffectHandle OpenGuardWindow(const FAbilitySourceToken& Source, float Duration = -1.f);
+    TEST_25D_API FActiveGameplayEffectHandle OpenGuardWindow(const FAbilitySourceToken& Source, float Duration = -1.f,
+                                                           const FGuardParrySettings& Parry = {});
     TEST_25D_API void CloseGuardWindow(UAbilitySystemComponent* ASC, FActiveGameplayEffectHandle& Handle);
     TEST_25D_API bool IsBlockedDamage(const FGameplayEffectSpec& Spec);
+    /** 只能由实际接触阶段调用；普通Gather保持只读，不使预警/候选查询产生奖励。 */
+    TEST_25D_API void ObserveTelegraphedAttack(const FAbilitySourceToken& Source,
+        const FStoneGolemAttackTuning& Shape, const FVector& Center, float Yaw, const TArray<FVector>& Surface,
+        const TArray<int32>& Triangles, AActor* SelectedTarget, FGuid AttackId);
     TEST_25D_API void GatherTelegraphedTargets(const FAbilitySourceToken& Source, const FStoneGolemAttackTuning& Shape,
                                                const FVector& Center, float Yaw, const TArray<FVector>& Surface,
                                                const TArray<int32>& Triangles, AActor* SelectedTarget,
                                                TArray<AActor*>& Out);
     TEST_25D_API void ApplyTelegraphedTargets(const FAbilitySourceToken& Source, const FDamageEffectParams& Damage,
                                               const FStoneGolemAttackTuning& Shape, const TArray<AActor*>& Targets,
-                                              const FAbilityCharacterActionCallbacks& Callbacks = {});
+                                              const FAbilityCharacterActionCallbacks& Callbacks = {}, FGuid AttackId = {});
 } // namespace AbilityCharacterActions
 
 UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
@@ -91,6 +99,8 @@ public:
     float Duration = 1.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bCloseOnBlock = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGuardParrySettings Parry;
     virtual bool Validate(FString& Error) const override;
 };
 UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
@@ -142,11 +152,14 @@ public:
 
 private:
     void GuardHit(UAbilitySystemComponent* ASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Effect);
+    void Parried(FActiveGameplayEffectHandle Effect);
     FActiveGameplayEffectHandle Guard;
     FDelegateHandle Listener;
+    FDelegateHandle ParryListener;
     float Remaining = 0.f;
     bool bCloseOnBlock = false;
     bool bBlockPending = false;
+    int32 PendingParries = 0;
     FAbilityNodeInput BlockInput;
 };
 UCLASS(Transient)

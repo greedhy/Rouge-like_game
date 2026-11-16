@@ -9,6 +9,7 @@
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
+#include "MyGameplayTags.h"
 
 UMyArcaneNova::UMyArcaneNova()
 {
@@ -111,6 +112,11 @@ void UMyArcaneNova::ActivateAbility(const FGameplayAbilitySpecHandle Handle, con
     auto* Config = NewObject<UAbilityNovaNodeConfig>(Graph);
     Config->Radius = NovaRadius;
     Config->CueTag = NovaCueTag;
+    const auto AbilityTag = FMyGameplayTags::Get().Abilities_Arcane_ArcaneNova;
+    if (GetAssetTags().HasTagExact(AbilityTag))
+    {
+        Config->EquipmentAbilityTag = AbilityTag;
+    }
     Node.Config = Config;
     Graph->Nodes.Add(Node);
     Graph->EntryNodeId = Node.NodeId;

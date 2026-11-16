@@ -18,6 +18,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "UObject/StrongObjectPtr.h"
+#include "MyGameplayTags.h"
 
 UMyBeamSpell::UMyBeamSpell()
 {
@@ -144,6 +145,11 @@ void UMyBeamSpell::OnElectrocuteNotify(FGameplayEventData Payload)
     Config->DamageInterval = ElectrocuteDamageInterval;
     Config->MaxAdditionalTargets = MaxNumShockTargets;
     Config->LoopCue = FGameplayTag::RequestGameplayTag(TEXT("GameplayCue.ShockLoop"));
+    const auto AbilityTag = FMyGameplayTags::Get().Abilities_Thunder_Electrocute;
+    if (GetAssetTags().HasTagExact(AbilityTag))
+    {
+        Config->EquipmentAbilityTag = AbilityTag;
+    }
     Node.Config = Config;
     Graph->Nodes.Add(Node);
     Graph->EntryNodeId = Node.NodeId;

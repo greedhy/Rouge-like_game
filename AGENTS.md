@@ -19,6 +19,8 @@
 
 新增或修改装备、装备 GE、物品实例身份、换装或装备保存恢复前，阅读并遵循 [装备模块开发规范](docs/equipment-development-standard.md) 和 [装备接入指南](docs/2026-10-30-equipment-guide.md)。复用现有 PlayerState ASC、物品目录和背包通路；装备事务必须由服务器执行，按实例回收 GE，并保持背包与装备快照一致。
 
+固定暗金、百分比取舍、装备技能变体和套装联动同时遵循 [暗金与套装制作流程](docs/unique-equipment-production-workflow.md)；可复用入口为 `skills/build-unique-equipment/SKILL.md`。普通/随机装备的 Channel1 限制与专用暗金 Channel2 权限分别校验。
+
 ## GA 框架与后续开发
 
 GA 相关开发先阅读 [统一制作指南](docs/ga-unified-authoring-guide.md) 和 [框架/调用链](docs/ga-framework-reference.md)。新行为按“配置校验 → 注册实际策略或共享动作 → 类型化端口 → 生命周期与行为测试”扩展同一框架；专用 GA 保留输入/动画/费用前端，不复制第二套执行器或嵌套激活完整旧 GA。原型旧 DA 使用兼容编译，不借迁移改变原费用、伤害次数或表现时点。按用户约定，后续开发在本地 `main` 进行，未经另外授权不推送远端。

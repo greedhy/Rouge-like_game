@@ -79,6 +79,8 @@ public:
     void UpdateMonster(FPureMassFragment& Fragment);
     // 服务端应用石化并停止移动和当前攻击表现。
     bool ApplyPetrify(int32 Id, float Duration, AActor* Source);
+    /** 仅控制捕获的同一实体生命；取消预警与攻击，按世界Delta恢复。 */
+    bool ApplyStun(int32 Id, FMassEntityHandle ExpectedEntity, float Duration, AActor* Source);
     // 服务端按倍率合并减速持续时间，并限制独立减速记录数量。
     bool ApplySlow(int32 Id, float Multiplier, float Duration, AActor* Source);
     // 帧末发现异常失效实体并集中执行或延迟执行实体销毁。

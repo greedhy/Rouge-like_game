@@ -233,11 +233,9 @@ def tick(dt):
                 check(name+'_multiple_actor_targets_hit',hit_count>=3)
                 check(name+'_global_budget_respected',hit_count<=min(budget,4))
                 segments=q['chain_segments_seen'];check(name+'_replicated_segments_within_budget',0<len(segments)<=min(budget,4))
-                degrees={}
-                for segment in segments:
-                    key=tuple(round(v,1) for v in segment['start']);degrees[key]=degrees.get(key,0)+1
-                check(name+'_actual_fork_seen_on_client',max(degrees.values(),default=0)>=2)
-                check(name+'_per_parent_branch_limit',max(degrees.values(),default=0)<=cdo.get_editor_property('branches_per_target'))
+                caster_origin=sp.get_controlled_pawn().get_actor_location()
+                check(name+'_all_beams_start_at_caster',all(
+                    (u.Vector(*segment['start'])-caster_origin).length()<3.0 for segment in segments))
                 for actor in owned:
                     remote=remote_fixture(cw,actor)
                     check(name+'_'+actor.get_name()+'_replicated_damage',remote is not None and abs(attr(remote.get_component_by_class(u.MyAbilitySystemComponent),'health')-attr(actor.get_component_by_class(u.MyAbilitySystemComponent),'health'))<.01)

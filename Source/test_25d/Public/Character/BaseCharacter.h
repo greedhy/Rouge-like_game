@@ -182,6 +182,8 @@ protected:
     virtual void InitlizeDefaultAttributes() const;
     // 仅服务器授予启动主动与被动能力。
     void AddCharacterAbilities();
+    /** 仅补齐本角色配置中标记为固定基础动作的Startup能力，不重放可装备技能授予。 */
+    void EnsureIntrinsicCharacterAbilities();
 
     //dissolve effects
     // 为角色和武器创建动态材质，再交由蓝图时间线推进溶解。

@@ -241,20 +241,83 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquipmentResourcesTest, "test_25d.Equipment.Re
 bool FEquipmentResourcesTest::RunTest(const FString& Parameters)
 {
     EquipmentTests::FFixture F;
-    F.B->TryAddItem(F.Health, 1);
+    const FPrimaryAssetId BothLimits(TEXT("BackpackItem"), TEXT("TestBothResourceLimits"));
+    F.Add(BothLimits, UEquipmentTestResourceLimits::StaticClass());
+    const auto Health = UMyAttributeSet::GetHealthAttribute();
+    const auto MaxHealth = UMyAttributeSet::GetMaxHealthAttribute();
+    const auto Mana = UMyAttributeSet::GetManaAttribute();
+    const auto MaxMana = UMyAttributeSet::GetMaxManaAttribute();
+    F.ASC->SetNumericAttributeBase(Health, 60.f);
+    F.ASC->SetNumericAttributeBase(MaxMana, 80.f);
+    F.ASC->SetNumericAttributeBase(Mana, 20.f);
+    if (!TestTrue(TEXT("Add two separate +50 max health items"), F.B->TryAddItem(F.Health, 2).bSucceeded) ||
+        !TestTrue(TEXT("Add an item raising both limits"), F.B->TryAddItem(BothLimits, 1).bSucceeded))
+    {
+        return false;
+    }
     TestFalse(TEXT("Equipment cannot be consumed"), F.B->TryUseItemForPawn(0, F.Pawn));
     TestTrue(TEXT("Equip health"), F.Equip(0));
-    TestEqual(TEXT("No free healing"), F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()), 100.f);
-    F.ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(), 140.f);
+    TestEqual(TEXT("60 percent of 150 health"), F.ASC->GetNumericAttribute(Health), 90.f);
+    TestEqual(TEXT("Health-only equip leaves mana untouched"), F.ASC->GetNumericAttribute(Mana), 20.f);
+
+    int32 ResourceWrites = 0;
+    const auto HealthChanged = F.ASC->GetGameplayAttributeValueChangeDelegate(Health).AddLambda(
+        [&ResourceWrites](const FOnAttributeChangeData& Data)
+        {
+            ++ResourceWrites;
+        });
+    const auto ManaChanged = F.ASC->GetGameplayAttributeValueChangeDelegate(Mana).AddLambda(
+        [&ResourceWrites](const FOnAttributeChangeData& Data)
+        {
+            ++ResourceWrites;
+        });
+    TestTrue(TEXT("Swap to another instance with the same effect"), F.Equip(1));
+    F.ASC->GetGameplayAttributeValueChangeDelegate(Health).Remove(HealthChanged);
+    F.ASC->GetGameplayAttributeValueChangeDelegate(Mana).Remove(ManaChanged);
+    TestEqual(TEXT("Equal final limits publish no intermediate resource change"), ResourceWrites, 0);
+    TestEqual(TEXT("Same final health limit"), F.ASC->GetNumericAttribute(MaxHealth), 150.f);
+    TestEqual(TEXT("Same final health value"), F.ASC->GetNumericAttribute(Health), 90.f);
+
     const auto Saved = F.State->ExportBackpackSnapshot();
     TestTrue(TEXT("Restore health equipment"), F.State->ImportBackpackSnapshot(Saved));
-    TestEqual(TEXT("Restore does not transiently clamp health"),
-              F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()), 140.f);
+    TestEqual(TEXT("Restore does not rescale health"), F.ASC->GetNumericAttribute(Health), 90.f);
+
+    TestTrue(TEXT("Replace health item with both-limit item"), F.Equip(2));
+    TestEqual(TEXT("Swap uses only the new health limit"), F.ASC->GetNumericAttribute(MaxHealth), 200.f);
+    TestEqual(TEXT("Swap preserves 60 percent of final health"), F.ASC->GetNumericAttribute(Health), 120.f);
+    TestEqual(TEXT("Swap uses final mana limit"), F.ASC->GetNumericAttribute(MaxMana), 120.f);
+    TestEqual(TEXT("Swap preserves 25 percent of final mana"), F.ASC->GetNumericAttribute(Mana), 30.f);
+
+    const int32 EquipmentRevision = F.E->Revision;
+    const auto RejectedEffect = F.ASC->OnActiveGameplayEffectAddedDelegateToSelf.AddLambda(
+        [](UAbilitySystemComponent* ASC, const FGameplayEffectSpec&, FActiveGameplayEffectHandle Handle)
+        {
+            ASC->RemoveActiveGameplayEffect(Handle);
+        });
+    TestFalse(TEXT("A failed replacement is rejected"), F.Equip(2));
+    F.ASC->OnActiveGameplayEffectAddedDelegateToSelf.Remove(RejectedEffect);
+    TestEqual(TEXT("Failed replacement does not commit"), F.E->Revision, EquipmentRevision);
+    TestEqual(TEXT("Health is unchanged after rollback"), F.ASC->GetNumericAttribute(Health), 120.f);
+    TestEqual(TEXT("Mana is unchanged after rollback"), F.ASC->GetNumericAttribute(Mana), 30.f);
+
+    for (int32 Cycle = 0; Cycle < 3; ++Cycle)
+    {
+        TestTrue(TEXT("Swap back to health-only equipment"), F.Equip(2));
+        TestEqual(TEXT("Health returns to 90 of 150"), F.ASC->GetNumericAttribute(Health), 90.f);
+        TestEqual(TEXT("Mana returns to 20 of 80"), F.ASC->GetNumericAttribute(Mana), 20.f);
+        TestTrue(TEXT("Repeat both-limit replacement"), F.Equip(2));
+        TestEqual(TEXT("Health remains 60 percent"), F.ASC->GetNumericAttribute(Health), 120.f);
+        TestEqual(TEXT("Mana remains 25 percent"), F.ASC->GetNumericAttribute(Mana), 30.f);
+    }
     TestTrue(TEXT("Unequip health"), F.Unequip());
-    TestEqual(TEXT("Clamp lower maximum"), F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()), 100.f);
-    TestTrue(TEXT("Re-equip"), F.Equip(0));
-    TestEqual(TEXT("Cannot heal by swapping"), F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()),
-              100.f);
+    TestEqual(TEXT("Unequip preserves 60 percent of base health"), F.ASC->GetNumericAttribute(Health), 60.f);
+    TestEqual(TEXT("Unequip preserves 25 percent of base mana"), F.ASC->GetNumericAttribute(Mana), 20.f);
+
+    F.ASC->SetNumericAttributeBase(Mana, 0.f);
+    F.ASC->SetNumericAttributeBase(MaxMana, 0.f);
+    TestTrue(TEXT("Equip when previous mana limit was zero"), F.Equip(0));
+    TestEqual(TEXT("Zero old limit does not grant mana"), F.ASC->GetNumericAttribute(Mana), 0.f);
+    TestEqual(TEXT("New mana limit still applies"), F.ASC->GetNumericAttribute(MaxMana), 40.f);
     return true;
 }
 
@@ -309,10 +372,36 @@ bool FEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
     const auto Initialization = F.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
     if (!TestTrue(TEXT("Initialization GE active"), Initialization.IsValid()))
         return false;
-    F.ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(),
-                                   F.ASC->GetNumericAttribute(UMyAttributeSet::GetMaxHealthAttribute()));
-    F.ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(),
-                                   F.ASC->GetNumericAttribute(UMyAttributeSet::GetMaxManaAttribute()));
+    const auto Health = UMyAttributeSet::GetHealthAttribute();
+    const auto MaxHealth = UMyAttributeSet::GetMaxHealthAttribute();
+    const auto Mana = UMyAttributeSet::GetManaAttribute();
+    const auto MaxMana = UMyAttributeSet::GetMaxManaAttribute();
+    const float BaseMaxHealth = F.ASC->GetNumericAttribute(MaxHealth);
+    const float BaseMaxMana = F.ASC->GetNumericAttribute(MaxMana);
+    constexpr float HealthRatio = .6f;
+    constexpr float ManaRatio = .25f;
+    F.ASC->SetNumericAttributeBase(Health, BaseMaxHealth * HealthRatio);
+    F.ASC->SetNumericAttributeBase(Mana, BaseMaxMana * ManaRatio);
+
+    // 用真正的初始化GE和只改主属性的装备验证派生上限，也走同一个装备事务。
+    const FPrimaryAssetId PrimaryStats(TEXT("BackpackItem"), TEXT("TestResourcePrimaryStats"));
+    F.Add(PrimaryStats, UEquipmentTestResourcePrimaryStats::StaticClass());
+    if (!TestTrue(TEXT("Add resource primary-stat test equipment"), F.B->TryAddItem(PrimaryStats, 1).bSucceeded) ||
+        !TestTrue(TEXT("Equip primary stats"), F.Equip(0)))
+    {
+        return false;
+    }
+    TestEqual(TEXT("Vigor raises derived health limit"), F.ASC->GetNumericAttribute(MaxHealth), BaseMaxHealth + 10.f);
+    TestEqual(TEXT("Intelligence raises derived mana limit"), F.ASC->GetNumericAttribute(MaxMana), BaseMaxMana + 20.f);
+    TestEqual(TEXT("Preserve health ratio with derived limit"), F.ASC->GetNumericAttribute(Health),
+              (BaseMaxHealth + 10.f) * HealthRatio);
+    TestEqual(TEXT("Preserve mana ratio with derived limit"), F.ASC->GetNumericAttribute(Mana),
+              (BaseMaxMana + 20.f) * ManaRatio);
+    TestTrue(TEXT("Remove primary stats"), F.Unequip());
+    auto WithoutPrimaryStats = F.State->ExportBackpackSnapshot();
+    WithoutPrimaryStats.Slots[0].Clear();
+    TestTrue(TEXT("Remove the test-only inventory entry before using production catalog"),
+             F.State->ImportBackpackSnapshot(WithoutPrimaryStats));
     auto* Catalog = LoadObject<UBackpackItemDefinitions>(
         nullptr, TEXT("/Game/BluePrints/DA/DA_BackpackItemDefinitions.DA_BackpackItemDefinitions"));
     auto* Curves = LoadObject<UCurveTable>(nullptr, TEXT("/Game/Equipment/CT_EquipmentStats.CT_EquipmentStats"));
@@ -348,18 +437,20 @@ bool FEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
                  Def->Icon && Def->Icon->GetPathName().StartsWith(TEXT("/Game/Assets/EquipmentIcon/")));
         TestFalse(TEXT("Equipment not stackable"), Def->bStackable);
         const float Before = F.ASC->GetNumericAttribute(Example.Attribute);
-        const float HealthBefore = F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute());
-        const float ManaBefore = F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute());
         TestTrue(TEXT("Add actual table equipment"), F.B->TryAddItem(Id, 1).bSucceeded);
         TestTrue(TEXT("Apply actual GE asset"), F.Equip(0, Example.Slot));
         TestEqual(TEXT("Curve table determines bonus"), F.ASC->GetNumericAttribute(Example.Attribute),
                   Before + Example.Amount);
-        TestEqual(TEXT("Equipment does not heal"), F.ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()),
-                  HealthBefore);
-        TestEqual(TEXT("Equipment does not refill mana"),
-                  F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()), ManaBefore);
+        TestEqual(TEXT("Authored equipment preserves health percentage"), F.ASC->GetNumericAttribute(Health),
+                  F.ASC->GetNumericAttribute(MaxHealth) * HealthRatio);
+        TestEqual(TEXT("Authored equipment preserves mana percentage"), F.ASC->GetNumericAttribute(Mana),
+                  F.ASC->GetNumericAttribute(MaxMana) * ManaRatio);
         TestTrue(TEXT("Remove actual GE asset"), F.Unequip(Example.Slot));
         TestEqual(TEXT("Bonus removed"), F.ASC->GetNumericAttribute(Example.Attribute), Before);
+        TestEqual(TEXT("Unequip restores initial partial health"), F.ASC->GetNumericAttribute(Health),
+                  BaseMaxHealth * HealthRatio);
+        TestEqual(TEXT("Unequip restores initial partial mana"), F.ASC->GetNumericAttribute(Mana),
+                  BaseMaxMana * ManaRatio);
         // Reset inventory through the same combined snapshot path used by travel.
         auto Empty = F.State->ExportBackpackSnapshot();
         for (auto& Slot : Empty.Slots)

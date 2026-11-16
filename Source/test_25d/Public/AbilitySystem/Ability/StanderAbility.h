@@ -5,6 +5,7 @@
 #include "AbilitySystem/Timeline/AbilityTimelineDefinition.h"
 #include "StanderAbility.generated.h"
 class AStanderPlayer;
+class UAbilityTask_RunTimeline;
 
 UCLASS(Abstract)
 class TEST_25D_API UStanderAbility : public UMyDamageGameplayAbility
@@ -16,6 +17,11 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation")
     TObjectPtr<UAbilityTimelineDefinition> Timeline;
+    /** 当前普通攻击的共享时间轴，其它动作继续使用各自的原前端。 */
+    UAbilityTask_RunTimeline* GetComboTimelineTask() const
+    {
+        return ComboTimelineTask;
+    }
     // 激活前检查角色状态、配置及伤害依赖，再交给 GAS 检查通用条件。
     virtual bool CanActivateAbility(FGameplayAbilitySpecHandle, const FGameplayAbilityActorInfo*,
                                     const FGameplayTagContainer* = nullptr, const FGameplayTagContainer* = nullptr,
@@ -72,6 +78,14 @@ private:
     float Cooldown(const UStanderCombatConfig*) const;
     // 定时读取蒙太奇位置，处理命中或事件窗口，并在失效、打断或结束时收尾。
     void Advance();
+    UFUNCTION()
+    void ComboTimelinePosition(float Position);
+    UFUNCTION()
+    void ComboTimelineFinished(bool bInterrupted);
+    /** 两种动画时钟共用接触门禁和单次伤害入口。 */
+    void DispatchStrikeAt(float Position, bool bMissedWindow);
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityTask_RunTimeline> ComboTimelineTask;
     // 筛选范围内合法且无遮挡的目标，应用伤害并播放命中表现。
     void Hit();
     // 重置本段命中状态和起始时间，通过 ASC 播放选定攻击蒙太奇。
@@ -80,6 +94,8 @@ private:
     void MoveDash(float Position);
     // 监听自身受击 GE，仅对合法格挡伤害标记延迟反击。
     void GuardHit(UAbilitySystemComponent*, const FGameplayEffectSpec&, FActiveGameplayEffectHandle);
+    // 弹反已拦截伤害GE，通过同一句柄保留原自动反击时点。
+    void Parried(FActiveGameplayEffectHandle Effect);
     TWeakObjectPtr<AStanderPlayer> Player;
     FSwordStrike Strike;
     FAbilityTimelineSnapshot StrikeTimeline;
@@ -87,9 +103,10 @@ private:
     float AppliedTimelineRate = 0.f;
     FTimerHandle Timer;
     FDelegateHandle GuardListener;
+    FDelegateHandle ParryListener;
     FActiveGameplayEffectHandle GuardHandle;
-    double Started = 0, LastComboEnd = -100;
-    int32 NextCombo = 0, CurrentCombo = 0, OriginRoom = INDEX_NONE;
+    double Started = 0;
+    int32 CurrentCombo = 0, OriginRoom = INDEX_NONE;
     uint8 PreviousMovement = 0;
     bool bOwnMovement = false, bHit = false, bCounter = false, bCounterPending = false, bDashBlocked = false;
     FVector LockedForward = FVector::ForwardVector;

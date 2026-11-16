@@ -1,3 +1,4 @@
+// 生成时先准备身体网格，再注册挂接组件；构造和 BeginPlay 应用完整战斗配置。
 #include "Character/TelegraphedEnemyCharacter.h"
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
@@ -35,6 +36,18 @@ ATelegraphedEnemyCharacter::ATelegraphedEnemyCharacter()
     GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     GetCapsuleComponent()->InitCapsuleSize(45, 89);
 }
+void ATelegraphedEnemyCharacter::PreRegisterAllComponents()
+{
+    Super::PreRegisterAllComponents();
+
+    // 延迟生成也会先注册原生组件。武器查询插槽时需要身体网格，不能等到 FinishSpawning。
+    const UMonsterCombatConfig* Config = GetCombatConfig();
+    if (Config && Config->Mesh && !GetMesh()->GetSkeletalMeshAsset())
+    {
+        GetMesh()->SetSkeletalMeshAsset(Config->Mesh);
+    }
+}
+
 void ATelegraphedEnemyCharacter::ApplyConfig()
 {
     if (!GetCombatConfig())

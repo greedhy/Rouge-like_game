@@ -15,6 +15,8 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Engine/World.h"
 #include "Roguelike/DungeonRunDirector.h"
+#include "Equipment/EquipmentAbilityModifiers.h"
+#include "MyGameplayTags.h"
 
 namespace
 {
@@ -60,6 +62,10 @@ bool UAbilityElectrocuteNodeConfig::Validate(FString& Error) const
     {
         Error = TEXT("Electrocute requires finite positive interval/radius and 0..64 additional targets.");
     }
+    if (EquipmentAbilityTag.IsValid() && EquipmentAbilityTag != FMyGameplayTags::Get().Abilities_Thunder_Electrocute)
+    {
+        Error = TEXT("Electrocute equipment rules require the exact Electrocute identity.");
+    }
     return Error.IsEmpty();
 }
 
@@ -74,6 +80,14 @@ bool UAbilityElectrocuteNodeExecution::Start(UAbilityGraphInstance& Owner, const
     AActor* Avatar = nullptr;
     if (!Settings->Validate(Error) || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
     {
+        return false;
+    }
+    ResolvedDamage = Input.DamageParams;
+    int32 ExtraChainTargets = 0;
+    if (!EquipmentAbilityModifiers::ApplySpellRules(Input.SourceToken, Settings->EquipmentAbilityTag,
+                                                    Settings->SecondaryRadius, ResolvedDamage, ExtraChainTargets))
+    {
+        Error = TEXT("Electrocute equipment parameters failed to resolve.");
         return false;
     }
     FVector CapturedLocation;
@@ -116,9 +130,10 @@ bool UAbilityElectrocuteNodeExecution::Start(UAbilityGraphInstance& Owner, const
         TArray<AActor*> Closest;
         UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Avatar, Candidates, {Avatar, Target},
                                                             Settings->SecondaryRadius, Target->GetActorLocation());
-        UMyAbilitySystemLibrary::GetClosestTargets(
-            FMath::Min(FMath::FloorToInt(Input.Level) + 1, Settings->MaxAdditionalTargets), Candidates, Closest,
-            Target->GetActorLocation());
+        // 先算 GA 原有等级/数据上限，再允许装备额外连锁，最后维护整体预算。
+        const int32 BaseTargets = FMath::Min(FMath::FloorToInt(Input.Level) + 1, Settings->MaxAdditionalTargets);
+        UMyAbilitySystemLibrary::GetClosestTargets(FMath::Min(BaseTargets + ExtraChainTargets, 64), Candidates, Closest,
+                                                 Target->GetActorLocation());
         for (AActor* Additional : Closest)
         {
             if (bStopped)
@@ -279,7 +294,7 @@ void UAbilityElectrocuteNodeExecution::ApplyPeriodDamage(AActor* Actor, const FA
         return;
     }
     Spec.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(TEXT("Damage.Thunder")),
-                                       Input.DamageParams.BaseDamage);
+                                       ResolvedDamage.BaseDamage);
     TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
     if (bStopped || bCompleting || !GraphOwner.IsValid())
     {
@@ -366,7 +381,7 @@ void UAbilityElectrocuteNodeExecution::ReleaseTarget(FAbilityElectrocuteTarget& 
         {
             return;
         }
-        auto Params = Input.DamageParams;
+        auto Params = ResolvedDamage;
         const FVector Direction = (TargetLocation - Avatar->GetActorLocation()).GetSafeNormal();
         Params.DeathImpulse = Direction * Params.DeathImpulseMagnitude;
         Params.KnockbackForce = Direction * Params.KnockbackForceMagnitude;

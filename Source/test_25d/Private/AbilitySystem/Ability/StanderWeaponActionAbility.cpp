@@ -8,6 +8,7 @@
 #include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 #include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
 #include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
+#include "AbilitySystem/Combo/StanderComboComponent.h"
 #include "Actor/StanderWeaponProjectile.h"
 #include "Player/StanderCombatConfig.h"
 #include "Equipment/EquipmentComponent.h"
@@ -134,6 +135,7 @@ bool UStanderWeaponActionAbility::CanActivateAbility(FGameplayAbilitySpecHandle 
         P && P->GetPlayerState() ? P->GetPlayerState()->FindComponentByClass<UEquipmentComponent>() : nullptr;
     return P && Equipment && Equipment->GetWeaponSet() && ActionConfig &&
            Equipment->GetWeaponSet()->Family == ActionConfig->WeaponFamily && ActionConfig->Validate() &&
+           P->ComboComponent->CanStartWeaponStage(H, ActionConfig->ActionTag) &&
            !P->IsDead_Implementation() && !P->IsDungeonDowned() && !P->bIsStunned &&
            P->GetCharacterMovement()->IsMovingOnGround() && P->GetMesh()->GetAnimInstance() && DamageType.IsValid() &&
            DamageEffectClass && Super::CanActivateAbility(H, I, S, T, R);
@@ -195,7 +197,19 @@ void UStanderWeaponActionAbility::ActivateAbility(FGameplayAbilitySpecHandle H, 
 // Task已经检查实例所有权；原Advance继续负责玩家死亡、事件和位移窗口。
 void UStanderWeaponActionAbility::TimelinePosition(float SourcePosition)
 {
+    if (Player.IsValid() && TimelineTask &&
+        !Player->ComboComponent->UpdateStage(CurrentSpecHandle, NextEvent > 0,
+                                    TimelineTask->DurationBetween(SourcePosition, ActionConfig->Montage->GetPlayLength())))
+    {
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+        return;
+    }
     AdvanceAt(SourcePosition);
+    if (IsActive() && Player.IsValid() && TimelineTask)
+    {
+        Player->ComboComponent->UpdateStage(CurrentSpecHandle, NextEvent > 0,
+                                   TimelineTask->DurationBetween(SourcePosition, ActionConfig->Montage->GetPlayLength()));
+    }
 }
 
 // 正常结束保留已发射弹体，取消沿用现有投射物/格挡/移动清理策略。
@@ -315,7 +329,7 @@ void UStanderWeaponActionAbility::Execute(const FStanderWeaponActionEvent& E)
     {
         GuardEnds = E.Time + E.Duration;
         AbilityCharacterActions::CloseGuardWindow(ASC, GuardHandle);
-        GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source, TimelineTask ? -1.f : E.Duration);
+        GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source, TimelineTask ? -1.f : E.Duration, E.Parry);
         return;
     }
     const auto Params = MakeDamageEffectParamsFromClassDefaults();
@@ -334,6 +348,7 @@ void UStanderWeaponActionAbility::Execute(const FStanderWeaponActionEvent& E)
     }
     auto* Settings = NewObject<UAbilityCharacterStrikeNodeConfig>(this);
     Settings->Profile = EAbilityCharacterStrikeProfile::WeaponMixed;
+    Settings->EquipmentAbilityTag = ActionConfig->ActionTag;
     Settings->Strike.Damage = E.Damage;
     Settings->Strike.Radius = E.Radius;
     Settings->Strike.Angle = E.Angle;
@@ -351,6 +366,8 @@ void UStanderWeaponActionAbility::Execute(const FStanderWeaponActionEvent& E)
 void UStanderWeaponActionAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                              FGameplayAbilityActivationInfo A, bool R, bool C)
 {
+    const TWeakObjectPtr<AStanderPlayer> ComboOwner = Player;
+    const bool bCompletedStage = !C && TimelineTask && NextEvent == ActionConfig->Events.Num();
     CloseExecutionSession(C);
     // 先解绑并关闭事件入口，后面的蒙太奇停止不能再触发一次结束回调。
     if (TimelineTask)
@@ -384,6 +401,10 @@ void UStanderWeaponActionAbility::EndAbility(FGameplayAbilitySpecHandle H, const
     OwnMovement = false;
     Player.Reset();
     Super::EndAbility(H, I, A, R, C);
+    if (auto* Owner = ComboOwner.Get())
+    {
+        Owner->ComboComponent->FinishStage(H, bCompletedStage);
+    }
 }
 // 按技能模式或动作事件生成界面描述。
 FString UStanderWeaponActionAbility::GetDescription(int32)
@@ -393,6 +414,7 @@ FString UStanderWeaponActionAbility::GetDescription(int32)
     FString Text = FString::Printf(TEXT("%s\nMana: %.0f  Cooldown: %.1fs"), *ActionConfig->DisplayName.ToString(),
                                    ActionConfig->ManaCost, ActionConfig->Cooldown);
     float MinimumDamage = MAX_flt, MaximumDamage = 0, Reach = 0, Distance = 0, Height = 0, Guard = 0;
+    FString ParryText;
     FAbilityTimelineSnapshot DisplayTimeline;
     FString TimelineError;
     const bool bTimelineDisplay = ActionConfig->Timeline && ActionConfig->Timeline->ResolveMontage(
@@ -414,15 +436,21 @@ FString UStanderWeaponActionAbility::GetDescription(int32)
             Height = FMath::Max(Height, E.MoveHeight);
         }
         if (E.Kind == EStanderWeaponActionKind::Guard)
+        {
             Guard += bTimelineDisplay
                          ? DisplayTimeline.ElapsedAt(E.Time + E.Duration) - DisplayTimeline.ElapsedAt(E.Time)
                          : E.Duration / ActionConfig->PlayRate;
+            ParryText += E.Parry.Describe();
+        }
     }
     if (Hits)
         Text += FString::Printf(TEXT("\nDamage per hit: %.0f-%.0f | Hit events: %d\nReach: %.1fm"), MinimumDamage,
                                 MaximumDamage, Hits, Reach / 100.f);
     if (Guard > 0)
+    {
         Text += FString::Printf(TEXT("\nGuard window: %.1fs"), Guard);
+        Text += ParryText;
+    }
     if (Distance > 0 || Height > 0)
         Text += FString::Printf(TEXT("\nMovement: %.1fm | Jump: %.1fm"), Distance / 100.f, Height / 100.f);
     return Text + TEXT("\nAvailable while this weapon is equipped.");

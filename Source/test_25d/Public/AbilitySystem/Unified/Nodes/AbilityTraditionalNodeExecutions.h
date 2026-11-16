@@ -34,6 +34,9 @@ struct TEST_25D_API FAbilityActorProjectileSettings
     float HomingAccelerationMin = 1600.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float HomingAccelerationMax = 3200.f;
+    /** 明确选择装备技能规则；留空保持旧投射物行为，不按伤害类型隐式匹配。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTag EquipmentAbilityTag;
     bool Validate(FString& Error) const;
 };
 

@@ -1,6 +1,7 @@
 // 调用链：GA ReadyForActivation -> Activate -> Instance Start；Task Tick -> Advance -> GraphFinished。
 // GA 结束触发 OnDestroy；先解绑防重入，再取消尚未结束的图，目标持久石化不归本任务撤销。
 #include "AbilitySystem/Unified/AbilityTask_RunGraph.h"
+#include "Engine/World.h"
 
 UAbilityTask_RunGraph::UAbilityTask_RunGraph()
 {
@@ -20,12 +21,14 @@ UAbilityTask_RunGraph* UAbilityTask_RunGraph::RunAbilityGraph(UGameplayAbility* 
 UAbilityTask_RunGraph* UAbilityTask_RunGraph::RunAbilityGraphWithInput(UGameplayAbility* Owner,
                                                                        UAbilityGraphDefinition* Graph,
                                                                        const FAbilityNodeInput& Input,
-                                                                       const FAbilityExecutionOptions& Options)
+                                                                       const FAbilityExecutionOptions& Options,
+                                                                       bool bMeasureElapsedWorldTime)
 {
     auto* Task = NewAbilityTask<UAbilityTask_RunGraph>(Owner);
     Task->Definition = Graph;
     Task->NodeInput = Input;
     Task->ExecutionOptions = Options;
+    Task->bMeasureElapsedWorldTime = bMeasureElapsedWorldTime;
     Task->RetainedContext = Input.Context.Get();
     Task->RetainedDamageParams = Input.DamageParams;
     return Task;
@@ -43,6 +46,10 @@ void UAbilityTask_RunGraph::Activate()
         GraphFinished(EAbilityGraphEndReason::SourceInvalid);
         return;
     }
+    if (bMeasureElapsedWorldTime && GetWorld())
+    {
+        PreviousWorldTime = GetWorld()->GetTimeSeconds();
+    }
     Instance = NewObject<UAbilityGraphInstance>(this);
     Instance->OnFinished.AddUObject(this, &ThisClass::GraphFinished);
     FString Error;
@@ -57,6 +64,13 @@ void UAbilityTask_RunGraph::TickTask(float DeltaTime)
     Super::TickTask(DeltaTime);
     if (!bClosing && Instance)
     {
+        if (PreviousWorldTime.IsSet() && GetWorld())
+        {
+            // ASC 可能在施法当帧 Tick，整帧 Delta 含有施法前的时间。
+            const double WorldTime = GetWorld()->GetTimeSeconds();
+            DeltaTime = static_cast<float>(FMath::Max(0., WorldTime - PreviousWorldTime.GetValue()));
+            PreviousWorldTime = WorldTime;
+        }
         Instance->Advance(DeltaTime);
     }
 }

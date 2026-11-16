@@ -3,6 +3,9 @@
 #include "Roguelike/DungeonRunDirector.h"
 #include "AbilitySystem/Ability/MyPassiveAbility.h"
 #include "AbilitySystem/MyAttributeSet.h"
+#include "AbilitySystem/Defense/PerfectDodgeComponent.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
+#include "AbilitySystem/Time/AbilityWorldTimeSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -56,6 +59,19 @@ void ADungeonPlayerCharacter::Die(const FVector& DeathImpulse)
 {
     if (!HasAuthority() || GetNetMode() == NM_Client || bDungeonDowned || bDead)
         return;
+    // 倒地不走父类死亡广播；立即结束本生命防御与独立时间租约，避免同Pawn快速复活继承窗口。
+    if (auto* Defense = FindComponentByClass<UPerfectDodgeComponent>())
+    {
+        Defense->InvalidateLife();
+    }
+    if (auto* Parry = FindComponentByClass<UGuardParryComponent>())
+    {
+        Parry->Invalidate();
+    }
+    if (auto* Time = GetWorld()->GetSubsystem<UAbilityWorldTimeSubsystem>())
+    {
+        Time->CancelSource(this);
+    }
     PausedPassiveAbilities.Reset();
     if (AbilitySystemComponent)
     {

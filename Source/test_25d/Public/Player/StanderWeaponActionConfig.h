@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
 #include "StanderWeaponActionConfig.generated.h"
 class UAnimMontage;
 class UNiagaraSystem;
@@ -45,6 +46,9 @@ struct TEST_25D_API FStanderWeaponActionEvent
     float MoveHeight = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     float Duration = .3f;
+    /** 仅Guard事件可开启，从该事件实际执行时开始计时。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FGuardParrySettings Parry;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     FName SocketName = NAME_None;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)

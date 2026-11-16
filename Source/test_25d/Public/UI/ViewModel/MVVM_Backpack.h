@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：背包模型复制与槽位点击 → VM 更新 FieldNotify 和本地选择委托 → 背包及人物装备页。
 
 #pragma once
 
@@ -161,6 +161,10 @@ public:
     FOnInventorySwapRequested OnSwapRequested;
     FOnInventoryUseRequested OnUseRequested;
     FOnInventoryDeleteRequested OnDeleteRequested;
+    // 用户选中、清空选择或选中槽的内容变化后通知本地装备页。
+    FSimpleMulticastDelegate OnSelectionChanged;
+    // 仅响应显式点击，背包快照刷新不主动弹出人物菜单。
+    FSimpleMulticastDelegate OnSlotClicked;
 
 private:
     UPROPERTY()

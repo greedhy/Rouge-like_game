@@ -38,6 +38,9 @@ public:
     int32 MaxAdditionalTargets = 10;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FGameplayTag LoopCue;
+    /** 原生雷链提供身份，旧图默认空。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTag EquipmentAbilityTag;
     /** 原资产以武器 TipSocket 的半径10扫掠修正主目标；独立图可明确保留传入目标。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bTraceFromWeapon = true;
@@ -77,6 +80,8 @@ private:
     void TargetDied(AActor* Actor);
     UPROPERTY()
     TObjectPtr<UAbilityElectrocuteNodeConfig> Settings;
+    UPROPERTY()
+    FDamageEffectParams ResolvedDamage;
     UPROPERTY()
     TObjectPtr<UAbilityElectrocuteContext> Binding;
     UPROPERTY()

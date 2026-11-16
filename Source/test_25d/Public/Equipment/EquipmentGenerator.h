@@ -15,4 +15,6 @@ struct TEST_25D_API FEquipmentGenerator
     static TMap<FGameplayTag, float> GetTotals(const FEquipmentRollData& Roll);
     static FText MakeDisplayName(const FText& Base, const FEquipmentRollData& Roll);
     static FText MakeDescription(const FEquipmentRollData& Roll);
+    // 显示该实例的随机词条或定义中固定 GE 的效果。
+    static FText MakeDescription(const FBackpackItemDefEntry* Definition, const FEquipmentRollData& Roll);
 };

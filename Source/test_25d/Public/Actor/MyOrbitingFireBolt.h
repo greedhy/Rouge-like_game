@@ -15,6 +15,10 @@ class TEST_25D_API AMyOrbitingFireBolt : public AMyProjectile
     GENERATED_BODY()
 public:
     AMyOrbitingFireBolt();
+    virtual bool SupportsParryReflection() const override
+    {
+        return false;
+    }
     void InitializeOrbit(AActor* Avatar, UOrbitingFireBoltConfig* Config, float PhaseDegrees);
     void SetOrbitPhase(float PhaseDegrees)
     {

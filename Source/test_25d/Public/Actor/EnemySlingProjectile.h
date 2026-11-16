@@ -1,3 +1,4 @@
+// 调用链：生产投石发射口 -> 继承弹体伤害/弹反 -> 专属墙面预扫、死亡解绑与终结复制。
 #pragma once
 #include "CoreMinimal.h"
 #include "Actor/MyProjectile.h"
@@ -15,6 +16,7 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 protected:
+    virtual void OnParrySourceTransferred(AActor* PreviousSource) override;
     virtual void BeginPlay() override;
     virtual void OnHit() override;
     virtual bool ShouldPlayImpactOnDestroy() const override

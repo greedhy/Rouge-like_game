@@ -23,6 +23,7 @@
 #include "GameplayEffect.h"
 #include "Game/MyGameModeBase.h"
 #include "GameFramework/PlayerController.h"
+#include "Equipment/UniqueEquipmentGameplayEffect.h"
 #include "MyGameplayTags.h"
 #include "UObject/UnrealType.h"
 #include "UObject/Script.h"
@@ -210,6 +211,78 @@ bool FArcaneNovaDamage::RunTest(const FString& Parameters)
     TestEqual(TEXT("Caster receives no damage"), Health(Source), 1000.f);
     TestEqual(TEXT("AoE pays cost once, not per enemy"), ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()),
               80.f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FArcaneNovaEquipment, "test_25d.Equipment.Unique.ArcaneNovaSet",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// 激活生产蓝图GA，凭实际扣血区分范围系列、单技能与齐套倍率。
+bool FArcaneNovaEquipment::RunTest(const FString&)
+{
+    FNovaTestWorld Fixture;
+    auto* Mode = AddTestGameMode(Fixture.World);
+    auto* NovaClass = LoadNovaClass();
+    const auto Robe = LoadClass<UUniqueEquipmentGameplayEffect>(
+        nullptr, TEXT("/Game/Equipment/Unique/Effects/GE_UniqueArcaneHorizonRobe.GE_UniqueArcaneHorizonRobe_C"));
+    const auto Hood = LoadClass<UUniqueEquipmentGameplayEffect>(
+        nullptr, TEXT("/Game/Equipment/Unique/Effects/GE_UniqueSingularityHood.GE_UniqueSingularityHood_C"));
+    if (!TestNotNull(TEXT("Actual Nova Blueprint"), NovaClass) ||
+        !TestTrue(TEXT("Actual damage pipeline available"), Mode && Mode->CharacterClassInfo) ||
+        !TestNotNull(TEXT("Authored area-family robe"), Robe) ||
+        !TestNotNull(TEXT("Authored exact Nova hood"), Hood))
+    {
+        return false;
+    }
+    auto* Source = Fixture.Spawn(FVector::ZeroVector, TEXT("Player"));
+    auto* Near = Fixture.Spawn(FVector(300.f, 0.f, 0.f), TEXT("Enemy"));
+    auto* Far = Fixture.Spawn(FVector(0.f, 490.f, 0.f), TEXT("Enemy"));
+    auto* ASC = Source->GetAbilitySystemComponent();
+    auto* Controller = Fixture.World->SpawnActor<APlayerController>();
+    Controller->SetPawn(Source);
+    ASC->AbilityActorInfo->PlayerController = Controller;
+    const auto Handle = ASC->GiveAbility(FGameplayAbilitySpec(NovaClass, 1));
+    const auto& Tags = FMyGameplayTags::Get();
+    const auto Health = UMyAttributeSet::GetHealthAttribute();
+    const auto Mana = UMyAttributeSet::GetManaAttribute();
+    const auto ResetAndCast = [&]()
+    {
+        Near->GetAbilitySystemComponent()->SetNumericAttributeBase(Health, 1000.f);
+        Far->GetAbilitySystemComponent()->SetNumericAttributeBase(Health, 1000.f);
+        const float BeforeMana = ASC->GetNumericAttribute(UMyAttributeSet::GetMaxManaAttribute());
+        ASC->SetNumericAttributeBase(Mana, BeforeMana);
+        ASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(Tags.Cooldown_Arcane_ArcaneNova));
+        const bool bActivated = TestTrue(TEXT("Real Nova GA activates"), ASC->TryActivateAbility(Handle));
+        TestEqual(TEXT("Original cost charged once"), BeforeMana - ASC->GetNumericAttribute(Mana), 20.f);
+        return bActivated;
+    };
+    const auto TestDamage = [&](float NearDamage, float FarDamage)
+    {
+        TestEqual(TEXT("Near target damage"), 1000.f - Near->GetAbilitySystemComponent()->GetNumericAttribute(Health),
+                  NearDamage, .01f);
+        TestEqual(TEXT("Far target damage"), 1000.f - Far->GetAbilitySystemComponent()->GetNumericAttribute(Health),
+                  FarDamage, .01f);
+    };
+    const auto Apply = [ASC](UClass* Class)
+    {
+        return ASC->ApplyGameplayEffectToSelf(GetDefault<UGameplayEffect>(Class), 1.f, ASC->MakeEffectContext());
+    };
+    ResetAndCast();
+    TestDamage(45.f, 0.f);
+    const auto RobeHandle = Apply(Robe);
+    TestTrue(TEXT("Robe active"), RobeHandle.IsValid());
+    ResetAndCast();
+    TestDamage(36.f, 36.f);
+    const auto HoodHandle = Apply(Hood);
+    TestTrue(TEXT("Hood active"), HoodHandle.IsValid());
+    ResetAndCast();
+    TestDamage(65.25f, 65.25f);
+    ASC->RemoveActiveGameplayEffect(RobeHandle);
+    ResetAndCast();
+    TestDamage(65.25f, 0.f);
+    ASC->RemoveActiveGameplayEffect(HoodHandle);
+    ResetAndCast();
+    TestDamage(45.f, 0.f);
     return true;
 }
 

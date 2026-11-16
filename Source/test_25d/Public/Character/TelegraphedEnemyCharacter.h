@@ -39,6 +39,8 @@ public:
     {
         return CombatConfig;
     }
+    // 组件注册前补上配置的身体网格，供原生武器组件首次解析插槽。
+    virtual void PreRegisterAllComponents() override;
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaSeconds) override;

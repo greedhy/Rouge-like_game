@@ -1,5 +1,8 @@
 // 主要调用链：GAS 激活检查 -> ActivateAbility -> StartStrike -> 定时 Advance -> MoveDash / Hit；GuardHit 延迟触发反击，EndAbility 统一清理。
 #include "AbilitySystem/Ability/StanderAbility.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
+#include "AbilitySystem/Combo/StanderComboComponent.h"
+#include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
 #include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 #include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
 #include "AbilitySystem/Ability/SwordShieldAbility.h"
@@ -199,6 +202,7 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
     DashApplied = 0;
     GuardHandle.Invalidate();
     GuardListener.Reset();
+    ParryListener.Reset();
     Player = I ? Cast<AStanderPlayer>(I->AvatarActor.Get()) : nullptr;
     const auto* C = Config(I);
     if (!Player.IsValid() || !C || !C->ValidateStander() || !I->IsNetAuthority())
@@ -206,8 +210,7 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
         EndAbility(H, I, A, true, true);
         return;
     }
-    CurrentCombo =
-        USwordShieldConfig::ResolveComboIndex(NextCombo, LastComboEnd, GetWorld()->GetTimeSeconds(), C->ComboReset);
+    CurrentCombo = Mode == EMode::Combo ? Player->ComboComponent->DefaultStrikeIndex(H) : 0;
     FSwordStrike Selected = Mode == EMode::Lift         ? C->Lift
                             : Mode == EMode::ShieldBash ? C->ShieldBash
                             : Mode == EMode::Spin       ? C->Spin
@@ -255,6 +258,15 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
     OriginRoom = INDEX_NONE;
     if (auto* D = ADungeonRunDirector::Find(GetWorld()))
         OriginRoom = D->GetRoomIndex(Player->GetActorLocation());
+    if (Mode == EMode::Combo && Timeline)
+    {
+        Strike = Selected;
+        ComboTimelineTask = UAbilityTask_RunTimeline::RunAbilityTimeline(this, Strike.Montage, Timeline, true);
+        ComboTimelineTask->OnPosition.AddDynamic(this, &ThisClass::ComboTimelinePosition);
+        ComboTimelineTask->OnFinished.AddDynamic(this, &ThisClass::ComboTimelineFinished);
+        ComboTimelineTask->ReadyForActivation();
+        return;
+    }
     if (!StartStrike(Selected))
     {
         EndAbility(H, I, A, true, true);
@@ -268,7 +280,11 @@ void UStanderAbility::ActivateAbility(FGameplayAbilitySpecHandle H, const FGamep
         FString Error;
         if (AbilityExecutionIdentity::CaptureSource(Player.Get(), Source, Error))
         {
-            GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source);
+            GuardHandle = AbilityCharacterActions::OpenGuardWindow(Source, -1.f, C->GuardParry);
+            if (auto* Component = Player->FindComponentByClass<UGuardParryComponent>())
+            {
+                ParryListener = Component->OnParried.AddUObject(this, &ThisClass::Parried);
+            }
         }
         GuardListener = ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ThisClass::GuardHit);
     }
@@ -286,6 +302,15 @@ bool UStanderAbility::IsMassCounterDamage(const FGameplayEffectSpec& Spec)
     return Spec.Def && Spec.Def->IsA<UPureMassIncomingDamageEffect>() && IsCounterDamage(Spec) && HitResult &&
            HitResult->Item > 0;
 }
+// 成功弹反没有伤害GE；按原格挡句柄标记下一次推进进入反击。
+void UStanderAbility::Parried(FActiveGameplayEffectHandle Effect)
+{
+    if (IsActive() && Mode == EMode::Guard && !bCounter && GuardHandle.IsValid() && GuardHandle == Effect)
+    {
+        bCounterPending = true;
+    }
+}
+
 // 监听自身受击 GE，仅对合法格挡伤害标记延迟反击。
 void UStanderAbility::GuardHit(UAbilitySystemComponent*, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle)
 {
@@ -396,12 +421,49 @@ void UStanderAbility::Advance()
         MoveDash(Position);
     if (!IsActive() || !Player.IsValid())
         return;
-    // 仅允许接触时间附近结算一次，跳过过期窗口时取消以免补发滞后伤害。
+    DispatchStrikeAt(Position, Position > Strike.Contact + .15f);
+    if (IsActive() && GetWorld()->GetTimeSeconds() - Started > StrikeDuration + .2f)
+        Stop(!bHit);
+}
+
+// 普攻使用真实播放实例与自然结束通知；播放中断即关闭接触和缓存。
+void UStanderAbility::ComboTimelinePosition(float Position)
+{
+    if (!ComboTimelineTask || !Player.IsValid() || Player->IsDungeonDowned() ||
+        Player->IsDead_Implementation() || Player->bIsStunned)
+    {
+        ComboTimelineFinished(true);
+        return;
+    }
+    const float Remaining = ComboTimelineTask->DurationBetween(Position, Strike.Montage->GetPlayLength());
+    if (!Player->ComboComponent->UpdateStage(CurrentSpecHandle, bHit, Remaining))
+    {
+        ComboTimelineFinished(true);
+        return;
+    }
+    DispatchStrikeAt(Position, ComboTimelineTask->DurationBetween(Strike.Contact, Position) > .15f);
+    if (IsActive() && Player.IsValid())
+    {
+        Player->ComboComponent->UpdateStage(CurrentSpecHandle, bHit, Remaining);
+    }
+}
+
+void UStanderAbility::ComboTimelineFinished(bool bInterrupted)
+{
+    if (IsActive())
+    {
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bInterrupted || !bHit);
+    }
+}
+
+// 两个前端均根据自己的合法窗口判断过期；只在同一个入口结算接触。
+void UStanderAbility::DispatchStrikeAt(float Position, bool bMissedWindow)
+{
     if (!bHit && Position >= Strike.Contact)
     {
-        if (Position > Strike.Contact + .15f)
+        if (bMissedWindow)
         {
-            Stop(true);
+            EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
             return;
         }
         bHit = true;
@@ -415,12 +477,9 @@ void UStanderAbility::Advance()
                                          }
                                      }))
         {
-            Stop(true);
-            return;
+            EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
         }
     }
-    if (IsActive() && GetWorld()->GetTimeSeconds() - Started > StrikeDuration + .2f)
-        Stop(!bHit);
 }
 // 筛选范围内合法且无遮挡的目标，应用伤害并播放命中表现。
 void UStanderAbility::Hit()
@@ -470,7 +529,18 @@ void UStanderAbility::Hit()
 void UStanderAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAbilityActorInfo* I,
                                  FGameplayAbilityActivationInfo A, bool Replicate, bool Cancelled)
 {
+    const TWeakObjectPtr<AStanderPlayer> ComboOwner = Player;
+    const bool bCompletedStage = !Cancelled && ComboTimelineTask && bHit;
+    ComboTimelineTask = nullptr;
     CloseExecutionSession(Cancelled);
+    if (Player.IsValid())
+    {
+        if (auto* Component = Player->FindComponentByClass<UGuardParryComponent>())
+        {
+            Component->OnParried.Remove(ParryListener);
+        }
+    }
+    ParryListener.Reset();
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timer);
     // 只清理本次能力持有的格挡句柄和蒙太奇，避免影响其他能力。
@@ -493,15 +563,17 @@ void UStanderAbility::EndAbility(FGameplayAbilitySpecHandle H, const FGameplayAb
         bOwnMovement = false;
         if (!Player->IsDungeonDowned() && !Player->IsDead_Implementation())
             Player->GetCharacterMovement()->SetMovementMode(EMovementMode(PreviousMovement));
-        if (Mode == EMode::Combo)
-        {
-            NextCombo = Cancelled ? 0 : (CurrentCombo + 1) % 3;
-            LastComboEnd = GetWorld()->GetTimeSeconds();
-        }
     }
     Player.Reset();
     bCounterPending = false;
     Super::EndAbility(H, I, A, Replicate, Cancelled);
+    if (Mode == EMode::Combo)
+    {
+        if (auto* Owner = ComboOwner.Get())
+        {
+            Owner->ComboComponent->FinishStage(H, bCompletedStage);
+        }
+    }
 }
 // 按技能模式或动作事件生成界面描述。
 FString UStanderAbility::GetDescription(int32)
@@ -510,9 +582,12 @@ FString UStanderAbility::GetDescription(int32)
         return TEXT("<Title>上挑斩</>\n<Default>向前上挑斩击，击杀时将敌人向上抛起。</>");
     if (Mode == EMode::ShieldBash)
         return TEXT("<Title>盾击</>\n<Default>近距离盾击，击杀时将敌人向前击飞。</>");
-    // 格挡窗口独立持有 GE；结束或进入反击时必须移除，避免状态残留。
     if (Mode == EMode::Guard)
-        return TEXT("<Title>盾防反击</>\n<Default>短暂举盾减半伤害；受到敌方攻击后反击一次。</>");
+    {
+        const auto* Settings = Config(CurrentActorInfo);
+        return FString(TEXT("<Title>盾防反击</>\n<Default>短暂举盾减半伤害；受到敌方攻击后反击一次。")) +
+               (Settings ? Settings->GuardParry.Describe() : FString()) + TEXT("</>");
+    }
     if (Mode == EMode::Spin)
         return TEXT("<Title>回旋斩</>\n<Default>挥剑攻击周围敌人，每个目标受到一次物理伤害。</>");
     if (Mode == EMode::Dash)

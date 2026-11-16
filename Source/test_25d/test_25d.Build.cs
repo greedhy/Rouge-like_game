@@ -16,6 +16,7 @@ public class test_25d : ModuleRules
         DynamicallyLoadedModuleNames.Add("OnlineSubsystemNull");
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("ProceduralMeshComponent");
+        PrivateDependencyModuleNames.Add("ApplicationCore");
         PublicDependencyModuleNames.Add("MassEntity");
         PublicDependencyModuleNames.Add("MassCore");
         PrivateDependencyModuleNames.Add("MassSimulation");

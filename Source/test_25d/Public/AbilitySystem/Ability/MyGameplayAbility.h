@@ -40,6 +40,16 @@ public:
     void CloseExecutionSession(bool bCancelled);
     UPROPERTY(EditDefaultsOnly, Category = "Input")
     FGameplayTag StartupInputTag;
+    /** 固定基础能力由角色配置授予，不参与学习、技能槽替换或普通技能存档。 */
+    virtual bool IsIntrinsicAbility() const
+    {
+        return false;
+    }
+    /** 按下仅发起一次；Held不能在冷却结束后自动重启。旧技能默认保留Held行为。 */
+    virtual bool IsPressOnlyAbility() const
+    {
+        return false;
+    }
     // Toggle abilities use a single press routed to authority, never held activation.
     virtual bool IsInputToggleAbility() const
     {

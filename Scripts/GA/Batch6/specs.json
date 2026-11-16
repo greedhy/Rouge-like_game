@@ -226,7 +226,7 @@
     },
     {
       "id": "FissionChain",
-      "name": "裂变雷链",
+      "name": "叉状闪电",
       "prototype": {
         "kind": {
           "kind": "CHAIN"
@@ -255,7 +255,7 @@
         "jump_radius": 400.0,
         "cast_range": 1200.0,
         "beam_system": {
-          "asset": "/Game/Assets/Effects/Shock/NS_Sparks"
+          "asset": "/Game/PureMass/Effects/NS_DungeonElectricBeam"
         }
       },
       "icon_evidence": "Saved/GAAuthoring/CompositionBatch6/icons/contact-sheet.png",

@@ -9,6 +9,7 @@
 class USkeletalMesh;
 class UAnimSequenceTransformProviderData;
 class ATerrainSurface;
+class UNiagaraSystem;
 
 UCLASS(BlueprintType)
 class TEST_25D_API UPureMassMonsterType : public UDataAsset
@@ -21,6 +22,9 @@ public:
     TObjectPtr<UAnimSequenceTransformProviderData> AnimationProvider;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")
     FTransform MeshOffset = FTransform::Identity;
+    /** 眩晕期间由共享 Crowd 管理的头顶特效，恢复/死亡时立即销毁。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")
+    TObjectPtr<UNiagaraSystem> StunSystem;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")
     int32 IdleAnimation = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")
@@ -100,6 +104,8 @@ struct TEST_25D_API FPureMassView
     UPROPERTY(BlueprintReadOnly)
     bool bPetrified = false;
     UPROPERTY(BlueprintReadOnly)
+    bool bStunned = false;
+    UPROPERTY(BlueprintReadOnly)
     TObjectPtr<UPureMassMonsterType> Type;
 };
 
@@ -150,6 +156,8 @@ struct TEST_25D_API FPureMassFragment : public FMassFragment
     float AttackWindupRemaining = 0.f;
     TWeakObjectPtr<AActor> PendingAttackTarget;
     float PetrifyRemaining = 0.f;
+    /** 真正眩晕使用独立计时，不触发石化材质。 */
+    float StunRemaining = 0.f;
     float RootRemaining = 0.f;
     float RootRecovery = 0.f;
     float StatusRemaining = 0.f;

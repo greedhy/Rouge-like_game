@@ -20,6 +20,7 @@ class UAnimBank;
 class USkeletalMeshComponent;
 class UInstancedStaticMeshComponent;
 class UAnimSequenceTransformProviderDataInstance;
+class UNiagaraComponent;
 
 /** Transient cosmetic events; never replayed as replicated persistent state. */
 USTRUCT()
@@ -55,6 +56,8 @@ struct FPureMassNetEntity : public FFastArraySerializerItem
     uint8 State = 0;
     UPROPERTY()
     bool bPetrified = false;
+    UPROPERTY()
+    bool bStunned = false;
     UPROPERTY()
     TObjectPtr<UPureMassMonsterType> Type;
 
@@ -103,6 +106,7 @@ struct FPureMassRenderBatch
 
 struct FPureMassRenderInstance
 {
+    TWeakObjectPtr<UNiagaraComponent> StunStars;
     FPrimitiveInstanceId Instance;
     FPrimitiveInstanceId WeaponInstance;
     int32 BatchIndex = INDEX_NONE;

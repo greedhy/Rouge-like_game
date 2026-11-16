@@ -33,6 +33,8 @@ void APureMassPlayerCharacter::InitAbilityActorInfo()
         ASC->AbilityActorInfoSet();
     AbilitySystemComponent = ASC;
     AttributeSet = State->GetAttributeSet();
+    // 此重写不调用PlayerCharacter初始化；同样保障首次绑定/换Avatar时的固有Startup能力。
+    EnsureIntrinsicCharacterAbilities();
     OnASCRegistered.Broadcast(ASC);
     auto& StunEvent =
         ASC->RegisterGameplayTagEvent(FMyGameplayTags::Get().Debuff_Stun, EGameplayTagEventType::NewOrRemoved);

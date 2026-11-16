@@ -23,3 +23,21 @@ class UEquipmentTestHealth : public UEquipmentGameplayEffect
 public:
     UEquipmentTestHealth();
 };
+
+UCLASS()
+class UEquipmentTestResourceLimits : public UEquipmentGameplayEffect
+{
+    GENERATED_BODY()
+
+public:
+    UEquipmentTestResourceLimits();
+};
+
+UCLASS()
+class UEquipmentTestResourcePrimaryStats : public UEquipmentGameplayEffect
+{
+    GENERATED_BODY()
+
+public:
+    UEquipmentTestResourcePrimaryStats();
+};

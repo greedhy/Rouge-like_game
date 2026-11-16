@@ -5,6 +5,7 @@
 class UNiagaraSystem;
 class UMaterialInterface;
 class FAbilityNodeRegistry;
+struct FBatch6ChainSegment;
 
 UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
 class TEST_25D_API UAbilityForkedChainNodeConfig : public UAbilityNodeConfig
@@ -49,6 +50,66 @@ public:
     virtual bool Start(UAbilityGraphInstance& Owner, const FGuid& Id, const UAbilityNodeConfig& Config,
                        const FAbilityNodeInput& Input, FString& Error) override;
 };
+
+/** 两种闪电共享的伤害、范围与表现配置。 */
+UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
+class TEST_25D_API UAbilityLightningNodeConfig : public UAbilityNodeConfig
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 MaxTargets = 12;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float JumpRadius = 400.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DamageFalloff = 1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TObjectPtr<UNiagaraSystem> BeamSystem;
+
+    virtual bool Validate(FString& Error) const override;
+};
+
+/** 一次选取主目标附近的敌人，由施法原点同时发出所有光束。 */
+UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
+class TEST_25D_API UAbilityForkedVolleyNodeConfig : public UAbilityLightningNodeConfig
+{
+    GENERATED_BODY()
+};
+
+/** 每跳只选择一个新目标，延迟以图的游戏时间推进。 */
+UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
+class TEST_25D_API UAbilitySequentialChainNodeConfig : public UAbilityLightningNodeConfig
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float JumpDelay = 0.1f;
+
+    virtual bool Validate(FString& Error) const override;
+};
+
+UCLASS(Transient)
+class TEST_25D_API UAbilityLightningNodeExecution : public UAbilityNodeExecution
+{
+    GENERATED_BODY()
+public:
+    /** 首击同步发生；叉状先捕获全部目标，逐跳只保留最近一次命中位置。 */
+    virtual bool Start(UAbilityGraphInstance& Owner, const FGuid& Id, const UAbilityNodeConfig& Config,
+                       const FAbilityNodeInput& Input, FString& Error) override;
+    /** 时间到达时最多推进一跳，丢弃多出的帧时间。 */
+    virtual void Advance(float DeltaSeconds) override;
+
+private:
+    TArray<FAbilityTargetToken> FindTargets(AActor& Caster, FVector Center, FVector From, int32 Limit) const;
+    bool Hit(const FAbilityTargetToken& Target, FVector From, float Scale, TArray<FBatch6ChainSegment>& Segments);
+
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityLightningNodeConfig> Settings;
+    TSet<FPureMassCombatTarget> Visited;
+    FVector LastImpact = FVector::ZeroVector;
+    float TimeUntilJump = 0.f;
+};
+
 UCLASS(Transient)
 class TEST_25D_API UAbilityAreaPetrifyNodeExecution : public UAbilityNodeExecution
 {

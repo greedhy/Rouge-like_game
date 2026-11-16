@@ -12,6 +12,8 @@
 #include "EngineUtils.h"
 #include "Performance/MonsterPerf.h"
 #include "PureMass/PureMassIncomingDamageEffect.h"
+#include "AbilitySystem/Defense/PerfectDodgeComponent.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
 #include "PureMass/PureMassPlayerController.h"
 #include "PureMass/PureMassLegacyProjectile.h"
 #include "Actor/MyProjectile.h"
@@ -165,6 +167,7 @@ void UPureMassSubsystem::Publish(const FPureMassFragment& Fragment)
     View.Health = Fragment.Health;
     View.MaxHealth = Fragment.MaxHealth;
     View.bPetrified = Fragment.PetrifyRemaining > 0;
+    View.bStunned = Fragment.StunRemaining > 0;
     View.State = Fragment.State;
     View.Type = Fragment.Type.Get();
     Grid.Update(Fragment.Id, Fragment.Location, Fragment.Room);
@@ -365,6 +368,34 @@ bool UPureMassSubsystem::ApplyPetrify(int32 Id, float Duration, AActor* Source)
     Publish(Fragment);
     return true;
 }
+// 仅对捕获的实体生命叠加真实眩晕，立即关闭预警/攻击且不使用石化表现。
+bool UPureMassSubsystem::ApplyStun(int32 Id, FMassEntityHandle ExpectedEntity, float Duration, AActor* Source)
+{
+    if (!bEnabled || !IsAuthority() || !Mass || !FMath::IsFinite(Duration) || Duration <= 0 ||
+        !Views.Contains(Id) || !ExpectedEntity.IsSet() || GetEntity(Id) != ExpectedEntity)
+    {
+        return false;
+    }
+    auto& Manager = Mass->GetMutableEntityManager();
+    if (!Manager.IsEntityValid(ExpectedEntity))
+    {
+        return false;
+    }
+    auto& Fragment = Manager.GetFragmentDataChecked<FPureMassFragment>(ExpectedEntity);
+    if (Fragment.Health <= 0 || !IsRoomDamageSourceAllowed(Fragment.Room, Source))
+    {
+        return false;
+    }
+    Fragment.StunRemaining = FMath::Max(Fragment.StunRemaining, Duration);
+    Fragment.PendingAttackTarget.Reset();
+    Fragment.AttackWindupRemaining = 0;
+    Fragment.AttackVisualRemaining = 0;
+    Fragment.State = 0;
+    Fragment.Velocity = FVector::ZeroVector;
+    Publish(Fragment);
+    return true;
+}
+
 // 服务端按倍率合并减速持续时间，并限制独立减速记录数量。
 bool UPureMassSubsystem::ApplySlow(int32 Id, float Multiplier, float Duration, AActor* Source)
 {
@@ -529,6 +560,14 @@ float UPureMassSubsystem::UpdateTerrain(FPureMassFragment& Fragment)
 // 把实体攻击转换为玩家自身施加的即时效果，复用玩家承伤与死亡回调。
 void UPureMassSubsystem::AttackPlayer(FPureMassFragment& Fragment, APawn* Player)
 {
+    // 只在原生效阶段拦截；实体句柄来自当前Fragment映射，持续场伤害不会进入此入口。
+    const FGuid AttackId = FGuid::NewGuid();
+    if (UPerfectDodgeComponent::TryDodgeMassHit(Player, Fragment.Id, GetEntity(Fragment.Id),
+                                               Fragment.Location, AttackId) ||
+        UGuardParryComponent::TryParryMass(Player, Fragment.Id, GetEntity(Fragment.Id), Fragment.Location, AttackId))
+    {
+        return;
+    }
     UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Player);
     UPureMassMonsterType* Type = Fragment.Type.Get();
     // Existing incoming-damage handler requires a Character target.
@@ -682,7 +721,9 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
         return;
     Fragment.Velocity = FVector::ZeroVector;
     Fragment.State = 0;
-    if (Fragment.PetrifyRemaining > 0)
+    const bool bStunned = Fragment.StunRemaining > 0;
+    Fragment.StunRemaining = FMath::Max(0.f, Fragment.StunRemaining - DeltaTime);
+    if (Fragment.PetrifyRemaining > 0 || bStunned)
     {
         Fragment.PendingAttackTarget.Reset();
         Fragment.AttackWindupRemaining = 0;

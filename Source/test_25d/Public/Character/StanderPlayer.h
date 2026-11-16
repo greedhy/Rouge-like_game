@@ -5,6 +5,7 @@
 
 class UAnimInstance;
 class USkeletalMesh;
+class UStanderComboComponent;
 
 UCLASS()
 class TEST_25D_API AStanderPlayer : public ASwordShieldPlayer
@@ -13,6 +14,8 @@ class TEST_25D_API AStanderPlayer : public ASwordShieldPlayer
 public:
     // 创建武器表现组件并设置挂接、碰撞及角色默认参数。
     AStanderPlayer();
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Combo")
+    TObjectPtr<UStanderComboComponent> ComboComponent;
 
     // Effective weapon actions when no inventory weapon set is equipped.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Weapon")

@@ -194600,6 +194600,836 @@
         }
       },
       "issues": []
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.GA_PerfectDodge",
+      "generatedClass": "/Game/UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.GA_PerfectDodge_C",
+      "parentClass": "/Script/test_25d.PerfectDodgeAbility",
+      "family": "Traditional",
+      "configPaths": [],
+      "targetSupport": [
+        "SourceCharacter"
+      ],
+      "lifecycle": "Standalone intrinsic PressOnly; GA reserves movement then commits once and begins shared Character component; action ends at recovery/cancel. Component owns successful world-time reward beyond normal GA completion; cancel, death, source-life invalidation, spec removal and EndPlay clean owned movement/windows/VFX/reward. No nested WorldSlow GA.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "IncrementalImplementationRegistration",
+            "assetPath": "/Game/UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.GA_PerfectDodge",
+            "entryDispatch": "SharedRegisteredAction",
+            "strategyTypeIds": [
+              "Defense.PerfectDodge"
+            ],
+            "nodeConfigClass": "/Script/test_25d.AbilityPerfectDodgeNodeConfig",
+            "nodeExecutionClass": "/Script/test_25d.AbilityPerfectDodgeNodeExecution",
+            "inputPayload": "Origin",
+            "ports": [
+              {
+                "name": "PerfectDodged",
+                "payload": "Origin",
+                "terminal": false
+              },
+              {
+                "name": "Completed",
+                "payload": "Origin",
+                "terminal": true
+              }
+            ],
+            "sourceRequirement": "Live authoritative GAS Avatar in NM_Standalone; SourceToken revalidated; no selected-target or attacker authority is produced by Origin ports.",
+            "targetSupportBasis": "Source Character defense action; Mass is an incoming body-hit adapter, not an output target payload.",
+            "sharedActionSymbols": [
+              "UPerfectDodgeComponent::Reserve",
+              "UPerfectDodgeComponent::Begin",
+              "UPerfectDodgeComponent::Finish",
+              "UAbilityWorldTimeSubsystem::Acquire"
+            ],
+            "configuration": "Embedded DodgeSettings/Reward and CooldownSeconds on CDO; native PerfectDodgeCooldownEffect, no separate configuration asset.",
+            "tests": [
+              "test_25d.UnifiedGA.PerfectDodge.ActualPawnStartupWithoutSave",
+              "test_25d.UnifiedGA.PerfectDodge.CollisionClosesWindows",
+              "test_25d.UnifiedGA.PerfectDodge.GraphCancellationAndLifeGeneration",
+              "test_25d.UnifiedGA.PerfectDodge.ProjectileWitnessDoesNotConsume",
+              "test_25d.UnifiedGA.PerfectDodge.RealDamageAndDebuffSuppression",
+              "test_25d.UnifiedGA.PerfectDodge.SamePawnDungeonRevive",
+              "test_25d.UnifiedGA.PerfectDodge.SlingTerminalWallPreservesWitness",
+              "test_25d.UnifiedGA.PerfectDodge.StartupSaveAndFixedInput",
+              "test_25d.UnifiedGA.PerfectDodge.TelegraphWitnessAndReadOnlyQuery",
+              "test_25d.UnifiedGA.PerfectDodge.WindowsWallAndCancellation",
+              "test_25d.UnifiedGA.PerfectDodge.WitnessAndDirectHit"
+            ],
+            "reports": {
+              "assetVerification": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
+              "automation": [
+                "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json"
+              ]
+            },
+            "reportSha256": {
+              "assetVerification": "13f385c47ff9f566d3f6f7f920d06dcfdb42bcff9e2ee8d9106a7d6c28211936",
+              "automation": "c5ae3062b8e18bfc8b448babbbcaecc1746b89e8da00e791fc8a6d3597133aa8"
+            },
+            "implementationFingerprints": {
+              "Source/test_25d/Public/AbilitySystem/Ability/PerfectDodgeAbility.h": "e8213fbee33569fc4b980396e7b4f3dfbed3978959578d235ad07b784c228ba0",
+              "Source/test_25d/Private/AbilitySystem/Ability/PerfectDodgeAbility.cpp": "2c3233f529a471d39bae93ad265d0a129165ee49494e3e85b200445c855b4a8b",
+              "Source/test_25d/Private/AbilitySystem/Unified/Nodes/AbilityDefenseNodes.cpp": "57dfbf60b78b3434927ea7abb1b011ad25071a67cafd1d264ebc4b93669017a0",
+              "Source/test_25d/Private/AbilitySystem/Defense/PerfectDodgeComponent.cpp": "d8a3cb0a80de5fd248c9a353e9562f96a7a67790fb7791867930307d83f1fdb9"
+            },
+            "scope": "Targeted independent asset readback plus named focused behavior tests. Automation test states are Success, reported as succeededWithWarnings; full project suite is pending. This is not a new full catalog audit or complete PIE acceptance.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          },
+          {
+            "kind": "FullSuiteEvidenceUpdate",
+            "runId": "20261114T191040-056bd75a",
+            "reports": {
+              "automation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191040-056bd75a\\index.json",
+              "inputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T191040-056bd75a\\validation.json",
+              "configurationValidation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\ConfigurationValidation\\20261114T191112Z-4CDD2B6B4887BA890837CD898FCE149B\\configuration-report.json",
+              "earliestTaskInputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T184152-06a1362c\\validation.json",
+              "isolatedCatalog": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json",
+              "timelineBaselineCheck": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\20261115-implementation\\timeline-baseline-check.json"
+            },
+            "reportSha256": {
+              "automation": "f65174775a05f1e7d42ee182fb8fcd88782e56323bb178236c9ee82c1cfe1d7c",
+              "inputManifest": "7b742e25dc3e4a27cf1642c9b64be4b365aeb922f7163b480e1e61f5b7cb91eb",
+              "configurationValidation": "bbf34fbf94563665d03c99cf8373453ff0cc414bafb944acea43efe3dd0f3a11",
+              "earliestTaskInputManifest": "4b09dc9c7d941f72f4e574ef07e3521da569c7afe6ef1f298fbffc4bce7b6432",
+              "isolatedCatalog": "4cd09a3be1343fe2bd8e7be134a746f608bf5c0c87ff4dff8d28c3a8d4cdf16e",
+              "timelineBaselineCheck": "cc3af0cd380e9bbb0ca2ecb24efd95300ed4e5040ea31d538b606efebceccc51"
+            },
+            "fullSuite": {
+              "selected": 424,
+              "success": 423,
+              "failed": 1,
+              "notRun": 0,
+              "passed": false,
+              "failedTests": [
+                "test_25d.UnifiedGA.Catalog.AllConfigurationAssets"
+              ]
+            },
+            "targetedScope": {
+              "selected": 25,
+              "success": 25,
+              "failed": 0,
+              "testsForThisFamily": [
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.ActualPawnStartupWithoutSave",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.CollisionClosesWindows",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.GraphCancellationAndLifeGeneration",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassActualAttackAndHealth",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassCancelledWindupHasNoReward",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassMotionUsesWorldDelta",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.ProjectileWitnessDoesNotConsume",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.RealDamageAndDebuffSuppression",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.SamePawnDungeonRevive",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.SlingTerminalWallPreservesWitness",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.StartupSaveAndFixedInput",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.TelegraphWitnessAndReadOnlyQuery",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.WindowsWallAndCancellation",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.WitnessAndDirectHit",
+                  "state": "Success"
+                }
+              ]
+            },
+            "inputManifestUnchanged": true,
+            "catalogFailureEvidence": {
+              "diagnostic": "Nine existing Stander Timeline assets have empty real WeaponAction montage-reference contexts; the validator refuses to invent a montage length.",
+              "historicalSha256MatchCount": 3,
+              "historicalSha256MatchAssets": [
+                "/Game/AbilityTimelines/Stander/DA_Magic_Attack1.DA_Magic_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Attack1.DA_Sword_Shield_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Block.DA_Sword_Shield_Block"
+              ],
+              "comparison": "For those three, earliest pre/post, full-suite pre/post and current SHA256 agree; validator and timeline implementation source hashes also agree.",
+              "remainingSixHistory": "Six Sword_Shield/DA_Stander_* Timeline packages were absent from both matrix-scoped input manifests; cross-run SHA256 equality cannot be claimed for them.",
+              "currentValidationMd5MatchCount": 9,
+              "limitation": "Three assets have complete historical SHA equality; six lack historical manifest coverage. Same nine errors recur in an isolated catalog process; this excludes dependency on preceding full-suite tests but does not constitute a repair or prove all historical references unchanged.",
+              "isolatedReproduction": {
+                "state": "Fail",
+                "sameNineErrors": true,
+                "report": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json"
+              }
+            },
+            "scope": "The complete suite is not green. All 25 PerfectDodge/WorldSlow tests are Success within the failed overall run; preserve Adapting until remaining acceptance is resolved.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          }
+        ],
+        "audit": {
+          "kind": "GameplayAbilityBlueprint",
+          "scope": "Incremental source/API registration and targeted asset verification; existing full-inventory audit provenance unchanged.",
+          "sourceHeader": "Source/test_25d/Public/AbilitySystem/Ability/PerfectDodgeAbility.h",
+          "verificationRunId": "verify-20261114T185738-840575dc",
+          "packageSha256": "3cc79752fbef69e8acc8a6acd668f257031539fdf94525b621465ba307586221"
+        }
+      },
+      "issues": [
+        "PerfectDodged payload is Origin only; no attacker result payload or configurable reward graph.",
+        "Actor melee, telegraphed contact and tokenized MyProjectile adapters; Mass supports current-body AttackPlayer only, not origin witness.",
+        "No blanket interception of unadapted direct GameplayEffects, DOT or environmental damage.",
+        "Full test_25d suite: 423/424 Success with one catalog configuration failure; all 25 PerfectDodge/WorldSlow tests Success. User PIE pending; network activation rejected."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/Time/WorldSlow/GA_WorldSlow.GA_WorldSlow",
+      "generatedClass": "/Game/UnifiedAbilities/Time/WorldSlow/GA_WorldSlow.GA_WorldSlow_C",
+      "parentClass": "/Script/test_25d.WorldSlowAbility",
+      "family": "Traditional",
+      "configPaths": [],
+      "targetSupport": [
+        "SelfActor"
+      ],
+      "lifecycle": "Standalone GA commits once then runs a transient Schema 2 UnifiedV2 Time.WorldSlow graph bound to the ability. Node owns one world-time lease; natural expiry publishes Completed:Origin, external invalidation cancels, Stop releases only its lease. Startup failure rolls back its own cooldown; no startup grant or input binding.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "IncrementalImplementationRegistration",
+            "assetPath": "/Game/UnifiedAbilities/Time/WorldSlow/GA_WorldSlow.GA_WorldSlow",
+            "entryDispatch": "GraphInstance",
+            "strategyTypeIds": [
+              "Time.WorldSlow"
+            ],
+            "nodeConfigClass": "/Script/test_25d.AbilityWorldSlowNodeConfig",
+            "nodeExecutionClass": "/Script/test_25d.AbilityWorldSlowNodeExecution",
+            "inputPayload": "Origin",
+            "ports": [
+              {
+                "name": "Completed",
+                "payload": "Origin",
+                "terminal": true
+              }
+            ],
+            "sourceRequirement": "Live authoritative GAS Avatar in NM_Standalone; SourceToken revalidated; no selected-target or attacker authority is produced by Origin ports.",
+            "targetSupportBasis": "Source Actor/world-time request; compensation beneficiary is the source, no enemy target payload.",
+            "sharedActionSymbols": [
+              "UAbilityWorldTimeSubsystem::CanAcquire",
+              "UAbilityWorldTimeSubsystem::Acquire",
+              "UAbilityWorldTimeSubsystem::Release"
+            ],
+            "configuration": "Embedded FAbilityWorldSlowSettings on CDO; transient graph config and native WorldSlowCooldownEffect, no separate configuration asset.",
+            "tests": [
+              "test_25d.UnifiedGA.WorldSlow.ClockAndSourceInvalidation",
+              "test_25d.UnifiedGA.WorldSlow.CommitCancelAndRestart",
+              "test_25d.UnifiedGA.WorldSlow.CooldownRemovalRestart",
+              "test_25d.UnifiedGA.WorldSlow.LeasesAndRestoration",
+              "test_25d.UnifiedGA.WorldSlow.ProjectilesAndDeath",
+              "test_25d.UnifiedGA.WorldSlow.ReentrantStartupRollback",
+              "test_25d.UnifiedGA.WorldSlow.RegisteredNodeAndExternalConflict",
+              "test_25d.UnifiedGA.WorldSlow.RejectedStartupHasNoCooldown",
+              "test_25d.UnifiedGA.WorldSlow.RequestIdentity",
+              "test_25d.UnifiedGA.WorldSlow.SharedParticipant",
+              "test_25d.UnifiedGA.WorldSlow.StandaloneAbility"
+            ],
+            "reports": {
+              "assetVerification": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
+              "automation": [
+                "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json"
+              ]
+            },
+            "reportSha256": {
+              "assetVerification": "13f385c47ff9f566d3f6f7f920d06dcfdb42bcff9e2ee8d9106a7d6c28211936",
+              "automation": "c5ae3062b8e18bfc8b448babbbcaecc1746b89e8da00e791fc8a6d3597133aa8"
+            },
+            "implementationFingerprints": {
+              "Source/test_25d/Public/AbilitySystem/Ability/WorldSlowAbility.h": "bd356c4daae8d6d186efd9e75139bf4879fa80fe406b40acc1d9d6ab73969c2e",
+              "Source/test_25d/Private/AbilitySystem/Ability/WorldSlowAbility.cpp": "697b20a1eda94e694a289aa541e185841121def8f1ccaaf877bdc5a076a33315",
+              "Source/test_25d/Private/AbilitySystem/Unified/Nodes/AbilityWorldTimeNodes.cpp": "df7f98360e9c3eb9d5d59c7a7975015f10f70aa5a2bf223f057c19badfd3ee6d",
+              "Source/test_25d/Private/AbilitySystem/Time/AbilityWorldTimeSubsystem.cpp": "85634c79f9d99fa4412614e99441c0e1ef9ea274c964ceb293fd9739ffa8429a"
+            },
+            "scope": "Targeted independent asset readback plus named focused behavior tests. Automation test states are Success, reported as succeededWithWarnings; full project suite is pending. This is not a new full catalog audit or complete PIE acceptance.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          },
+          {
+            "kind": "FullSuiteEvidenceUpdate",
+            "runId": "20261114T191040-056bd75a",
+            "reports": {
+              "automation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191040-056bd75a\\index.json",
+              "inputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T191040-056bd75a\\validation.json",
+              "configurationValidation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\ConfigurationValidation\\20261114T191112Z-4CDD2B6B4887BA890837CD898FCE149B\\configuration-report.json",
+              "earliestTaskInputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T184152-06a1362c\\validation.json",
+              "isolatedCatalog": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json",
+              "timelineBaselineCheck": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\20261115-implementation\\timeline-baseline-check.json"
+            },
+            "reportSha256": {
+              "automation": "f65174775a05f1e7d42ee182fb8fcd88782e56323bb178236c9ee82c1cfe1d7c",
+              "inputManifest": "7b742e25dc3e4a27cf1642c9b64be4b365aeb922f7163b480e1e61f5b7cb91eb",
+              "configurationValidation": "bbf34fbf94563665d03c99cf8373453ff0cc414bafb944acea43efe3dd0f3a11",
+              "earliestTaskInputManifest": "4b09dc9c7d941f72f4e574ef07e3521da569c7afe6ef1f298fbffc4bce7b6432",
+              "isolatedCatalog": "4cd09a3be1343fe2bd8e7be134a746f608bf5c0c87ff4dff8d28c3a8d4cdf16e",
+              "timelineBaselineCheck": "cc3af0cd380e9bbb0ca2ecb24efd95300ed4e5040ea31d538b606efebceccc51"
+            },
+            "fullSuite": {
+              "selected": 424,
+              "success": 423,
+              "failed": 1,
+              "notRun": 0,
+              "passed": false,
+              "failedTests": [
+                "test_25d.UnifiedGA.Catalog.AllConfigurationAssets"
+              ]
+            },
+            "targetedScope": {
+              "selected": 25,
+              "success": 25,
+              "failed": 0,
+              "testsForThisFamily": [
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ClockAndSourceInvalidation",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.CommitCancelAndRestart",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.CooldownRemovalRestart",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.LeasesAndRestoration",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ProjectilesAndDeath",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ReentrantStartupRollback",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RegisteredNodeAndExternalConflict",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RejectedStartupHasNoCooldown",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RequestIdentity",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.SharedParticipant",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.StandaloneAbility",
+                  "state": "Success"
+                }
+              ]
+            },
+            "inputManifestUnchanged": true,
+            "catalogFailureEvidence": {
+              "diagnostic": "Nine existing Stander Timeline assets have empty real WeaponAction montage-reference contexts; the validator refuses to invent a montage length.",
+              "historicalSha256MatchCount": 3,
+              "historicalSha256MatchAssets": [
+                "/Game/AbilityTimelines/Stander/DA_Magic_Attack1.DA_Magic_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Attack1.DA_Sword_Shield_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Block.DA_Sword_Shield_Block"
+              ],
+              "comparison": "For those three, earliest pre/post, full-suite pre/post and current SHA256 agree; validator and timeline implementation source hashes also agree.",
+              "remainingSixHistory": "Six Sword_Shield/DA_Stander_* Timeline packages were absent from both matrix-scoped input manifests; cross-run SHA256 equality cannot be claimed for them.",
+              "currentValidationMd5MatchCount": 9,
+              "limitation": "Three assets have complete historical SHA equality; six lack historical manifest coverage. Same nine errors recur in an isolated catalog process; this excludes dependency on preceding full-suite tests but does not constitute a repair or prove all historical references unchanged.",
+              "isolatedReproduction": {
+                "state": "Fail",
+                "sameNineErrors": true,
+                "report": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json"
+              }
+            },
+            "scope": "The complete suite is not green. All 25 PerfectDodge/WorldSlow tests are Success within the failed overall run; preserve Adapting until remaining acceptance is resolved.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          }
+        ],
+        "audit": {
+          "kind": "GameplayAbilityBlueprint",
+          "scope": "Incremental source/API registration and targeted asset verification; existing full-inventory audit provenance unchanged.",
+          "sourceHeader": "Source/test_25d/Public/AbilitySystem/Ability/WorldSlowAbility.h",
+          "verificationRunId": "verify-20261114T185738-840575dc",
+          "packageSha256": "6c52877e743d01c5cded3bc9d7022582ab8ec9437f65417aa3cca9b77a9627fe"
+        }
+      },
+      "issues": [
+        "World factor affects the world; explicit compensation covers source and eligible owned ProjectileMovement/StanderWeaponProjectile actors, not every component clock.",
+        "No automatic ability grant, learning-catalog row or physical input mapping; direct service requests do not impose the GA cooldown.",
+        "Full test_25d suite: 423/424 Success with one catalog configuration failure; all 25 PerfectDodge/WorldSlow tests Success. User PIE pending; network activation rejected."
+      ]
+    },
+    {
+      "assetPath": "/Script/test_25d.PerfectDodgeAbility",
+      "generatedClass": "/Script/test_25d.PerfectDodgeAbility",
+      "parentClass": "/Script/test_25d.MyGameplayAbility",
+      "family": "Traditional",
+      "configPaths": [],
+      "targetSupport": [
+        "SourceCharacter"
+      ],
+      "lifecycle": "Standalone intrinsic PressOnly; GA reserves movement then commits once and begins shared Character component; action ends at recovery/cancel. Component owns successful world-time reward beyond normal GA completion; cancel, death, source-life invalidation, spec removal and EndPlay clean owned movement/windows/VFX/reward. No nested WorldSlow GA.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "IncrementalImplementationRegistration",
+            "assetPath": "/Script/test_25d.PerfectDodgeAbility",
+            "entryDispatch": "SharedRegisteredAction",
+            "strategyTypeIds": [
+              "Defense.PerfectDodge"
+            ],
+            "nodeConfigClass": "/Script/test_25d.AbilityPerfectDodgeNodeConfig",
+            "nodeExecutionClass": "/Script/test_25d.AbilityPerfectDodgeNodeExecution",
+            "inputPayload": "Origin",
+            "ports": [
+              {
+                "name": "PerfectDodged",
+                "payload": "Origin",
+                "terminal": false
+              },
+              {
+                "name": "Completed",
+                "payload": "Origin",
+                "terminal": true
+              }
+            ],
+            "sourceRequirement": "Live authoritative GAS Avatar in NM_Standalone; SourceToken revalidated; no selected-target or attacker authority is produced by Origin ports.",
+            "targetSupportBasis": "Source Character defense action; Mass is an incoming body-hit adapter, not an output target payload.",
+            "sharedActionSymbols": [
+              "UPerfectDodgeComponent::Reserve",
+              "UPerfectDodgeComponent::Begin",
+              "UPerfectDodgeComponent::Finish",
+              "UAbilityWorldTimeSubsystem::Acquire"
+            ],
+            "configuration": "Embedded DodgeSettings/Reward and CooldownSeconds on CDO; native PerfectDodgeCooldownEffect, no separate configuration asset.",
+            "tests": [
+              "test_25d.UnifiedGA.PerfectDodge.ActualPawnStartupWithoutSave",
+              "test_25d.UnifiedGA.PerfectDodge.CollisionClosesWindows",
+              "test_25d.UnifiedGA.PerfectDodge.GraphCancellationAndLifeGeneration",
+              "test_25d.UnifiedGA.PerfectDodge.ProjectileWitnessDoesNotConsume",
+              "test_25d.UnifiedGA.PerfectDodge.RealDamageAndDebuffSuppression",
+              "test_25d.UnifiedGA.PerfectDodge.SamePawnDungeonRevive",
+              "test_25d.UnifiedGA.PerfectDodge.SlingTerminalWallPreservesWitness",
+              "test_25d.UnifiedGA.PerfectDodge.StartupSaveAndFixedInput",
+              "test_25d.UnifiedGA.PerfectDodge.TelegraphWitnessAndReadOnlyQuery",
+              "test_25d.UnifiedGA.PerfectDodge.WindowsWallAndCancellation",
+              "test_25d.UnifiedGA.PerfectDodge.WitnessAndDirectHit"
+            ],
+            "reports": {
+              "assetVerification": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
+              "automation": [
+                "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json"
+              ]
+            },
+            "reportSha256": {
+              "assetVerification": "13f385c47ff9f566d3f6f7f920d06dcfdb42bcff9e2ee8d9106a7d6c28211936",
+              "automation": "c5ae3062b8e18bfc8b448babbbcaecc1746b89e8da00e791fc8a6d3597133aa8"
+            },
+            "implementationFingerprints": {
+              "Source/test_25d/Public/AbilitySystem/Ability/PerfectDodgeAbility.h": "e8213fbee33569fc4b980396e7b4f3dfbed3978959578d235ad07b784c228ba0",
+              "Source/test_25d/Private/AbilitySystem/Ability/PerfectDodgeAbility.cpp": "2c3233f529a471d39bae93ad265d0a129165ee49494e3e85b200445c855b4a8b",
+              "Source/test_25d/Private/AbilitySystem/Unified/Nodes/AbilityDefenseNodes.cpp": "57dfbf60b78b3434927ea7abb1b011ad25071a67cafd1d264ebc4b93669017a0",
+              "Source/test_25d/Private/AbilitySystem/Defense/PerfectDodgeComponent.cpp": "d8a3cb0a80de5fd248c9a353e9562f96a7a67790fb7791867930307d83f1fdb9"
+            },
+            "scope": "Targeted independent asset readback plus named focused behavior tests. Automation test states are Success, reported as succeededWithWarnings; full project suite is pending. This is not a new full catalog audit or complete PIE acceptance.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          },
+          {
+            "kind": "FullSuiteEvidenceUpdate",
+            "runId": "20261114T191040-056bd75a",
+            "reports": {
+              "automation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191040-056bd75a\\index.json",
+              "inputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T191040-056bd75a\\validation.json",
+              "configurationValidation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\ConfigurationValidation\\20261114T191112Z-4CDD2B6B4887BA890837CD898FCE149B\\configuration-report.json",
+              "earliestTaskInputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T184152-06a1362c\\validation.json",
+              "isolatedCatalog": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json",
+              "timelineBaselineCheck": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\20261115-implementation\\timeline-baseline-check.json"
+            },
+            "reportSha256": {
+              "automation": "f65174775a05f1e7d42ee182fb8fcd88782e56323bb178236c9ee82c1cfe1d7c",
+              "inputManifest": "7b742e25dc3e4a27cf1642c9b64be4b365aeb922f7163b480e1e61f5b7cb91eb",
+              "configurationValidation": "bbf34fbf94563665d03c99cf8373453ff0cc414bafb944acea43efe3dd0f3a11",
+              "earliestTaskInputManifest": "4b09dc9c7d941f72f4e574ef07e3521da569c7afe6ef1f298fbffc4bce7b6432",
+              "isolatedCatalog": "4cd09a3be1343fe2bd8e7be134a746f608bf5c0c87ff4dff8d28c3a8d4cdf16e",
+              "timelineBaselineCheck": "cc3af0cd380e9bbb0ca2ecb24efd95300ed4e5040ea31d538b606efebceccc51"
+            },
+            "fullSuite": {
+              "selected": 424,
+              "success": 423,
+              "failed": 1,
+              "notRun": 0,
+              "passed": false,
+              "failedTests": [
+                "test_25d.UnifiedGA.Catalog.AllConfigurationAssets"
+              ]
+            },
+            "targetedScope": {
+              "selected": 25,
+              "success": 25,
+              "failed": 0,
+              "testsForThisFamily": [
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.ActualPawnStartupWithoutSave",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.CollisionClosesWindows",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.GraphCancellationAndLifeGeneration",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassActualAttackAndHealth",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassCancelledWindupHasNoReward",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.MassMotionUsesWorldDelta",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.ProjectileWitnessDoesNotConsume",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.RealDamageAndDebuffSuppression",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.SamePawnDungeonRevive",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.SlingTerminalWallPreservesWitness",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.StartupSaveAndFixedInput",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.TelegraphWitnessAndReadOnlyQuery",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.WindowsWallAndCancellation",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.PerfectDodge.WitnessAndDirectHit",
+                  "state": "Success"
+                }
+              ]
+            },
+            "inputManifestUnchanged": true,
+            "catalogFailureEvidence": {
+              "diagnostic": "Nine existing Stander Timeline assets have empty real WeaponAction montage-reference contexts; the validator refuses to invent a montage length.",
+              "historicalSha256MatchCount": 3,
+              "historicalSha256MatchAssets": [
+                "/Game/AbilityTimelines/Stander/DA_Magic_Attack1.DA_Magic_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Attack1.DA_Sword_Shield_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Block.DA_Sword_Shield_Block"
+              ],
+              "comparison": "For those three, earliest pre/post, full-suite pre/post and current SHA256 agree; validator and timeline implementation source hashes also agree.",
+              "remainingSixHistory": "Six Sword_Shield/DA_Stander_* Timeline packages were absent from both matrix-scoped input manifests; cross-run SHA256 equality cannot be claimed for them.",
+              "currentValidationMd5MatchCount": 9,
+              "limitation": "Three assets have complete historical SHA equality; six lack historical manifest coverage. Same nine errors recur in an isolated catalog process; this excludes dependency on preceding full-suite tests but does not constitute a repair or prove all historical references unchanged.",
+              "isolatedReproduction": {
+                "state": "Fail",
+                "sameNineErrors": true,
+                "report": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json"
+              }
+            },
+            "scope": "The complete suite is not green. All 25 PerfectDodge/WorldSlow tests are Success within the failed overall run; preserve Adapting until remaining acceptance is resolved.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          }
+        ],
+        "audit": {
+          "kind": "NativeGameplayAbility",
+          "scope": "Incremental source/API registration and targeted asset verification; existing full-inventory audit provenance unchanged.",
+          "sourceHeader": "Source/test_25d/Public/AbilitySystem/Ability/PerfectDodgeAbility.h",
+          "verificationRunId": "verify-20261114T185738-840575dc",
+          "packageSha256": null
+        }
+      },
+      "issues": [
+        "PerfectDodged payload is Origin only; no attacker result payload or configurable reward graph.",
+        "Actor melee, telegraphed contact and tokenized MyProjectile adapters; Mass supports current-body AttackPlayer only, not origin witness.",
+        "No blanket interception of unadapted direct GameplayEffects, DOT or environmental damage.",
+        "Full test_25d suite: 423/424 Success with one catalog configuration failure; all 25 PerfectDodge/WorldSlow tests Success. User PIE pending; network activation rejected."
+      ]
+    },
+    {
+      "assetPath": "/Script/test_25d.WorldSlowAbility",
+      "generatedClass": "/Script/test_25d.WorldSlowAbility",
+      "parentClass": "/Script/test_25d.MyGameplayAbility",
+      "family": "Traditional",
+      "configPaths": [],
+      "targetSupport": [
+        "SelfActor"
+      ],
+      "lifecycle": "Standalone GA commits once then runs a transient Schema 2 UnifiedV2 Time.WorldSlow graph bound to the ability. Node owns one world-time lease; natural expiry publishes Completed:Origin, external invalidation cancels, Stop releases only its lease. Startup failure rolls back its own cooldown; no startup grant or input binding.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "IncrementalImplementationRegistration",
+            "assetPath": "/Script/test_25d.WorldSlowAbility",
+            "entryDispatch": "GraphInstance",
+            "strategyTypeIds": [
+              "Time.WorldSlow"
+            ],
+            "nodeConfigClass": "/Script/test_25d.AbilityWorldSlowNodeConfig",
+            "nodeExecutionClass": "/Script/test_25d.AbilityWorldSlowNodeExecution",
+            "inputPayload": "Origin",
+            "ports": [
+              {
+                "name": "Completed",
+                "payload": "Origin",
+                "terminal": true
+              }
+            ],
+            "sourceRequirement": "Live authoritative GAS Avatar in NM_Standalone; SourceToken revalidated; no selected-target or attacker authority is produced by Origin ports.",
+            "targetSupportBasis": "Source Actor/world-time request; compensation beneficiary is the source, no enemy target payload.",
+            "sharedActionSymbols": [
+              "UAbilityWorldTimeSubsystem::CanAcquire",
+              "UAbilityWorldTimeSubsystem::Acquire",
+              "UAbilityWorldTimeSubsystem::Release"
+            ],
+            "configuration": "Embedded FAbilityWorldSlowSettings on CDO; transient graph config and native WorldSlowCooldownEffect, no separate configuration asset.",
+            "tests": [
+              "test_25d.UnifiedGA.WorldSlow.ClockAndSourceInvalidation",
+              "test_25d.UnifiedGA.WorldSlow.CommitCancelAndRestart",
+              "test_25d.UnifiedGA.WorldSlow.CooldownRemovalRestart",
+              "test_25d.UnifiedGA.WorldSlow.LeasesAndRestoration",
+              "test_25d.UnifiedGA.WorldSlow.ProjectilesAndDeath",
+              "test_25d.UnifiedGA.WorldSlow.ReentrantStartupRollback",
+              "test_25d.UnifiedGA.WorldSlow.RegisteredNodeAndExternalConflict",
+              "test_25d.UnifiedGA.WorldSlow.RejectedStartupHasNoCooldown",
+              "test_25d.UnifiedGA.WorldSlow.RequestIdentity",
+              "test_25d.UnifiedGA.WorldSlow.SharedParticipant",
+              "test_25d.UnifiedGA.WorldSlow.StandaloneAbility"
+            ],
+            "reports": {
+              "assetVerification": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
+              "automation": [
+                "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json"
+              ]
+            },
+            "reportSha256": {
+              "assetVerification": "13f385c47ff9f566d3f6f7f920d06dcfdb42bcff9e2ee8d9106a7d6c28211936",
+              "automation": "c5ae3062b8e18bfc8b448babbbcaecc1746b89e8da00e791fc8a6d3597133aa8"
+            },
+            "implementationFingerprints": {
+              "Source/test_25d/Public/AbilitySystem/Ability/WorldSlowAbility.h": "bd356c4daae8d6d186efd9e75139bf4879fa80fe406b40acc1d9d6ab73969c2e",
+              "Source/test_25d/Private/AbilitySystem/Ability/WorldSlowAbility.cpp": "697b20a1eda94e694a289aa541e185841121def8f1ccaaf877bdc5a076a33315",
+              "Source/test_25d/Private/AbilitySystem/Unified/Nodes/AbilityWorldTimeNodes.cpp": "df7f98360e9c3eb9d5d59c7a7975015f10f70aa5a2bf223f057c19badfd3ee6d",
+              "Source/test_25d/Private/AbilitySystem/Time/AbilityWorldTimeSubsystem.cpp": "85634c79f9d99fa4412614e99441c0e1ef9ea274c964ceb293fd9739ffa8429a"
+            },
+            "scope": "Targeted independent asset readback plus named focused behavior tests. Automation test states are Success, reported as succeededWithWarnings; full project suite is pending. This is not a new full catalog audit or complete PIE acceptance.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          },
+          {
+            "kind": "FullSuiteEvidenceUpdate",
+            "runId": "20261114T191040-056bd75a",
+            "reports": {
+              "automation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191040-056bd75a\\index.json",
+              "inputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T191040-056bd75a\\validation.json",
+              "configurationValidation": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\ConfigurationValidation\\20261114T191112Z-4CDD2B6B4887BA890837CD898FCE149B\\configuration-report.json",
+              "earliestTaskInputManifest": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\UnifiedGA\\20261114T184152-06a1362c\\validation.json",
+              "isolatedCatalog": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json",
+              "timelineBaselineCheck": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\20261115-implementation\\timeline-baseline-check.json"
+            },
+            "reportSha256": {
+              "automation": "f65174775a05f1e7d42ee182fb8fcd88782e56323bb178236c9ee82c1cfe1d7c",
+              "inputManifest": "7b742e25dc3e4a27cf1642c9b64be4b365aeb922f7163b480e1e61f5b7cb91eb",
+              "configurationValidation": "bbf34fbf94563665d03c99cf8373453ff0cc414bafb944acea43efe3dd0f3a11",
+              "earliestTaskInputManifest": "4b09dc9c7d941f72f4e574ef07e3521da569c7afe6ef1f298fbffc4bce7b6432",
+              "isolatedCatalog": "4cd09a3be1343fe2bd8e7be134a746f608bf5c0c87ff4dff8d28c3a8d4cdf16e",
+              "timelineBaselineCheck": "cc3af0cd380e9bbb0ca2ecb24efd95300ed4e5040ea31d538b606efebceccc51"
+            },
+            "fullSuite": {
+              "selected": 424,
+              "success": 423,
+              "failed": 1,
+              "notRun": 0,
+              "passed": false,
+              "failedTests": [
+                "test_25d.UnifiedGA.Catalog.AllConfigurationAssets"
+              ]
+            },
+            "targetedScope": {
+              "selected": 25,
+              "success": 25,
+              "failed": 0,
+              "testsForThisFamily": [
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ClockAndSourceInvalidation",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.CommitCancelAndRestart",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.CooldownRemovalRestart",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.LeasesAndRestoration",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ProjectilesAndDeath",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.ReentrantStartupRollback",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RegisteredNodeAndExternalConflict",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RejectedStartupHasNoCooldown",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.RequestIdentity",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.SharedParticipant",
+                  "state": "Success"
+                },
+                {
+                  "name": "test_25d.UnifiedGA.WorldSlow.StandaloneAbility",
+                  "state": "Success"
+                }
+              ]
+            },
+            "inputManifestUnchanged": true,
+            "catalogFailureEvidence": {
+              "diagnostic": "Nine existing Stander Timeline assets have empty real WeaponAction montage-reference contexts; the validator refuses to invent a montage length.",
+              "historicalSha256MatchCount": 3,
+              "historicalSha256MatchAssets": [
+                "/Game/AbilityTimelines/Stander/DA_Magic_Attack1.DA_Magic_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Attack1.DA_Sword_Shield_Attack1",
+                "/Game/AbilityTimelines/Stander/DA_Sword_Shield_Block.DA_Sword_Shield_Block"
+              ],
+              "comparison": "For those three, earliest pre/post, full-suite pre/post and current SHA256 agree; validator and timeline implementation source hashes also agree.",
+              "remainingSixHistory": "Six Sword_Shield/DA_Stander_* Timeline packages were absent from both matrix-scoped input manifests; cross-run SHA256 equality cannot be claimed for them.",
+              "currentValidationMd5MatchCount": 9,
+              "limitation": "Three assets have complete historical SHA equality; six lack historical manifest coverage. Same nine errors recur in an isolated catalog process; this excludes dependency on preceding full-suite tests but does not constitute a repair or prove all historical references unchanged.",
+              "isolatedReproduction": {
+                "state": "Fail",
+                "sameNineErrors": true,
+                "report": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T191212-95bc9012\\index.json"
+              }
+            },
+            "scope": "The complete suite is not green. All 25 PerfectDodge/WorldSlow tests are Success within the failed overall run; preserve Adapting until remaining acceptance is resolved.",
+            "pieVisualAcceptance": "Pending",
+            "twoClientAcceptance": "UnsupportedStandaloneOnly"
+          }
+        ],
+        "audit": {
+          "kind": "NativeGameplayAbility",
+          "scope": "Incremental source/API registration and targeted asset verification; existing full-inventory audit provenance unchanged.",
+          "sourceHeader": "Source/test_25d/Public/AbilitySystem/Ability/WorldSlowAbility.h",
+          "verificationRunId": "verify-20261114T185738-840575dc",
+          "packageSha256": null
+        }
+      },
+      "issues": [
+        "World factor affects the world; explicit compensation covers source and eligible owned ProjectileMovement/StanderWeaponProjectile actors, not every component clock.",
+        "No automatic ability grant, learning-catalog row or physical input mapping; direct service requests do not impose the GA cooldown.",
+        "Full test_25d suite: 423/424 Success with one catalog configuration failure; all 25 PerfectDodge/WorldSlow tests Success. User PIE pending; network activation rejected."
+      ]
+    }
+  ],
+  "incrementalRegistrations": [
+    {
+      "date": "2026-11-15",
+      "kind": "PerfectDodgeWorldSlowIncrementalFourRows",
+      "baselineInventoryPreserved": true,
+      "baselineCountsMeaning": "inventory.counts and its timestamp/catalogReport retain the 2026-11-08 full-audit snapshot; this append is not a replacement audit.",
+      "addedCounts": {
+        "GameplayAbilityBlueprint": 2,
+        "NativeGameplayAbility": 2,
+        "Configuration": 0
+      },
+      "effectiveCountsAfterAppend": {
+        "GameplayAbilityBlueprint": 304,
+        "NativeGameplayAbility": 56,
+        "Configuration": 303
+      },
+      "addedRows": [
+        "/Game/UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.GA_PerfectDodge",
+        "/Game/UnifiedAbilities/Time/WorldSlow/GA_WorldSlow.GA_WorldSlow",
+        "/Script/test_25d.PerfectDodgeAbility",
+        "/Script/test_25d.WorldSlowAbility"
+      ],
+      "status": "Adapting",
+      "assetVerificationReport": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
+      "focusedAutomationReport": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json",
+      "remaining": "Full project suite and user PIE pending; Standalone only."
     }
   ]
 }

@@ -7,6 +7,9 @@
 #include "GameplayEffect.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/Script.h"
+#include "Components/CapsuleComponent.h"
+#include "Equipment/UniqueEquipmentGameplayEffect.h"
+#include "MyGameplayTags.h"
 
 namespace
 {
@@ -120,6 +123,66 @@ bool FElectrocuteCadence::RunTest(const FString&)
     F.Step(2.f);
     TestEqual(TEXT("No late costs"), Costs, 3);
     TargetASC->OnGameplayEffectAppliedDelegateToSelf.Remove(Applied);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FElectrocuteEquipmentChain, "test_25d.Equipment.Unique.ElectrocuteChain",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// 用真实戒指 GE 改写节点的等级预算、索敌半径和每周期的 SetByCaller，同时确认取消会解除雷链。
+bool FElectrocuteEquipmentChain::RunTest(const FString&)
+{
+    FElectrocuteFixture F;
+    const auto Ring = LoadClass<UUniqueEquipmentGameplayEffect>(
+        nullptr, TEXT("/Game/Equipment/Unique/Effects/GE_UniqueForkstormRing.GE_UniqueForkstormRing_C"));
+    if (!TestNotNull(TEXT("Authored chain ring"), Ring))
+    {
+        return false;
+    }
+    auto* Config = CastChecked<UAbilityElectrocuteNodeConfig>(F.Graph->Nodes[0].Config);
+    Config->EquipmentAbilityTag = FMyGameplayTags::Get().Abilities_Thunder_Electrocute;
+    Config->SecondaryRadius = 300.f;
+    auto* Secondary = F.World->SpawnActor<AEnemyCharacter>(FVector(485.f, 0.f, 0.f), FRotator::ZeroRotator);
+    if (!TestNotNull(TEXT("Additional enemy"), Secondary))
+    {
+        return false;
+    }
+    Secondary->Tags.AddUnique(TEXT("Enemy"));
+    Secondary->GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Secondary->GetCapsuleComponent()->SetCollisionObjectType(ECC_Pawn);
+    auto* TargetASC = Secondary->GetAbilitySystemComponent();
+    TargetASC->InitAbilityActorInfo(Secondary, Secondary);
+    TargetASC->AddAttributeSetSubobject(NewObject<UMyAttributeSet>(Secondary));
+    const auto Applied = F.ASC->ApplyGameplayEffectToSelf(GetDefault<UGameplayEffect>(Ring), 1.f,
+                                                        F.ASC->MakeEffectContext());
+    TestTrue(TEXT("Chain ring active"), Applied.IsValid());
+    int32 Periods = 0;
+    int32 Costs = 0;
+    F.Context->CommitPeriodCost = [&Costs]()
+    {
+        ++Costs;
+        return true;
+    };
+    const auto Delegate = TargetASC->OnGameplayEffectAppliedDelegateToSelf.AddLambda(
+        [&](UAbilitySystemComponent*, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle)
+        {
+            ++Periods;
+            TestEqual(TEXT("Chained target receives reduced period damage"),
+                      Spec.GetSetByCallerMagnitude(FMyGameplayTags::Get().Damage_Thunder, false), 13.f * .72f);
+        });
+    TestTrue(TEXT("Real shock execution starts"), F.Start());
+    TestTrue(TEXT("Level budget zero now reaches a target at distance 335"),
+             ICombatInterface::Execute_IsBeingShocked(Secondary));
+    F.ASC->RemoveActiveGameplayEffect(Applied);
+    F.Step(.01f);
+    F.Step(.11f);
+    TestEqual(TEXT("Ongoing channel keeps its original equipment snapshot"), Periods, 1);
+    TestEqual(TEXT("Channel payment stays once per period"), Costs, 1);
+    F.Run->Cancel();
+    TestFalse(TEXT("Cancel releases the added target"), ICombatInterface::Execute_IsBeingShocked(Secondary));
+    F.Step(1.f);
+    TestEqual(TEXT("No extra damage after cancel"), Periods, 1);
+    TargetASC->OnGameplayEffectAppliedDelegateToSelf.Remove(Delegate);
     return true;
 }
 

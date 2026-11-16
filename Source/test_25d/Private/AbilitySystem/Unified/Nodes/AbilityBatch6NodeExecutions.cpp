@@ -7,6 +7,51 @@
 #include "Character/EnemyCharacter.h"
 #include "Engine/World.h"
 
+namespace
+{
+    /** 单次命中结果采用历史位置和原目标令牌，供图后继重新解析。 */
+    bool PublishLightningHit(UAbilityGraphInstance& Owner, const FGuid& Id, const FAbilityNodeInput& Input,
+                             const FAbilityTargetToken& Target, FVector From, FVector Position,
+                             const FAbilityDamageResult& Result)
+    {
+        FAbilityNodeInput Payload = Input;
+        FAbilityImpactSnapshot Impact;
+        Impact.Location = Position;
+        Impact.Direction = (Position - From).GetSafeNormal();
+        Impact.ConfirmedTarget = Target;
+        Payload.Impact = Impact;
+        Payload.Origin = Position;
+        Payload.LiveTargetToken.Reset();
+        Payload.bHasDamageResult = true;
+        Payload.bDamageAttempted = Result.bAttempted;
+        Payload.bKilled = Result.bKilled;
+        Payload.DamageApplied = Result.Applied;
+        Payload.ActualDamage = Result.ActualDamage;
+        return Owner.Publish(Id, TEXT("DamageResolved"), Payload);
+    }
+
+    /** 将同一时刻产生的线段一次复制，逐跳时每次只发送该段。 */
+    void PresentLightning(AActor& Caster, FVector Origin, UNiagaraSystem* Beam,
+                          TArray<FBatch6ChainSegment>&& Segments, float Lifetime = 1.5f)
+    {
+        if (Segments.IsEmpty())
+        {
+            return;
+        }
+        FActorSpawnParameters Spawn;
+        Spawn.Owner = &Caster;
+        if (auto* Visual = Caster.GetWorld()->SpawnActor<ABatch6ChainPresentation>(
+                Origin, FRotator::ZeroRotator, Spawn))
+        {
+            Visual->Segments = MoveTemp(Segments);
+            Visual->BeamSystem = Beam;
+            Visual->SetLifeSpan(Lifetime);
+            Visual->Present();
+            Visual->ForceNetUpdate();
+        }
+    }
+} // namespace
+
 bool UAbilityForkedChainNodeConfig::Validate(FString& Error) const
 {
     Error.Reset();
@@ -79,20 +124,7 @@ bool UAbilityForkedChainNodeExecution::Start(UAbilityGraphInstance& Owner, const
         {
             return true;
         }
-        FAbilityNodeInput Payload = Input;
-        FAbilityImpactSnapshot Impact;
-        Impact.Location = Position;
-        Impact.Direction = (Position - Entry.From).GetSafeNormal();
-        Impact.ConfirmedTarget = Entry.Target;
-        Payload.Impact = Impact;
-        Payload.Origin = Position;
-        Payload.LiveTargetToken.Reset();
-        Payload.bHasDamageResult = true;
-        Payload.bDamageAttempted = Result.bAttempted;
-        Payload.bKilled = Result.bKilled;
-        Payload.DamageApplied = Result.Applied;
-        Payload.ActualDamage = Result.ActualDamage;
-        if (!Owner.Publish(Id, TEXT("DamageResolved"), Payload))
+        if (!PublishLightningHit(Owner, Id, Input, Entry.Target, Entry.From, Position, Result))
         {
             return true;
         }
@@ -126,18 +158,197 @@ bool UAbilityForkedChainNodeExecution::Start(UAbilityGraphInstance& Owner, const
     {
         return true;
     }
-    FActorSpawnParameters Spawn;
-    Spawn.Owner = Caster;
-    if (auto* Visual =
-            Input.SourceToken.World->SpawnActor<ABatch6ChainPresentation>(Input.Origin, FRotator::ZeroRotator, Spawn))
+    PresentLightning(*Caster, Input.Origin, Settings.BeamSystem, MoveTemp(Segments));
+    return Owner.Publish(Id, TEXT("Completed"), Input);
+}
+/** 校验目标预算、查询半径和伤害倍率，避免无界分支或非有限数值。 */
+bool UAbilityLightningNodeConfig::Validate(FString& Error) const
+{
+    Error.Reset();
+    if (MaxTargets < 1 || MaxTargets > 128 || !FMath::IsFinite(JumpRadius) || JumpRadius <= 0.f ||
+        JumpRadius > 2000.f || !FMath::IsFinite(DamageFalloff) || DamageFalloff < 0.f || DamageFalloff > 1.f)
     {
-        Visual->Segments = MoveTemp(Segments);
-        Visual->BeamSystem = Settings.BeamSystem;
-        Visual->Present();
-        Visual->ForceNetUpdate();
+        Error = TEXT("Lightning requires 1-128 targets, radius in (0, 2000], and falloff in [0, 1].");
+    }
+    return Error.IsEmpty();
+}
+
+/** 保证每跳有正间隔，并继承通用闪电参数校验。 */
+bool UAbilitySequentialChainNodeConfig::Validate(FString& Error) const
+{
+    if (!Super::Validate(Error))
+    {
+        return false;
+    }
+    if (!FMath::IsFinite(JumpDelay) || JumpDelay < 0.01f || JumpDelay > 1.f)
+    {
+        Error = TEXT("Sequential chain jump delay must be between 0.01 and 1 second.");
+    }
+    return Error.IsEmpty();
+}
+
+/** 先按中心距离排序，再捕获符合光束起点遮挡规则的原生命。 */
+TArray<FAbilityTargetToken> UAbilityLightningNodeExecution::FindTargets(AActor& Caster, FVector Center, FVector From,
+                                                                       int32 Limit) const
+{
+    struct FCandidate
+    {
+        FPureMassCombatTarget Target;
+        double DistanceSquared = 0.;
+    };
+    UWorld* World = Caster.GetWorld();
+    TArray<FCandidate> Candidates;
+    for (const auto& Target : PureMassCombat::Gather(World, &Caster, Center, Settings->JumpRadius))
+    {
+        FVector Position;
+        if (!Visited.Contains(Target) && PureMassCombat::Resolve(World, &Caster, Target, Position))
+        {
+            Candidates.Add({Target, FVector::DistSquared(Center, Position)});
+        }
+    }
+    Candidates.StableSort(
+        [](const FCandidate& A, const FCandidate& B)
+        {
+            return A.DistanceSquared < B.DistanceSquared;
+        });
+    TArray<FAbilityTargetToken> Targets;
+    for (const auto& Candidate : Candidates)
+    {
+        if (Targets.Num() >= Limit)
+        {
+            break;
+        }
+        FAbilityTargetToken Token;
+        FString Error;
+        if (PureMassCombat::Visible(World, &Caster, From, Candidate.Target) &&
+            AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Candidate.Target, Token, Error))
+        {
+            Targets.Add(Token);
+        }
+    }
+    return Targets;
+}
+
+/** 重验已捕获的目标；伤害可同步结束施法，之后必须重新检查执行状态。 */
+bool UAbilityLightningNodeExecution::Hit(const FAbilityTargetToken& Target, FVector From, float Scale,
+                                        TArray<FBatch6ChainSegment>& Segments)
+{
+    auto* Owner = GraphOwner.Get();
+    FVector Position;
+    if (bStopped || !Owner || Owner->IsFinished())
+    {
+        return false;
+    }
+    if (!AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Target, Position) ||
+        Visited.Contains(Target.Target))
+    {
+        return true;
+    }
+    Visited.Add(Target.Target);
+    LastImpact = Position;
+    auto Params = Input.DamageParams;
+    Params.DebuffChance = 0.f;
+    Params.bIsRadialDamage = false;
+    const auto Result = AbilityDamageService::Apply(Input.SourceToken, Target, Params, Scale);
+    AActor* Caster = nullptr;
+    if (bStopped || Owner->IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
+    {
+        return false;
+    }
+    Segments.Add({From, Position});
+    return PublishLightningHit(*Owner, InvocationId, Input, Target, From, Position, Result);
+}
+
+bool UAbilityLightningNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
+                                          const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput,
+                                          FString& Error)
+{
+    if (!Super::Start(Owner, Id, Config, InInput, Error))
+    {
+        return false;
+    }
+    Settings = CastChecked<UAbilityLightningNodeConfig>(const_cast<UAbilityNodeConfig*>(&Config));
+    AActor* Caster = nullptr;
+    FVector FirstPosition;
+    if (!Input.LiveTargetToken.IsSet() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster) ||
+        !AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Input.LiveTargetToken.GetValue(), FirstPosition))
+    {
+        Error = TEXT("Lightning requires a live source and initial target.");
+        return false;
+    }
+    const auto First = Input.LiveTargetToken.GetValue();
+    const FVector From = Caster->GetActorLocation();
+    const auto* Sequential = Cast<UAbilitySequentialChainNodeConfig>(Settings);
+    TArray<FAbilityTargetToken> Others;
+    if (!Sequential && Settings->MaxTargets > 1)
+    {
+        // 固定全部次目标再结算首击，避免击杀/复用回调改变叉状闪电的选取范围。
+        Visited.Add(First.Target);
+        Others = FindTargets(*Caster, FirstPosition, From, Settings->MaxTargets - 1);
+        Visited.Reset();
+    }
+    TArray<FBatch6ChainSegment> Segments;
+    if (!Hit(First, From, 1.f, Segments))
+    {
+        return true;
+    }
+    for (const auto& Target : Others)
+    {
+        if (!Hit(Target, From, Settings->DamageFalloff, Segments))
+        {
+            return true;
+        }
+    }
+    PresentLightning(*Caster, From, Settings->BeamSystem, MoveTemp(Segments), Sequential ? 0.35f : 1.5f);
+    if (Sequential && Visited.Num() < Settings->MaxTargets)
+    {
+        TimeUntilJump = Sequential->JumpDelay;
+        return true;
     }
     return Owner.Publish(Id, TEXT("Completed"), Input);
 }
+
+void UAbilityLightningNodeExecution::Advance(float DeltaSeconds)
+{
+    const auto* Sequential = Cast<UAbilitySequentialChainNodeConfig>(Settings);
+    auto* Owner = GraphOwner.Get();
+    if (bStopped || !Sequential || !Owner || Owner->IsFinished() || DeltaSeconds <= 0.f)
+    {
+        return;
+    }
+    TimeUntilJump -= DeltaSeconds;
+    if (TimeUntilJump > UE_SMALL_NUMBER)
+    {
+        return;
+    }
+    AActor* Caster = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
+    {
+        Owner->Cancel(EAbilityGraphEndReason::SourceInvalid);
+        return;
+    }
+    const FVector From = LastImpact;
+    const auto Targets = FindTargets(*Caster, From, From, 1);
+    if (Targets.IsEmpty())
+    {
+        Owner->Publish(InvocationId, TEXT("Completed"), Input);
+        return;
+    }
+    TArray<FBatch6ChainSegment> Segments;
+    if (!Hit(Targets[0], From, FMath::Pow(Settings->DamageFalloff, Visited.Num()), Segments))
+    {
+        return;
+    }
+    PresentLightning(*Caster, From, Settings->BeamSystem, MoveTemp(Segments), 0.35f);
+    if (Visited.Num() >= Settings->MaxTargets)
+    {
+        Owner->Publish(InvocationId, TEXT("Completed"), Input);
+        return;
+    }
+    // 不补发跨过的时间，长帧结束后仍要等待完整一跳间隔。
+    TimeUntilJump = Sequential->JumpDelay;
+}
+
 bool UAbilityAreaPetrifyNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
                                              const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput,
                                              FString& Error)
@@ -194,6 +405,13 @@ void AbilityBatch6Nodes::Register(FAbilityNodeRegistry& Registry)
     Chain.bSupportsActorTargets = Chain.bSupportsMassTargets = true;
     Chain.Ports = {{TEXT("DamageResolved"), EAbilityPortPayload::DamageResult, false},
                    {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
+    FAbilityNodeDescriptor Volley = Chain;
+    Volley.TypeId = TEXT("Delivery.ForkedVolley");
+    Volley.ConfigClass = UAbilityForkedVolleyNodeConfig::StaticClass();
+    Volley.ExecutionClass = UAbilityLightningNodeExecution::StaticClass();
+    FAbilityNodeDescriptor Sequential = Volley;
+    Sequential.TypeId = TEXT("Delivery.SequentialChain");
+    Sequential.ConfigClass = UAbilitySequentialChainNodeConfig::StaticClass();
     FAbilityNodeDescriptor Petrify;
     Petrify.TypeId = TEXT("Status.PetrifyArea");
     Petrify.ConfigClass = UAbilityAreaPetrifyNodeConfig::StaticClass();
@@ -202,7 +420,7 @@ void AbilityBatch6Nodes::Register(FAbilityNodeRegistry& Registry)
     Petrify.bSupportsActorTargets = Petrify.bSupportsMassTargets = Petrify.bSupportsSnapshotTargets = true;
     Petrify.Lifetime = EAbilityExecutionLifetime::TargetPersistentState;
     Petrify.Ports = {{TEXT("Completed"), EAbilityPortPayload::Origin, true}};
-    for (const auto& Descriptor : {Chain, Petrify})
+    for (const auto& Descriptor : {Chain, Volley, Sequential, Petrify})
     {
         if (!Registry.Find(Descriptor.TypeId))
         {

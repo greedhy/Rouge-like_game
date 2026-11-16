@@ -9,6 +9,7 @@
 #include "Character/TelegraphedEnemyCharacter.h"
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
 #include "AbilitySystemComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "UObject/Script.h"
@@ -49,7 +50,18 @@ bool FDemonPoolTest::RunTest(const FString&)
         return false;
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
     GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
-    auto* Actor = World->SpawnActor<ATelegraphedEnemyCharacter>(Class);
+    const FTransform SpawnTransform = FTransform::Identity;
+    auto* Actor = World->SpawnActorDeferred<ATelegraphedEnemyCharacter>(Class, SpawnTransform);
+    if (!TestNotNull(TEXT("Deferred Demon spawn"), Actor))
+    {
+        GEngine->DestroyWorldContext(World);
+        World->DestroyWorld(false);
+        return false;
+    }
+    // 与地牢出怪路径一致：在 FinishSpawning 之前，原生武器组件已经注册并查询过身体插槽。
+    TestTrue(TEXT("Demon body mesh is available during native component registration"),
+             Actor->GetMesh()->GetSkeletalMeshAsset() != nullptr);
+    Actor->FinishSpawning(SpawnTransform);
     Actor->GetAbilitySystemComponent()->InitAbilityActorInfo(Actor, Actor);
     Actor->Tags.Add(TEXT("DungeonEncounter"));
     Actor->EnableDungeonPooling(0);

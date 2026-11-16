@@ -151,7 +151,28 @@ bool UEquipmentComponent::HasEffect(const FGuid& Id) const
                              : nullptr;
     return Active && !Active->bIsInhibited;
 }
-// 按最终生命和法力上限裁剪当前资源，不因上限增加补满。
+// 一次主动换装的资源读数。取ASC聚合结果，包含装备主属性对资源上限的间接影响。
+struct UEquipmentComponent::FResourceSnapshot
+{
+    struct FResource
+    {
+        float Current;
+        float Maximum;
+    };
+
+    explicit FResourceSnapshot(const UAbilitySystemComponent& AbilitySystem)
+        : Health{AbilitySystem.GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()),
+                 AbilitySystem.GetNumericAttribute(UMyAttributeSet::GetMaxHealthAttribute())},
+          Mana{AbilitySystem.GetNumericAttribute(UMyAttributeSet::GetManaAttribute()),
+               AbilitySystem.GetNumericAttribute(UMyAttributeSet::GetMaxManaAttribute())}
+    {
+    }
+
+    FResource Health;
+    FResource Mana;
+};
+
+// 对账只处理当前值超过最终上限的情况，旅行资源由角色加载流程恢复。
 void UEquipmentComponent::ClampResources()
 {
     auto* AbilitySystem = ASC();
@@ -167,13 +188,42 @@ void UEquipmentComponent::ClampResources()
     if (Mana > MaxMana)
         AbilitySystem->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), MaxMana);
 }
-// 统一提交装备版本、背包复制和资源修正，再通知界面及持久化监听者。
-void UEquipmentComponent::Commit()
+// 主动穿戴、卸下或替换成功后，按最终上限结算资源，再通知界面及持久化监听者。
+void UEquipmentComponent::Commit(const FResourceSnapshot& ResourcesBefore)
 {
     auto* Bag = Backpack();
     ++Revision;
     Bag->SynchronizeReplicatedSlotsFromModel();
-    ClampResources();
+    if (auto* AbilitySystem = ASC())
+    {
+        const FResourceSnapshot ResourcesAfter(*AbilitySystem);
+        const auto PreservePercentage = [AbilitySystem](const FGameplayAttribute& Attribute,
+                                                        const FResourceSnapshot::FResource& Before,
+                                                        const FResourceSnapshot::FResource& After)
+        {
+            if (Before.Maximum == After.Maximum || !FMath::IsFinite(Before.Maximum) ||
+                !FMath::IsFinite(Before.Current) || !FMath::IsFinite(After.Maximum))
+            {
+                return;
+            }
+
+            const float Maximum = FMath::Max(0.f, After.Maximum);
+            // 旧上限为零时没有比例可用，沿用原绝对值并限定到新区间。
+            float NewValue = Before.Current;
+            if (Before.Maximum > 0.f)
+            {
+                const double Ratio = FMath::Clamp(static_cast<double>(Before.Current) / Before.Maximum, 0.0, 1.0);
+                NewValue = static_cast<float>(Ratio * Maximum);
+            }
+            NewValue = FMath::Clamp(NewValue, 0.f, Maximum);
+            if (NewValue != After.Current)
+            {
+                AbilitySystem->SetNumericAttributeBase(Attribute, NewValue);
+            }
+        };
+        PreservePercentage(UMyAttributeSet::GetHealthAttribute(), ResourcesBefore.Health, ResourcesAfter.Health);
+        PreservePercentage(UMyAttributeSet::GetManaAttribute(), ResourcesBefore.Mana, ResourcesAfter.Mana);
+    }
     GetOwner()->ForceNetUpdate();
     Bag->InventoryModel->OnInventoryUpdated.Broadcast(Bag->InventoryModel->Slots);
     OnEquipmentChanged.Broadcast();
@@ -219,6 +269,8 @@ bool UEquipmentComponent::TryEquip(int32 Index, FGameplayTag Tag, FGuid Expected
     if (!Attributes)
         return false;
     TGuardValue<bool> AttributeGuard(Attributes->bEquipmentChanging, true);
+    // 换装期间新旧效果可能短暂共存，记录准备能力和应用效果之前的实际比例。
+    const FResourceSnapshot ResourcesBefore(*ASC());
     TArray<FEquipmentSlot> Proposed = Slots;
     if (OldIndex != INDEX_NONE)
         Proposed[OldIndex] = NewSlot;
@@ -262,7 +314,7 @@ bool UEquipmentComponent::TryEquip(int32 Index, FGameplayTag Tag, FGuid Expected
     Handles.Add(Expected, Handle);
     CommitWeaponSet(Slots, Prepared);
     WeaponCommitted = true;
-    Commit();
+    Commit(ResourcesBefore);
     return true;
 }
 // 预留背包空格并准备武器切换，移除实例效果后返还原物品。
@@ -299,6 +351,7 @@ bool UEquipmentComponent::TryUnequip(FGameplayTag Tag, FGuid Expected, int32 Bag
     if (!Attributes)
         return false;
     TGuardValue<bool> AttributeGuard(Attributes->bEquipmentChanging, true);
+    const FResourceSnapshot ResourcesBefore(*ASC());
     TArray<FEquipmentSlot> Proposed = Slots;
     Proposed.RemoveAt(Index);
     TArray<FGameplayAbilitySpecHandle> Prepared;
@@ -321,7 +374,7 @@ bool UEquipmentComponent::TryUnequip(FGameplayTag Tag, FGuid Expected, int32 Bag
     Handles.Remove(Expected);
     CommitWeaponSet(Slots, Prepared);
     WeaponCommitted = true;
-    Commit();
+    Commit(ResourcesBefore);
     return true;
 }
 // 订阅装备效果移除事件，用于检测外部移除造成的状态缺失。

@@ -39,6 +39,9 @@ public:
     float Radius = 250.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FGameplayTag CueTag;
+    /** 原生碎片提供身份，旧图默认空。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTag EquipmentAbilityTag;
     /** 原蓝图仅查询 Actor；Mass 接入必须明确启用，不冒充旧行为的等价迁移。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bIncludeMass = false;
@@ -71,6 +74,8 @@ private:
     TObjectPtr<UAbilityArcaneShardContext> Prepared;
     UPROPERTY()
     TObjectPtr<UAbilityArcaneShardNodeConfig> Settings;
+    UPROPERTY()
+    FDamageEffectParams ResolvedDamage;
     FTimerHandle SpawnTimer;
     FTimerHandle TailTimer;
     TWeakObjectPtr<UWorld> TimerWorld;

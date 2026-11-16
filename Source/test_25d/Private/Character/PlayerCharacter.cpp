@@ -128,14 +128,19 @@ void APlayerCharacter::InitAbilityActorInfo()
     check(Player_State);
     Player_State->GetAbilitySystemComponent()->InitAbilityActorInfo(Player_State, this);
     Player_State->GetEquipmentComponent()->RefreshWeaponVisuals();
+    // 基础能力协调通过角色成员读取ASC；先完成绑定，首次出生无需依赖LoadProgress补授予。
+    AbilitySystemComponent = Player_State->GetAbilitySystemComponent();
+    AttributeSet = Player_State->GetAttributeSet();
     UMyAbilitySystemComponent* UmyASC = Cast<UMyAbilitySystemComponent>(Player_State->GetAbilitySystemComponent());
     if (UmyASC)
     {
         UmyASC->AbilityActorInfoSet();
+        if (HasAuthority())
+        {
+            EnsureIntrinsicCharacterAbilities();
+        }
     }
 
-    AbilitySystemComponent = Player_State->GetAbilitySystemComponent();
-    AttributeSet = Player_State->GetAttributeSet();
     OnASCRegistered.Broadcast(AbilitySystemComponent);
 
     AbilitySystemComponent
@@ -163,7 +168,13 @@ void APlayerCharacter::LoadProgress()
         ULoadScreenSaveGame* SaveData =
             bFromTravel ? TravelState->GetTravelProgress() : MyGameMode->RetrieveInGameSaveData();
         if (SaveData == nullptr)
+        {
+            if (auto* MyASC = Cast<UMyAbilitySystemComponent>(AbilitySystemComponent))
+            {
+                EnsureIntrinsicCharacterAbilities();
+            }
             return;
+        }
 
         // 首次加载授予默认能力；已有进度按存档重建，再补发现新增能力。
         if (SaveData->bFirstTimeLoadIn)
@@ -199,6 +210,10 @@ void APlayerCharacter::LoadProgress()
             {
                 MyASC->UpdateAbilityStatuses(SaveData->PlayerLevel);
             }
+        }
+        if (auto* MyASC = Cast<UMyAbilitySystemComponent>(AbilitySystemComponent))
+        {
+            EnsureIntrinsicCharacterAbilities();
         }
         if (TravelState)
             TravelState->GetEquipmentComponent()->ReconcileEffects();
@@ -428,7 +443,7 @@ void APlayerCharacter::WriteProgressToSaveData(ULoadScreenSaveGame* SaveData, co
             if (Equipment && Equipment->IsWeaponAbility(AbilitySpec.Handle))
                 return;
             if (const auto* Ability = Cast<UMyGameplayAbility>(AbilitySpec.Ability);
-                Ability && Ability->IsEquipmentGrantedOnly())
+                Ability && (Ability->IsEquipmentGrantedOnly() || Ability->IsIntrinsicAbility()))
                 return;
             const FGameplayTag AbilityTag = MyASC->GetAbilityTagFromSpec(AbilitySpec);
             UAbilityInfo* AbilityInfo = UMyAbilitySystemLibrary::GetAbilityInfo(this);

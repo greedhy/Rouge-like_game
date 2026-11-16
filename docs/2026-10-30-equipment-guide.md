@@ -1,5 +1,7 @@
 # 装备模块接入与验收
 
+后续扩展：[2026-11-16 暗金装备](2026-11-16-unique-equipment-guide.md)在专用固定暗金GE中增加Channel2复合百分比和受限技能规则。原普通/随机装备权限、服务器事务与按实例清理保持不变。下文首期限制不代表该专用暗金路径的当前边界。
+
 ## 已实现的接口
 
 PlayerState 默认拥有 `UEquipmentComponent`，复用原 ASC 和 `UBackpackComponent`。每件装备在背包、装备槽、世界掉落和持久化快照间保留 `ItemInstanceId`。装备不消耗物品；换装把旧装备放回来源格，满背包可以换装但不能卸装。
@@ -33,7 +35,7 @@ PlayerState 默认拥有 `UEquipmentComponent`，复用原 ASC 和 `UBackpackCom
 - 快照只保存物品与槽位身份，不保存 GE Handle。重复恢复会替换本模块拥有的效果，避免叠加。
 - 旧背包快照缺少实例 ID 时生成 ID，缺少装备数组时按空装备处理。未知的已装备定义/非法槽位拒绝整个导入；旧背包未知定义沿用既有保留行为，不可被装备，待定义恢复后处理。不得把目录暂时缺失当作删除物品的依据。
 - 保存 Strength/Intelligence/Resilience/Vigor 使用基础值，防止把装备加成永久写入角色基础属性。
-- 上限降低只在装备事务完成后夹取当前资源，上限增加不补满；不允许装备直接改变当前 Health/Mana。
+- 穿戴、卸下和替换由服务器按操作前比例与最终上限结算生命、法力。两项独立结算，上限相同的资源无需写入。装备 GE 只配置上限或影响上限的主属性，当前资源由装备事务提交。
 
 ## 验证记录
 
@@ -42,6 +44,8 @@ PlayerState 默认拥有 `UEquipmentComponent`，复用原 ASC 和 `UBackpackCom
 - 最新修复已用 `-ModuleWithSuffix=test_25d,7301` 编译成功，独立测试进程使用新模块。项目自动化 191 项完成：100 项无警告成功、91 项带警告成功、0 失败、0 未运行；装备 6 项全部无警告成功。报告：`Saved/Automation/EquipmentFinal/index.json`，日志：`Saved/Logs/EquipmentFinal.log`。
 - 用户关闭编辑器后，常规默认 DLL 构建及 `Scripts/test_equipment.ps1` 也已通过：装备/背包共 37 项，36 项无警告成功、1 项带警告成功、0 失败、0 未运行。模块清单已恢复指向 `UnrealEditor-test_25d.dll`。加 `-AllProjectTests` 可执行项目测试。
 - 用户 PIE 与具体蓝图资产配置验收尚未完成。
+- 2026-11-16 资源比例改动通过默认 DLL 的装备与背包回归（61/61）。用例覆盖不同与相同上限替换、失败回滚、反复换装、主属性派生上限和真实暗金资产。全项目回归 457/458 通过，唯一失败为既有 Timeline 目录校验。报告在 `Saved/Automation/EquipmentResourceRatio`。
+- 同日监听服务器 PIE 中，远程客户端穿脱红宝石戒指、蓝宝石戒指和铁卫胸甲后，生命、法力与上限都与服务器一致，满值比例保持 100%。报告在 `Saved/Automation/EquipmentResourceRatio/PIENetworkFixed/Saved/EquipmentResourceRatio/report.json`。血条、蓝条画面待手动验收。
 
 ## PIE 验收清单
 
@@ -50,5 +54,5 @@ PlayerState 默认拥有 `UEquipmentComponent`，复用原 ASC 和 `UBackpackCom
 3. 保持药剂效果时卸装，确认药剂不受影响。
 4. 填满背包换装，确认旧装备回到来源格；直接卸装应失败且状态不变。
 5. 快速重复点击、模拟延迟、倒地期间点击，不应产生复制物品、重复效果或跨玩家操作。
-6. 最大生命 100，穿戴 +50 后治疗到 140，旅行后仍为 140；卸下后为 100，再穿上不回血。
+6. 生命为 60/100 时穿戴 +50 上限装备，验证 90/150。按同一槽替换为 +100 上限装备，验证 120/200，卸下后回到 60/100。法力也按相同步骤验证，旅行后检查保存的当前值。
 7. 保存、退出重连、跨地图和死亡重生后确认实例 ID 与属性一致，主属性不能每次恢复都增加。

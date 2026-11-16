@@ -76,6 +76,8 @@ public:
 
     // 授予初始主动技能，写入输入与装备标签，最后广播就绪。
     void AddCharacterAbilities(const TArray<TSubclassOf<UGameplayAbility>>& StartupAbilities);
+    /** 新档/旧档/Avatar初始化统一补齐固定基础能力；按类与身份去重，不重置现有冷却。 */
+    void EnsureIntrinsicStartupAbilities(const TArray<TSubclassOf<UGameplayAbility>>& StartupAbilities);
     // 授予初始被动技能并立即尝试激活。
     void AddCharacterPassiveAbilities(const TArray<TSubclassOf<UGameplayAbility>>& StartupPassiveAbilities);
 
@@ -101,6 +103,9 @@ public:
 
     // 开关技能提交服务器切换，普通活动技能转发输入事件。
     void AbilityInputTagPressed(const FGameplayTag& InputTag);
+    /** 客户端传按键 Tag 和发起输入的 Avatar，权威端从实际授予查段。 */
+    UFUNCTION(Server, Reliable)
+    void ServerStanderComboInput(AActor* ExpectedAvatar, FGameplayTag InputTag);
     UFUNCTION(Server, Reliable)
     // 服务器校验输入槽及技能类型，再取消或激活开关技能。
     void ServerToggleAbility(FGameplayAbilitySpecHandle AbilityHandle, FGameplayTag InputTag);

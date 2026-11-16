@@ -86,11 +86,11 @@ UMyAbilitySystemComponent* APureMassPlayerController::MassASC() const
     return Cast<UMyAbilitySystemComponent>(UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetPawn()));
 }
 
-// 结合背包界面状态与能力标签判定输入是否被阻止。
+// 角色状态标签控制移动、光标和技能输入。
 bool APureMassPlayerController::IsBlocked(FGameplayTag Tag) const
 {
     auto* ASC = MassASC();
-    return IsBackpackUIOpen() || (ASC && ASC->HasMatchingGameplayTag(Tag));
+    return ASC && ASC->HasMatchingGameplayTag(Tag);
 }
 
 // 绑定移动动作以及技能按下、持续和松开输入。
@@ -154,7 +154,7 @@ void APureMassPlayerController::Pressed(FGameplayTag Tag)
         ToggleBackpackUI();
         return;
     }
-    if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputPressed))
+    if (IsMenuMouseAbility(Tag) || IsBlocked(FMyGameplayTags::Get().Player_Block_InputPressed))
         return;
     if (Tag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Pickup))
     {
@@ -169,7 +169,7 @@ void APureMassPlayerController::Pressed(FGameplayTag Tag)
 // 未被阻止时向能力系统转发持续按住事件。
 void APureMassPlayerController::Held(FGameplayTag Tag)
 {
-    if (IsBlocked(FMyGameplayTags::Get().Player_Block_InputHeld))
+    if (IsMenuMouseAbility(Tag) || IsBlocked(FMyGameplayTags::Get().Player_Block_InputHeld))
         return;
     if (auto* ASC = MassASC())
         ASC->AbilityInputTagHeld(Tag);

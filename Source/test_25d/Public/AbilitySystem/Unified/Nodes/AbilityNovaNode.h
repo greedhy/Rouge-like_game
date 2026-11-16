@@ -23,6 +23,9 @@ public:
     float Radius = 450.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FGameplayTag CueTag;
+    /** 原生新星提供身份，旧图默认空。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTag EquipmentAbilityTag;
     /** Actor 原行为默认不扩展目标集合；新组合可以明确开启 Mass。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bIncludeMass = false;

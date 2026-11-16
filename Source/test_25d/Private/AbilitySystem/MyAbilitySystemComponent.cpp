@@ -22,6 +22,8 @@
 #include "test_25d/MyLogChannels.h"
 #include "AbilitySystem/Ability/StanderAbility.h"
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
+#include "AbilitySystem/Combo/StanderComboComponent.h"
+#include "Character/StanderPlayer.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Net/UnrealNetwork.h"
@@ -150,13 +152,57 @@ void UMyAbilitySystemComponent::AddCharacterAbilities(const TArray<TSubclassOf<U
         FGameplayAbilitySpec AbilitySpec = FGameplayAbilitySpec(AbilityClass, 1);
         if (const UMyGameplayAbility* MyAbility = Cast<UMyGameplayAbility>(AbilitySpec.Ability))
         {
+            if (MyAbility->IsIntrinsicAbility())
+            {
+                continue;
+            }
             AbilitySpec.DynamicAbilityTags.AddTag(MyAbility->StartupInputTag);
             AbilitySpec.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().Abilities_Status_Equipped);
             GiveAbility(AbilitySpec);
         }
     }
+    EnsureIntrinsicStartupAbilities(StartupAbilities);
     bStartupAbilityGiven = true;
     AbilitiesGiven.Broadcast();
+}
+
+void UMyAbilitySystemComponent::EnsureIntrinsicStartupAbilities(
+    const TArray<TSubclassOf<UGameplayAbility>>& StartupAbilities)
+{
+    if (!IsOwnerActorAuthoritative() || !IsValid(GetAvatarActor()))
+    {
+        return;
+    }
+    for (const auto& AbilityClass : StartupAbilities)
+    {
+        const auto* Ability = AbilityClass ? Cast<UMyGameplayAbility>(AbilityClass.GetDefaultObject()) : nullptr;
+        if (!Ability || !Ability->IsIntrinsicAbility() || !Ability->StartupInputTag.IsValid())
+        {
+            continue;
+        }
+        FGameplayAbilitySpec Candidate(AbilityClass, 1);
+        const FGameplayTag Identity = GetAbilityTagFromSpec(Candidate);
+        FGameplayAbilitySpec* Existing = FindAbilitySpecFromClass(AbilityClass);
+        if (!Existing && Identity.IsValid())
+        {
+            Existing = GetSpecFromAbilityTag(Identity);
+        }
+        if (Existing)
+        {
+            // 已有实例仅校验固定输入，不取消活动能力或重新施加其冷却。
+            const auto* ExistingAbility = Cast<UMyGameplayAbility>(Existing->Ability);
+            if (ExistingAbility && ExistingAbility->IsIntrinsicAbility())
+            {
+                ClearSlot(Existing);
+                Existing->DynamicAbilityTags.AddTag(Ability->StartupInputTag);
+                MarkAbilitySpecDirty(*Existing, true);
+            }
+            continue;
+        }
+        Candidate.DynamicAbilityTags.AddTag(Ability->StartupInputTag);
+        Candidate.DynamicAbilityTags.AddTag(FMyGameplayTags::Get().Abilities_Status_Equipped);
+        GiveAbility(Candidate);
+    }
 }
 
 // 授予初始被动技能并立即尝试激活。
@@ -177,13 +223,18 @@ void UMyAbilitySystemComponent::AbilityInputTagHeld(const FGameplayTag& InputTag
 {
     if (!InputTag.IsValid())
         return;
+    if (const auto* Player = Cast<AStanderPlayer>(GetAvatarActor());
+        Player && Player->ComboComponent->IsComboInput(*this, InputTag))
+    {
+        return;
+    }
     FScopedAbilityListLock ActiveScopeLoc(*this);
     for (auto& AbilitySpec : GetActivatableAbilities())
     {
         if (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag))
         {
             const auto* Ability = Cast<UMyGameplayAbility>(AbilitySpec.Ability);
-            if (Ability && Ability->IsInputToggleAbility())
+            if (Ability && (Ability->IsInputToggleAbility() || Ability->IsPressOnlyAbility()))
                 continue;
             AbilitySpecInputPressed(AbilitySpec);
             if (!AbilitySpec.IsActive())
@@ -350,7 +401,7 @@ void UMyAbilitySystemComponent::ServerSpendSpellPoint_Implementation(const FGame
     if (FGameplayAbilitySpec* AbilitySpec = GetSpecFromAbilityTag(AbilityTag))
     {
         if (const auto* Ability = Cast<UMyGameplayAbility>(AbilitySpec->Ability);
-            Ability && Ability->IsEquipmentGrantedOnly())
+            Ability && (Ability->IsEquipmentGrantedOnly() || Ability->IsIntrinsicAbility()))
             return;
         if (GetAvatarActor()->Implements<UPlayerInterface>())
         {
@@ -485,6 +536,11 @@ void UMyAbilitySystemComponent::ServerEquipAbility_Implementation(const FGamepla
     FGameplayAbilitySpec* Spec = GetSpecFromAbilityTag(AbilityTag);
     if (!Spec || !Slot.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("InputTag"))))
         return;
+    const auto* FixedAbility = Cast<UMyGameplayAbility>(Spec->Ability);
+    if ((FixedAbility && FixedAbility->IsIntrinsicAbility()) || Slot == FMyGameplayTags::Get().InputTag_Dodge)
+    {
+        return;
+    }
     if (auto* State = Cast<AMyPlayerState>(GetOwnerActor());
         State && !State->GetEquipmentComponent()->CanAssignWeaponSlot(Spec->Handle, Slot))
         return;
@@ -565,12 +621,26 @@ void UMyAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 {
     if (!InputTag.IsValid())
         return;
+    if (auto* Player = Cast<AStanderPlayer>(GetAvatarActor());
+        Player && Player->ComboComponent->IsComboInput(*this, InputTag))
+    {
+        Player->ComboComponent->RequestComboInput(InputTag);
+        return;
+    }
     FScopedAbilityListLock ActiveScopeLoc(*this);
     for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
     {
         if (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag))
         {
             const auto* Ability = Cast<UMyGameplayAbility>(AbilitySpec.Ability);
+            if (Ability && Ability->IsPressOnlyAbility())
+            {
+                if (!AbilitySpec.IsActive())
+                {
+                    TryActivateAbility(AbilitySpec.Handle);
+                }
+                continue;
+            }
             if (Ability && Ability->IsInputToggleAbility())
             {
                 // Do not rely on client Spec.IsActive for a ServerOnly ability.
@@ -584,6 +654,15 @@ void UMyAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
                                       AbilitySpec.ActivationInfo.GetActivationPredictionKey());
             }
         }
+    }
+}
+
+// RPC 与单机使用相同的来源、门禁和时序检查。
+void UMyAbilitySystemComponent::ServerStanderComboInput_Implementation(AActor* ExpectedAvatar, FGameplayTag InputTag)
+{
+    if (auto* Player = Cast<AStanderPlayer>(GetAvatarActor()); Player && Player == ExpectedAvatar)
+    {
+        Player->ComboComponent->RequestComboInput(InputTag);
     }
 }
 
@@ -637,7 +716,7 @@ void UMyAbilitySystemComponent::AddCharacterAbilitiesFromSaveData(ULoadScreenSav
         const TSubclassOf<UGameplayAbility> LoadedAbilityClass = Data.GameplayAbility;
         const auto* SavedAbility =
             LoadedAbilityClass ? Cast<UMyGameplayAbility>(LoadedAbilityClass.GetDefaultObject()) : nullptr;
-        if (SavedAbility && SavedAbility->IsEquipmentGrantedOnly())
+        if (SavedAbility && (SavedAbility->IsEquipmentGrantedOnly() || SavedAbility->IsIntrinsicAbility()))
             continue;
 
         FGameplayAbilitySpec LoadedAbilitySpec = FGameplayAbilitySpec(LoadedAbilityClass, Data.AbilityLevel);

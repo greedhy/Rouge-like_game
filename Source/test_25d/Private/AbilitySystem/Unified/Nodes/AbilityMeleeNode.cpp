@@ -8,6 +8,9 @@
 #include "AbilitySystemComponent.h"
 #include "PureMass/PureMassCombatTarget.h"
 #include "Interface/CombatInterface.h"
+#include "AbilitySystem/Defense/PerfectDodgeComponent.h"
+#include "AbilitySystem/Defense/GuardParryComponent.h"
+#include "Engine/World.h"
 
 bool UAbilityMeleeNodeConfig::Validate(FString& Error) const
 {
@@ -34,6 +37,15 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
         Error = TEXT("Melee source is stale.");
         return false;
     }
+    // 实际接触节点才提交见证；使用同一球形查询与胶囊轴，见证不加入伤害目标列表。
+    UPerfectDodgeComponent::ObserveActorAttack(Input.SourceToken, Id, Input.Origin,
+        [&](const FVector& Center, float Radius, float HalfHeight)
+        {
+            const float Axis = FMath::Max(0.f, HalfHeight - Radius);
+            const FVector Closest = FMath::ClosestPointOnSegment(Input.Origin,
+                Center - FVector(0, 0, Axis), Center + FVector(0, 0, Axis));
+            return FVector::DistSquared(Input.Origin, Closest) <= FMath::Square(Settings.Radius + Radius);
+        });
     // 旧 BP 的 Actor 查询和数组顺序保留；新增 Mass 是显式配置，不改变旧资产命中集合。
     TArray<AActor*> Actors;
     UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Avatar, Actors, {Avatar}, Settings.Radius, Input.Origin);
@@ -66,6 +78,23 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
         FVector Location;
         if (bStopped || Owner.IsFinished() ||
             !AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Target, Location))
+        {
+            continue;
+        }
+        FHitResult DodgeWall;
+        FCollisionQueryParams DodgeQuery(SCENE_QUERY_STAT(PerfectDodgeMeleeWall), false, Avatar);
+        DodgeQuery.AddIgnoredActor(Target.Target.Actor.Get());
+        const bool bPerfectVisible = !Target.Target.IsActor() ||
+            !Input.SourceToken.World->LineTraceSingleByObjectType(DodgeWall, Input.Origin, Location,
+                FCollisionObjectQueryParams(ECC_WorldStatic), DodgeQuery);
+        if (Target.Target.IsActor() &&
+            UPerfectDodgeComponent::TryDodgeActorHit(Target.Target.Actor.Get(), Input.SourceToken, Id, bPerfectVisible))
+        {
+            // 同段的额外击退伤害和基础伤害一起拦截，不施加Debuff、受击或第二份GE。
+            continue;
+        }
+        if (Target.Target.IsActor() && bPerfectVisible &&
+            UGuardParryComponent::TryParryMelee(Target.Target.Actor.Get(), Input.SourceToken, Id))
         {
             continue;
         }

@@ -13,6 +13,7 @@
 #include "Animation/AnimMontage.h"
 #include "Engine/World.h"
 #include "UObject/StrongObjectPtr.h"
+#include "MyGameplayTags.h"
 
 UMyArcaneShardAbility::UMyArcaneShardAbility()
 {
@@ -27,6 +28,11 @@ UAbilityArcaneShardNodeConfig* UMyArcaneShardAbility::MakeShardConfig(UObject* O
     Config->MaxPoints = MaxShardPoints;
     Config->Interval = ShardInterval;
     Config->CueTag = FGameplayTag::RequestGameplayTag(TEXT("GameplayCue.ArcaneShards"));
+    const auto AbilityTag = FMyGameplayTags::Get().Abilities_Arcane_ArcaneShards;
+    if (GetAssetTags().HasTagExact(AbilityTag))
+    {
+        Config->EquipmentAbilityTag = AbilityTag;
+    }
     // 原 GA 仅消费片段/完成；不为每个原始 Actor 命中制造无消费者事件，避免人群数量耗尽图预算。
     Config->bPublishDamageResults = false;
     return Config;

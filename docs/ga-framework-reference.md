@@ -38,13 +38,16 @@
 | 前四批 Actor / Mixed 18 种 Kind | `Legacy.Actor.*` / `Legacy.Mixed.*` | 原 GA/DA 路径保留，运行时编译后使用提取的 Driver |
 | 第五批 | `Legacy.Extension.*` | 原 Behavior 和扩展子连接编译为图边；共享 CastContext 支持跨族组合 |
 | 第六批连锁/石化 | `Delivery.ForkedChain`、`Status.PetrifyArea`、`Status.Petrify` | 保留分叉 BFS、状态服务及真实 Actor/Mass 目标生命 |
+| 叉状闪电与逐跳闪电链 | `Delivery.ForkedVolley`、`Delivery.SequentialChain` | 旧 `GA_FissionChain` 一次选取主目标及附近敌人，光束均从施法者发出；新 `GA_SequentialChain` 从上一命中位置逐跳传播，默认间隔 0.1 秒、最多 6 个目标。两者共用伤害与复制表现，旧图节点 `Delivery.ForkedChain` 保留广度优先语义。 |
 | 通用查询/伤害 | `Query.Shape`、`Effect.Damage` | 查询输出 LiveTarget，伤害输出历史 DamageResult |
 | 传统投射物/召唤 | `Delivery.ActorProjectiles`、`Spawn.Summon` | 原投射物类、散射/追踪和召唤点/间隔共用实现 |
 | 传统近战/Nova/碎片 | `Melee.Contact`、`Shape.ArcaneNova`、`Shape.ArcaneShards` | 近战/碎片保留动画前端；Nova 是服务端即时 Commit 后执行，不等待蒙太奇 Notify；各自保留原费用与结束时点 |
 | 闪电/环绕 | `Channel.Electrocute`、`Channel.OrbitingFireBolts` | 策略管理目标、计时、费用和句柄，GA 管理输入与激活 |
 | 角色/武器/敌人 | `Combat.CharacterStrike`、`Delivery.WeaponProjectile`、`Combat.TelegraphedContact` | 显式保留剑盾、Stander、武器、怪物的几何/伤害/房间差异 |
-| 格挡 | `Status.GuardWindow` | 每次执行持有自己的 GE 句柄，结束只撤销该句柄 |
+| 格挡 | `Status.GuardWindow` | 每次执行持有自己的 GE 句柄，结束只撤销该句柄；可选 `Parry` 通过共享组件提供起手弹反，成功延迟发布 `Parried: Origin`，时间奖励使用同一世界租约服务 |
 | 武器位移 | `Movement.Character` | GroundDash/WeaponArc 共用原地面、坡度、房间和碰撞扫掠；动画宿主仍提供动作进度 |
+| 固有翻滚/完美闪避 | `Defense.PerfectDodge` | `Origin`输入，共享`UPerfectDodgeComponent`；`PerfectDodged: Origin`非终结，`Completed: Origin`终结；奖励租约由组件持有，未提供攻击者载荷/奖励图 |
+| 世界减速 | `Time.WorldSlow` | `Origin`输入和终结`Completed: Origin`；共享`UAbilityWorldTimeSubsystem`租约，动作实时时钟冻结暂停；外部撤销走取消，Stop仅释放本节点请求 |
 | 弹弓/萨满召唤 | `Delivery.EnemySling`、`Spawn.ShamanMinions` | 共用原投射物发射、导航落点、召唤归属和召唤物死亡回收 |
 | Grux/蘑菇专属 | `Move.GruxCharge`、`Status.GruxRoarArmor`、`Field.ShroomSpore` | 共用冲锋扫掠去重、护甲与孢子周期，独立图入口管理预警/作用阶段 |
 | 通用 GE 与属性监听 | `Effect.GameplayEffect`、`Status.OwnedEffect` | 保留 Spec 等级和 SetByCaller；持久状态只撤销自己的非合并句柄 |
@@ -52,6 +55,8 @@
 | 快照转活目标 | `Target.ResolveImpact`、`Target.ResolveDamageTarget` | 重新验证原生命令牌，禁止重新捕获已复用 Actor 的新生命 |
 
 旧 DA 仍可调参，原引用关系仍有其校验规则。跨族扩展写入 Schema 2 图，不把第五批指针硬填进旧 `OnHit`。`UAbilityLegacyNodeConfig.Parameters` 是行为参数快照，`PresentationParameters` 是稳定原资产引用；后者供复制表现使用，禁止复制临时参数 UObject。
+
+上述防御/时间节点首版限定Standalone，要求有效`SourceToken`；翻滚GA与防御节点调用同一组件，独立世界减速GA运行同一时间节点，不嵌套激活完整GA。默认Startup、独立服务调用、补偿范围、Mass身体命中限制及待验收项见[完美闪避与世界时间服务指南](perfect-dodge-and-world-time-guide.md)。
 
 ## 一次施法的调用顺序
 
@@ -75,7 +80,13 @@ Stander/武器宿主在事件到达时通过 `DispatchExecutionAction` 调用共
 
 格挡后的反击仍由原前端播放反击蒙太奇，在真实命中时间调用 `Combat.CharacterStrike`。把 `Status.GuardWindow` 的格挡事件直接接到伤害节点会立即结算，不会自动得到该反击动画和接触窗口；新图若需要相同表现，必须由动画前端在对应事件恢复后续动作。
 
+标准玩家的初始格挡与 11 套现有武器 RMB Guard 已显式开启弹反：前 0.15 动作秒拦截接触，反射普通/Sling 弹体或眩晕近战攻击者，并请求独立世界减速奖励。每个 Guard 最多尝试一次奖励，已有慢速和奖励间隔阻止刷新；赢得的时间租约独立于格挡结束，来源生命失效才提前释放。`Parried` 不携带攻击者活目标权限；窗口、弹体归属、Mass 控制、Standalone 时间奖励及验证边界见[格挡弹反指南](guard-parry-guide.md)。
+
 ## 来源、目标和网络
+
+2026-11-16 新增[暗金装备规则](2026-11-16-unique-equipment-guide.md)：`Delivery.ActorProjectiles` 与 `Combat.CharacterStrike` 可通过配置中的 `EquipmentAbilityTag` 精确选择装备修正，默认空值维持原行为。FireBolt与Stander武器动作前端传实际技能身份；现有共享动作在服务器生成本次局部快照，应用额外弹数/伤害倍率或近战元素转换，不重新激活GA、不改共享DA/CDO或原费用。规则由装备独立GE持有，卸装影响下次动作，已发射弹体保留其快照。
+
+奥术新星、奥术碎片和闪电引导的节点也接入 `EquipmentAbilityTag`。它们在启动时使用 `ApplySpellRules` 解析精确技能或已登记系列，冻结本次范围、伤害和雷链预算。接触动作可通过原角色多播播放有期限的周身效果。 [制作、分类与验证](unique-equipment-production-workflow.md#法术系列与周身特效)
 
 `FAbilitySourceToken` 保存弱 World、Avatar、ASC、可选 RunId 与敌人 Lease。`FAbilityTargetToken` 保存 Actor 弱身份/Lease，或 Mass 实际 EntityHandle/查询 ID/World。服务器捕获，异步恢复前重新解析；客户端不能提交自报的租约或实体身份作为可信凭据。
 

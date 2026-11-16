@@ -7,6 +7,7 @@
  * - test_25d.Roguelike.Pool.PerformanceReport
  * - test_25d.Roguelike.Pool.BlackboardLeaseIsolation
  * - test_25d.Roguelike.Pool.RealBlueprintRagdollRestore
+ * - test_25d.Roguelike.Pool.RosterMeshBeforeFinishSpawning
  * - test_25d.Lifecycle.PoolOldCallback
  * 测试夹具与生产入口分离；此文件不由正常游戏 Tick 调用。
  */
@@ -30,6 +31,8 @@
 #include "Serialization/JsonReader.h"
 #include "AI/MyAIController.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -37,6 +40,76 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Float.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonRosterMeshTest, "test_25d.Roguelike.Pool.RosterMeshBeforeFinishSpawning",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+// 读取实际地牢名单，覆盖普通怪、精英和 Boss 的延迟生成及可见挂件的插槽。
+bool FDungeonRosterMeshTest::RunTest(const FString&)
+{
+    FEditorScriptExecutionGuard Guard;
+    const auto* Profile = LoadObject<UDungeonRunProfile>(
+        nullptr, TEXT("/Game/RoguelikeGeneration/Gameplay/DA_DungeonGameplay.DA_DungeonGameplay"));
+    if (!TestNotNull(TEXT("Dungeon run profile"), Profile))
+    {
+        return false;
+    }
+
+    TSet<UClass*> Classes;
+    auto AddClass = [this, &Classes](const TSoftClassPtr<AEnemyCharacter>& Reference)
+    {
+        if (UClass* Class = Reference.LoadSynchronous();
+            TestNotNull(*FString::Printf(TEXT("Loaded enemy class %s"), *Reference.ToString()), Class))
+        {
+            Classes.Add(Class);
+        }
+    };
+    AddClass(Profile->EliteClass);
+    AddClass(Profile->BossClass);
+    for (const FDungeonNormalEnemy& Entry : Profile->NormalRoster)
+    {
+        AddClass(Entry.EnemyClass);
+    }
+    if (Profile->NormalRoster.IsEmpty() && !Profile->NormalClass.IsNull())
+    {
+        AddClass(Profile->NormalClass);
+    }
+
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    for (UClass* Class : Classes)
+    {
+        const FString Name = Class->GetName();
+        const FTransform Transform = FTransform::Identity;
+        auto* Enemy = World->SpawnActorDeferred<AEnemyCharacter>(
+            Class, Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+        if (!TestNotNull(*Name, Enemy))
+        {
+            continue;
+        }
+
+        // 这时武器组件已注册，FinishSpawning 里再赋值无法防止首次插槽查询报错。
+        TestNotNull(*FString::Printf(TEXT("%s body mesh at registration"), *Name),
+                    Enemy->GetMesh()->GetSkeletalMeshAsset());
+        Enemy->FinishSpawning(Transform);
+        for (const USceneComponent* Child : Enemy->GetMesh()->GetAttachChildren())
+        {
+            const auto* Skeletal = Cast<USkeletalMeshComponent>(Child);
+            const auto* Static = Cast<UStaticMeshComponent>(Child);
+            const bool bHasAsset = (Skeletal && Skeletal->GetSkeletalMeshAsset()) || (Static && Static->GetStaticMesh());
+            if (bHasAsset && !Child->GetAttachSocketName().IsNone())
+            {
+                TestTrue(*FString::Printf(TEXT("%s attachment %s socket %s exists"), *Name, *Child->GetName(),
+                                          *Child->GetAttachSocketName().ToString()),
+                         Enemy->GetMesh()->DoesSocketExist(Child->GetAttachSocketName()));
+            }
+        }
+        Enemy->Destroy();
+    }
+    AddInfo(FString::Printf(TEXT("Checked %d distinct dungeon enemy classes"), Classes.Num()));
+    GEngine->DestroyWorldContext(World);
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDungeonPooledDeathTest, "test_25d.Roguelike.Pool.DeathDoesNotDestroy",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 /** 执行 test_25d.Roguelike.Pool.DeathDoesNotDestroy 回归，失败信息由下方断言交给自动化框架收集。 */

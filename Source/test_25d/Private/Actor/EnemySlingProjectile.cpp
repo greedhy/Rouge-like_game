@@ -1,3 +1,4 @@
+// 调用链：投石GA/图发射 -> 当前生命与墙面预扫 -> 基础接触弹反/伤害 -> 原终结表现或新归属寿命。
 #include "Actor/EnemySlingProjectile.h"
 #include "Character/EnemyCharacter.h"
 #include "Roguelike/DungeonRunDirector.h"
@@ -33,8 +34,23 @@ void AEnemySlingProjectile::InitializeSource(AEnemyCharacter* Source)
 }
 bool AEnemySlingProjectile::IsSourceCurrent() const
 {
+    if (HasBeenParryReflected())
+    {
+        AActor* Source = nullptr;
+        return ResolveExecutionSource(Source);
+    }
     return FiringEnemy.IsValid() && !FiringEnemy->IsActorBeingDestroyed() && !FiringEnemy->IsDead_Implementation() &&
            !FiringEnemy->IsDungeonPoolSleeping() && FiringEnemy->GetDungeonPoolLease() == FiringLease;
+}
+void AEnemySlingProjectile::OnParrySourceTransferred(AActor* PreviousSource)
+{
+    if (FiringEnemy.IsValid())
+    {
+        FiringEnemy->GetOnDeathDelegate().RemoveDynamic(this, &ThisClass::SourceDied);
+    }
+    FiringEnemy.Reset();
+    FiringLease = 0;
+    Super::OnParrySourceTransferred(PreviousSource);
 }
 bool AEnemySlingProjectile::IsValidOverlap(AActor* OtherActor)
 {
@@ -42,7 +58,7 @@ bool AEnemySlingProjectile::IsValidOverlap(AActor* OtherActor)
         return false;
     if (OtherActor->Implements<UCombatInterface>())
         return !ICombatInterface::Execute_IsDead(OtherActor) &&
-               ADungeonRunDirector::AllowsCombat(FiringEnemy.Get(), OtherActor);
+               ADungeonRunDirector::AllowsCombat(HasBeenParryReflected() ? GetOwner() : FiringEnemy.Get(), OtherActor);
     return true; // Geometry terminates the rock through the existing projectile collision path.
 }
 void AEnemySlingProjectile::Tick(float Dt)
@@ -58,7 +74,7 @@ void AEnemySlingProjectile::Tick(float Dt)
     // Default level geometry ignores the custom Projectile channel. Object sweeps
     // enforce the promised wall boundary without changing project collision profiles.
     FCollisionQueryParams Params(SCENE_QUERY_STAT(EnemySlingWall), false, this);
-    Params.AddIgnoredActor(FiringEnemy.Get());
+    Params.AddIgnoredActor(HasBeenParryReflected() ? GetOwner() : FiringEnemy.Get());
     FHitResult Hit;
     if (GetWorld()->SweepSingleByObjectType(Hit, GetActorLocation(),
                                             GetActorLocation() + ProjectileMovement->Velocity * Dt, FQuat::Identity,
@@ -68,9 +84,13 @@ void AEnemySlingProjectile::Tick(float Dt)
         // Sweep normally up to the wall first, so a closer player receives its overlap
         // before the terminal wall impact, even on a long frame.
         FHitResult MovementHit;
+        const bool bWasReflected = HasBeenParryReflected();
         Sphere->MoveComponent(Hit.Location - GetActorLocation(), GetActorQuat(), true, &MovementHit);
-        if (!IsActorBeingDestroyed())
+        // 重叠可能同步弹反并改向；此时原方向预扫到的墙已不属于当前飞行段。
+        if (!IsActorBeingDestroyed() && bWasReflected == HasBeenParryReflected())
+        {
             WorldStopped(Hit);
+        }
     }
 }
 void AEnemySlingProjectile::SourceDied(AActor*)
@@ -97,7 +117,12 @@ void AEnemySlingProjectile::WorldStopped(const FHitResult&)
     if (HasAuthority())
     {
         if (IsSourceCurrent())
+        {
+            // 本帧预扫掠可能已穿过见证体并立即抵达墙面；销毁前提交实际移动末段。
+            // 不使用预计终点，也不等待下一Tick，保留原世界碰撞的一次表现与销毁顺序。
+            ObserveTraveledDodgeSegment();
             OnHit();
+        }
         Destroy();
     }
 }

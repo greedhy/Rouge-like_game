@@ -24,14 +24,205 @@
 #include "UI/Widget/MyUserWidget.h"
 #include "UI/Widget/BackpackWidget.h"
 #include "UI/Widget/EquipmentPanel.h"
+#include "UI/HUD/MyHUD.h"
 #include "Equipment/EquipmentComponent.h"
 #include "Equipment/EquipmentSoulPickup.h"
 #include "EngineUtils.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
+#include "GameFramework/PlayerInput.h"
+#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "InputKeyEventArgs.h"
 #include "Components/SphereComponent.h"
 #include "UI/ViewModel/MVVM_Backpack.h"
 #include "test_25d/test_25d.h"
 #include "TimerManager.h"
 #include "UI/Widget/DamageNumberPool.h"
+
+namespace
+{
+    bool IsMenuMouseButton(const FKey& Key)
+    {
+        return Key == EKeys::LeftMouseButton || Key == EKeys::RightMouseButton;
+    }
+
+    // 控件点击可以取得 Slate 焦点。仅当焦点在本玩家的菜单内时，把键盘事件送回游戏视口。
+    class FGameplayMenuKeyboardRouting final : public IInputProcessor
+    {
+    public:
+        FGameplayMenuKeyboardRouting(AMyPlayerController& InOwner,
+                                     const TArray<TWeakObjectPtr<UUserWidget>>& InMenus)
+            : Owner(&InOwner), Menus(InMenus)
+        {
+        }
+
+        virtual void Tick(float, FSlateApplication&, TSharedRef<ICursor>) override
+        {
+        }
+
+        virtual bool HandleKeyDownEvent(FSlateApplication&, const FKeyEvent& Event) override
+        {
+            return Route(Event, Event.IsRepeat() ? IE_Repeat : IE_Pressed);
+        }
+
+        virtual bool HandleKeyUpEvent(FSlateApplication&, const FKeyEvent& Event) override
+        {
+            return Route(Event, IE_Released);
+        }
+
+    private:
+        bool Route(const FKeyEvent& Event, EInputEvent Type) const
+        {
+            const FKey Key = Event.GetKey();
+            if (!Owner.IsValid() || Key.IsMouseButton() || Key.IsGamepadKey() || Key.IsTouch())
+            {
+                return false;
+            }
+
+            ULocalPlayer* Player = Owner->GetLocalPlayer();
+            UGameViewportClient* Viewport = Player ? Player->ViewportClient.Get() : nullptr;
+            const TSharedPtr<FSlateUser> User = Player ? Player->GetSlateUser() : nullptr;
+            if (!User || User->GetUserIndex() != Event.GetUserIndex() || !Viewport || !Viewport->Viewport)
+            {
+                return false;
+            }
+
+            const FWeakWidgetPath& Focus = User->GetWeakFocusPath();
+            for (const TWeakObjectPtr<UUserWidget>& Entry : Menus)
+            {
+                const UUserWidget* Menu = Entry.Get();
+                if (Menu && Menu->IsInViewport() && Menu->IsVisible() &&
+                    Focus.ContainsWidget(Menu->GetCachedWidget().Get()))
+                {
+                    Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, Event.GetInputDeviceId(), Key, Type,
+                                                         Event.GetEventTimestamp()));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        TWeakObjectPtr<AMyPlayerController> Owner;
+        const TArray<TWeakObjectPtr<UUserWidget>>& Menus;
+    };
+}
+
+// 只拦 Slate 未消费的左右键按下。已进入 PlayerInput 的按键仍允许松开。
+bool AMyPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+    if (IsMenuMouseButton(Params.Key) && Params.Event != IE_Released && IsGameplayMenuVisible())
+    {
+        return true;
+    }
+    return Super::InputKey(Params);
+}
+
+bool AMyPlayerController::IsGameplayMenuVisible() const
+{
+    return bBackpackUIOpen || GameplayMenus.ContainsByPredicate(
+        [](const TWeakObjectPtr<UUserWidget>& Entry)
+        {
+            const UUserWidget* Menu = Entry.Get();
+            return Menu && Menu->IsInViewport() && Menu->IsVisible();
+        });
+}
+
+bool AMyPlayerController::IsMenuMouseAbility(FGameplayTag InputTag) const
+{
+    const auto& InputTags = FMyGameplayTags::Get();
+    return IsGameplayMenuVisible() && (InputTag == InputTags.InputTag_LMB || InputTag == InputTags.InputTag_RMB);
+}
+
+// 注册控件范围。打开菜单时释放游戏侧已经按住的鼠标，避免 UMG 吃掉松开事件后技能卡住。
+void AMyPlayerController::RegisterGameplayMenu(UUserWidget* Menu)
+{
+    if (!IsLocalController() || !IsValid(Menu) || GameplayMenus.Contains(Menu))
+    {
+        return;
+    }
+    const bool bFirstMenu = GameplayMenus.IsEmpty();
+    GameplayMenus.Add(Menu);
+    if (!MenuKeyboardRouting && FSlateApplication::IsInitialized())
+    {
+        MenuKeyboardRouting = MakeShared<FGameplayMenuKeyboardRouting>(*this, GameplayMenus);
+        FSlateApplication::Get().RegisterInputPreProcessor(MenuKeyboardRouting);
+    }
+    if (bFirstMenu)
+    {
+        ReleaseGameplayMouseButtons();
+        ApplyGameplayInputMode();
+        if (ULocalPlayer* LocalPlayer = GetLocalPlayer(); LocalPlayer && FSlateApplication::IsInitialized())
+        {
+            if (const TSharedPtr<FSlateUser> User = LocalPlayer->GetSlateUser())
+            {
+                FSlateApplication::Get().SetUserFocusToGameViewport(User->GetUserIndex());
+            }
+        }
+    }
+}
+
+void AMyPlayerController::UnregisterGameplayMenu(UUserWidget* Menu)
+{
+    const bool bWasRegistered = GameplayMenus.Contains(Menu);
+    GameplayMenus.RemoveAll(
+        [Menu](const TWeakObjectPtr<UUserWidget>& Entry)
+        {
+            return !Entry.IsValid() || Entry.Get() == Menu;
+        });
+    if (GameplayMenus.IsEmpty())
+    {
+        RemoveMenuKeyboardRouting();
+    }
+    if (bWasRegistered && IsValid(Menu) && FSlateApplication::IsInitialized())
+    {
+        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+        {
+            const TSharedPtr<FSlateUser> User = LocalPlayer->GetSlateUser();
+            if (User && User->GetWeakFocusPath().ContainsWidget(Menu->GetCachedWidget().Get()))
+            {
+                FSlateApplication::Get().SetUserFocusToGameViewport(User->GetUserIndex());
+            }
+        }
+    }
+}
+
+void AMyPlayerController::RemoveMenuKeyboardRouting()
+{
+    if (MenuKeyboardRouting && FSlateApplication::IsInitialized())
+    {
+        FSlateApplication::Get().UnregisterInputPreProcessor(MenuKeyboardRouting);
+    }
+    MenuKeyboardRouting.Reset();
+}
+
+void AMyPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (ObservedBackpack.IsValid())
+    {
+        ObservedBackpack->OnSlotClicked.Remove(BackpackClickHandle);
+    }
+    RemoveMenuKeyboardRouting();
+    GameplayMenus.Reset();
+    Super::EndPlay(EndPlayReason);
+}
+
+void AMyPlayerController::ReleaseGameplayMouseButtons()
+{
+    if (PlayerInput)
+    {
+        const auto Device = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(GetPlatformUserId());
+        for (const FKey& Key : {EKeys::LeftMouseButton, EKeys::RightMouseButton})
+        {
+            if (IsInputKeyDown(Key))
+            {
+                PlayerInput->InputKey(FInputKeyEventArgs(nullptr, Device, Key, IE_Released, FPlatformTime::Cycles64()));
+            }
+        }
+    }
+}
 
 // 启用复制并创建导航样条与光标目标初始状态。
 AMyPlayerController::AMyPlayerController()
@@ -139,7 +330,7 @@ void AMyPlayerController::ToggleBackpackUI()
         OpenBackpackUI();
 }
 
-// 创建背包并绑定视图模型与装备面板；首帧布局完成后显示，避免模板闪烁。
+// 创建背包并绑定视图模型；首帧布局完成后显示，避免模板闪烁。
 void AMyPlayerController::OpenBackpackUI()
 {
     if (!IsLocalController() || !BackpackWidgetClass)
@@ -167,21 +358,22 @@ void AMyPlayerController::OpenBackpackUI()
             }
         }
     }
-    // 等待下一帧布局完成才显示背包，装备面板共用同一个背包视图模型。
+    // 等待下一帧布局完成才显示背包，人物装备页共用同一个背包视图模型。
     BackpackWidget->SetRenderOpacity(0.f);
     BackpackWidget->AddToViewport();
     if (auto* State = GetPlayerState<AMyPlayerState>())
     {
         auto* Bag = State->GetBackpackComponent();
         Bag->Initialize();
-        if (!EquipmentWidget)
-            EquipmentWidget = CreateWidget<UEquipmentPanel>(this, UEquipmentPanel::StaticClass());
-        EquipmentWidget->InitializeEquipment(State->GetEquipmentComponent(), Bag->InventoryVM, Bag->InventoryModel);
-        EquipmentWidget->SetDesiredSizeInViewport(FVector2D(350, 520));
-        EquipmentWidget->SetPositionInViewport(FVector2D(28.f, 0.f), false);
-        EquipmentWidget->SetAnchorsInViewport(FAnchors(0.f, .5f));
-        EquipmentWidget->SetAlignmentInViewport(FVector2D(0.f, .5f));
-        EquipmentWidget->AddToViewport(20);
+        if (ObservedBackpack.Get() != Bag->InventoryVM)
+        {
+            if (ObservedBackpack.IsValid())
+            {
+                ObservedBackpack->OnSlotClicked.Remove(BackpackClickHandle);
+            }
+            ObservedBackpack = Bag->InventoryVM;
+            BackpackClickHandle = Bag->InventoryVM->OnSlotClicked.AddUObject(this, &ThisClass::ShowSelectedBackpackEquipment);
+        }
     }
     bBackpackUIOpen = true;
     BackpackWidget->ForceLayoutPrepass();
@@ -194,26 +386,38 @@ void AMyPlayerController::OpenBackpackUI()
                                                  BackpackWidget->SetRenderOpacity(1.f);
                                              }
                                          }));
-    bShowMouseCursor = true;
-    FInputModeGameAndUI InputMode;
-    InputMode.SetWidgetToFocus(BackpackWidget->TakeWidget());
-    InputMode.SetHideCursorDuringCapture(false);
-    SetInputMode(InputMode);
+    RegisterGameplayMenu(BackpackWidget);
 }
 
-// 移除背包和装备面板，恢复游戏与界面输入模式。
+// 只有主动点选可装备物品时才切换到人物窗口，快照更新不会打断当前页面。
+void AMyPlayerController::ShowSelectedBackpackEquipment()
+{
+    AMyPlayerState* State = GetPlayerState<AMyPlayerState>();
+    AMyHUD* HUD = GetHUD<AMyHUD>();
+    if (!bBackpackUIOpen || !State || !HUD || !ObservedBackpack.IsValid())
+    {
+        return;
+    }
+    const int32 Index = ObservedBackpack->GetCurrentSelectedIndex();
+    const UInventoryModel* Inventory = State->GetBackpackComponent()->InventoryModel;
+    for (const FGameplayTag& Slot : State->GetEquipmentComponent()->AvailableSlots)
+    {
+        if (UEquipmentPanel::CanEquipToSlot(Inventory, Index, Slot))
+        {
+            HUD->ShowCharacterMenu(1);
+            return;
+        }
+    }
+}
+
+// 只解除背包输入注册，人物窗口可独立保持打开。
 void AMyPlayerController::CloseBackpackUI()
 {
     if (!IsLocalController() || !IsValid(BackpackWidget))
         return;
+    UnregisterGameplayMenu(BackpackWidget);
     BackpackWidget->RemoveFromParent();
-    if (EquipmentWidget)
-        EquipmentWidget->RemoveFromParent();
     bBackpackUIOpen = false;
-    bShowMouseCursor = true;
-    FInputModeGameAndUI InputMode;
-    InputMode.SetHideCursorDuringCapture(false);
-    SetInputMode(InputMode);
 }
 
 // 服务器将槽位交换请求交给背包组件，并记录结果。
@@ -286,6 +490,12 @@ void AMyPlayerController::InitializeLocalInput()
         ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
     if (Subsystem)
         Subsystem->AddMappingContext(PlayerContext, 0);
+    ApplyGameplayInputMode();
+}
+
+// 光标可操作 UMG，未被 UI 消费的事件仍进入游戏输入。
+void AMyPlayerController::ApplyGameplayInputMode()
+{
     bShowMouseCursor = true;
     DefaultMouseCursor = EMouseCursor::Default;
     FInputModeGameAndUI InputModeData;
@@ -306,11 +516,10 @@ void AMyPlayerController::SetupInputComponent()
                                          &ThisClass::AbilityInputTagReleased, &ThisClass::AbilityInputTagHeld);
 }
 
-// 在背包和状态门禁允许时，将二维输入转换为控制器朝向的移动向量。
+// 在角色状态允许时，将二维输入转换为控制器朝向的移动向量。
 void AMyPlayerController::Move(const FInputActionValue& InputActionValue)
 {
-    if (IsBackpackUIOpen() ||
-        (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed)))
+    if (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))
     {
         return;
     }
@@ -372,7 +581,7 @@ void AMyPlayerController::AbilityInputTagPressed(FGameplayTag InputTag)
         ToggleBackpackUI();
         return;
     }
-    if (IsBackpackUIOpen() ||
+    if (IsMenuMouseAbility(InputTag) ||
         (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed)))
         return;
     if (InputTag.MatchesTagExact(FMyGameplayTags::Get().InputTag_Pickup))
@@ -453,10 +662,10 @@ void AMyPlayerController::AbilityInputTagReleased(FGameplayTag InputTag)
         GetASC()->AbilityInputTagReleased(InputTag);
 }
 
-// 持续输入通过背包和状态门禁后交给能力系统。
+// 持续输入通过鼠标菜单和角色状态门禁后交给能力系统。
 void AMyPlayerController::AbilityInputTagHeld(FGameplayTag InputTag)
 {
-    if (IsBackpackUIOpen() ||
+    if (IsMenuMouseAbility(InputTag) ||
         (GetASC() && GetASC()->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputHeld)))
         return;
     if (GetASC())

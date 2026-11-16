@@ -21,7 +21,8 @@ public:
     /** 新制作入口传完整类型化输入，复用同一执行器；本任务只接受绑定GA的寿命。 */
     static UAbilityTask_RunGraph* RunAbilityGraphWithInput(UGameplayAbility* Owner, UAbilityGraphDefinition* Graph,
                                                            const FAbilityNodeInput& Input,
-                                                           const FAbilityExecutionOptions& Options);
+                                                           const FAbilityExecutionOptions& Options,
+                                                           bool bMeasureElapsedWorldTime = false);
     UPROPERTY(BlueprintAssignable)
     FAbilityGraphTaskFinished OnFinished;
     /** 权威端启动独立实例；验证失败也广播取消，让 GA 释放占用。 */
@@ -53,5 +54,7 @@ private:
     FDamageEffectParams RetainedDamageParams;
     FAbilityNodeInput NodeInput;
     FAbilityExecutionOptions ExecutionOptions;
+    TOptional<double> PreviousWorldTime;
+    bool bMeasureElapsedWorldTime = false;
     bool bClosing = false;
 };

@@ -15,6 +15,8 @@
 #include "Player/StanderCombatConfig.h"
 #include "PureMass/PureMassCombatTarget.h"
 #include "PureMass/PureMassIncomingDamageEffect.h"
+#include "AbilitySystem/Defense/PerfectDodgeComponent.h"
+#include "Equipment/EquipmentMeleeModifiers.h"
 
 namespace
 {
@@ -75,10 +77,24 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
     {
         return;
     }
+    // 在本次接触动作开始时冻结装备规则，目标循环内换装不会让同次挥击出现两种伤害。
+    FEquipmentMeleeSnapshot EquipmentSnapshot;
+    EquipmentSnapshot.Damage = Settings.Strike.Damage;
+    EquipmentSnapshot.DamageType = Damage.DamageType;
+    EquipmentSnapshot.HitEffect = Settings.HitEffect;
+    if (!EquipmentMeleeModifiers::Resolve(Source.ASC.Get(), Settings.EquipmentAbilityTag, EquipmentSnapshot))
+    {
+        return;
+    }
     auto* VisualSource = Cast<ASwordShieldPlayer>(Avatar);
     if (VisualSource && Settings.SwingEffect)
     {
         VisualSource->ShowSwordImpact(Settings.SwingEffect, Origin + Forward * Settings.SwingOffset);
+    }
+    if (VisualSource && EquipmentSnapshot.BodyEffect)
+    {
+        // 配装表现属于挥击源，目标循环以前只广播一次，因此挥空时也能看到。
+        VisualSource->ShowEquipmentBodyEffect(EquipmentSnapshot.BodyEffect, EquipmentSnapshot.BodyEffectDuration);
     }
     TArray<FPureMassCombatTarget> Candidates;
     if (Settings.Profile == EAbilityCharacterStrikeProfile::SwordShieldActor)
@@ -160,7 +176,8 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
             continue;
         }
         auto Params = TargetParams(Damage, Avatar, Location);
-        Params.BaseDamage = Settings.Strike.Damage;
+        Params.BaseDamage = EquipmentSnapshot.Damage;
+        Params.DamageType = EquipmentSnapshot.DamageType;
         if (Settings.Profile != EAbilityCharacterStrikeProfile::SwordShieldActor)
         {
             FVector ImpulseForward = Forward;
@@ -181,9 +198,9 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
         }
         const auto Result = AbilityDamageService::Apply(Source, Target, Params);
         const bool bApplied = Target.Target.IsActor() ? Result.bAttempted : Result.ActualDamage.Get(0.f) > 0.f;
-        if (bApplied && Current(Source, Callbacks, Avatar) && VisualSource && Settings.HitEffect)
+        if (bApplied && Current(Source, Callbacks, Avatar) && VisualSource && EquipmentSnapshot.HitEffect)
         {
-            VisualSource->ShowSwordImpact(Settings.HitEffect, Location);
+            VisualSource->ShowSwordImpact(EquipmentSnapshot.HitEffect, Location);
         }
         if (Callbacks.AfterDamage && !Callbacks.AfterDamage(Target, Location, Result))
         {
@@ -255,10 +272,13 @@ AStanderWeaponProjectile* AbilityCharacterActions::SpawnWeaponProjectile(const F
     return Projectile;
 }
 
-FActiveGameplayEffectHandle AbilityCharacterActions::OpenGuardWindow(const FAbilitySourceToken& Source, float Duration)
+FActiveGameplayEffectHandle AbilityCharacterActions::OpenGuardWindow(const FAbilitySourceToken& Source, float Duration,
+                                                                     const FGuardParrySettings& Parry)
 {
     AActor* Avatar = nullptr;
-    if (!FMath::IsFinite(Duration) || !AbilityExecutionIdentity::ResolveSource(Source, Avatar))
+    FString Error;
+    if (!FMath::IsFinite(Duration) || (Parry.bEnabled && !Parry.Validate(Error)) ||
+        !AbilityExecutionIdentity::ResolveSource(Source, Avatar))
     {
         return {};
     }
@@ -271,7 +291,15 @@ FActiveGameplayEffectHandle AbilityCharacterActions::OpenGuardWindow(const FAbil
     {
         Spec.Data->SetDuration(Duration, true);
     }
-    return Source.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+    const auto Handle = Source.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+    if (Parry.bEnabled)
+    {
+        if (auto* Component = UGuardParryComponent::FindOrCreate(Avatar))
+        {
+            Component->Open(Source, Handle, Parry);
+        }
+    }
+    return Handle;
 }
 
 void AbilityCharacterActions::CloseGuardWindow(UAbilitySystemComponent* ASC, FActiveGameplayEffectHandle& Handle)
@@ -300,11 +328,37 @@ bool AbilityCharacterActions::IsBlockedDamage(const FGameplayEffectSpec& Spec)
     return false;
 }
 
-void AbilityCharacterActions::GatherTelegraphedTargets(const FAbilitySourceToken& Source,
+void AbilityCharacterActions::ObserveTelegraphedAttack(const FAbilitySourceToken& Source,
                                                        const FStoneGolemAttackTuning& Shape, const FVector& Center,
                                                        float Yaw, const TArray<FVector>& Surface,
                                                        const TArray<int32>& Triangles, AActor* SelectedTarget,
-                                                       TArray<AActor*>& Out)
+                                                       FGuid AttackId)
+{
+    AActor* Avatar = nullptr;
+    if (!AttackId.IsValid() || !AbilityExecutionIdentity::ResolveSource(Source, Avatar))
+    {
+        return;
+    }
+    // 复用锁定地面/形状/高度/墙体；起点只做见证，不进入Out，不在旧位置产生伤害。
+    if (!Shape.bSingleTarget || SelectedTarget)
+    {
+        UPerfectDodgeComponent::ObserveActorAttack(Source, AttackId, Center + FVector(0, 0, 25),
+            [&](const FVector& Witness, float, float HalfHeight)
+            {
+                const FVector Feet = Witness - FVector(0, 0, HalfHeight);
+                FVector Ground;
+                return Shape.Contains(Center, Yaw, Feet) &&
+                    StoneGolemGeometry::SurfaceContains(Surface, Triangles, Feet) &&
+                    StoneGolemGeometry::Project(Source.World.Get(), Avatar, FVector(Feet.X, Feet.Y, Center.Z),
+                        Shape.HeightTolerance, Ground) && FMath::Abs(Feet.Z - Ground.Z) <= Shape.HeightTolerance &&
+                    StoneGolemGeometry::Visible(Source.World.Get(), Avatar, Center, Ground);
+            }, Shape.bSingleTarget ? SelectedTarget : nullptr);
+    }
+}
+
+void AbilityCharacterActions::GatherTelegraphedTargets(const FAbilitySourceToken& Source,
+    const FStoneGolemAttackTuning& Shape, const FVector& Center, float Yaw, const TArray<FVector>& Surface,
+    const TArray<int32>& Triangles, AActor* SelectedTarget, TArray<AActor*>& Out)
 {
     Out.Reset();
     AActor* Avatar = nullptr;
@@ -347,7 +401,7 @@ void AbilityCharacterActions::ApplyTelegraphedTargets(const FAbilitySourceToken&
                                                       const FDamageEffectParams& Damage,
                                                       const FStoneGolemAttackTuning& Shape,
                                                       const TArray<AActor*>& Targets,
-                                                      const FAbilityCharacterActionCallbacks& Callbacks)
+                                                      const FAbilityCharacterActionCallbacks& Callbacks, FGuid AttackId)
 {
     TArray<FAbilityTargetToken> Captured;
     FString Error;
@@ -378,6 +432,14 @@ void AbilityCharacterActions::ApplyTelegraphedTargets(const FAbilitySourceToken&
             return;
         }
         if (!AbilityExecutionIdentity::ResolveTarget(Source, Target, Location))
+        {
+            continue;
+        }
+        if (AttackId.IsValid() && UPerfectDodgeComponent::TryDodgeActorHit(Target.Target.Actor.Get(), Source, AttackId))
+        {
+            continue;
+        }
+        if (AttackId.IsValid() && UGuardParryComponent::TryParryMelee(Target.Target.Actor.Get(), Source, AttackId))
         {
             continue;
         }
@@ -413,7 +475,7 @@ bool UAbilityGuardWindowNodeConfig::Validate(FString& Error) const
     {
         Error = TEXT("Guard window requires a finite positive duration.");
     }
-    return Error.IsEmpty();
+    return Error.IsEmpty() && (!Parry.bEnabled || Parry.Validate(Error));
 }
 
 bool UAbilityTelegraphedContactNodeConfig::Validate(FString& Error) const
@@ -529,14 +591,27 @@ bool UAbilityGuardWindowNodeExecution::Start(UAbilityGraphInstance& Owner, const
     const auto& Settings = *CastChecked<UAbilityGuardWindowNodeConfig>(&Config);
     Remaining = Settings.Duration;
     bCloseOnBlock = Settings.bCloseOnBlock;
-    Guard = AbilityCharacterActions::OpenGuardWindow(Input.SourceToken);
+    Guard = AbilityCharacterActions::OpenGuardWindow(Input.SourceToken, -1.f, Settings.Parry);
     if (!Guard.IsValid())
     {
         Error = TEXT("Guard effect could not be applied to the source ASC.");
         return false;
     }
     Listener = Input.SourceToken.ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ThisClass::GuardHit);
+    if (auto* Component = Input.SourceToken.Avatar->FindComponentByClass<UGuardParryComponent>())
+    {
+        ParryListener = Component->OnParried.AddUObject(this, &ThisClass::Parried);
+    }
     return Owner.Publish(Id, TEXT("Opened"), Input);
+}
+
+void UAbilityGuardWindowNodeExecution::Parried(FActiveGameplayEffectHandle Effect)
+{
+    if (!bStopped && Guard.IsValid() && Guard == Effect)
+    {
+        // 不在攻击回调栈中执行图边，以免取消/换装使当前接触流程重入。
+        PendingParries = FMath::Min(PendingParries + 1, 64);
+    }
 }
 
 void UAbilityGuardWindowNodeExecution::GuardHit(UAbilitySystemComponent* ASC, const FGameplayEffectSpec& Spec,
@@ -579,6 +654,19 @@ void UAbilityGuardWindowNodeExecution::Advance(float Delta)
     {
         return;
     }
+    while (PendingParries > 0)
+    {
+        --PendingParries;
+        if (!Owner->Publish(InvocationId, TEXT("Parried"), Input) || bStopped || Owner->IsFinished())
+        {
+            return;
+        }
+        if (bCloseOnBlock)
+        {
+            Owner->Publish(InvocationId, TEXT("Completed"), Input);
+            return;
+        }
+    }
     if (bBlockPending)
     {
         bBlockPending = false;
@@ -602,14 +690,23 @@ void UAbilityGuardWindowNodeExecution::Advance(float Delta)
 void UAbilityGuardWindowNodeExecution::Stop(EAbilityGraphEndReason Reason)
 {
     Super::Stop(Reason);
+    if (auto* Avatar = Input.SourceToken.Avatar.Get())
+    {
+        if (auto* Component = Avatar->FindComponentByClass<UGuardParryComponent>())
+        {
+            Component->OnParried.Remove(ParryListener);
+        }
+    }
     if (auto* ASC = Input.SourceToken.ASC.Get())
     {
         ASC->OnGameplayEffectAppliedDelegateToSelf.Remove(Listener);
         AbilityCharacterActions::CloseGuardWindow(ASC, Guard);
     }
     Listener.Reset();
+    ParryListener.Reset();
     Guard.Invalidate();
     bBlockPending = false;
+    PendingParries = 0;
 }
 
 bool UAbilityTelegraphedContactNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
@@ -644,6 +741,8 @@ bool UAbilityTelegraphedContactNodeExecution::Start(UAbilityGraphInstance& Owner
         }
     }
     TArray<AActor*> Targets;
+    AbilityCharacterActions::ObserveTelegraphedAttack(Input.SourceToken, Settings.Shape, Input.Origin, Yaw,
+                                                      Surface, Triangles, Selected, Id);
     AbilityCharacterActions::GatherTelegraphedTargets(Input.SourceToken, Settings.Shape, Input.Origin, Yaw, Surface,
                                                       Triangles, Selected, Targets);
     FAbilityCharacterActionCallbacks Callbacks;
@@ -658,7 +757,7 @@ bool UAbilityTelegraphedContactNodeExecution::Start(UAbilityGraphInstance& Owner
                Owner.Publish(Id, TEXT("DamageResolved"), DamageOutput(Input, Target, Location, Result));
     };
     AbilityCharacterActions::ApplyTelegraphedTargets(Input.SourceToken, Input.DamageParams, Settings.Shape, Targets,
-                                                     Callbacks);
+                                                     Callbacks, Id);
     return bStopped || Owner.IsFinished() || Owner.Publish(Id, TEXT("Completed"), Input);
 }
 
@@ -686,6 +785,7 @@ void AbilityCharacterNodes::Register(FAbilityNodeRegistry& Registry)
     Guard.bIsAsync = true;
     Guard.Ports = {{TEXT("Opened"), EAbilityPortPayload::Origin, false},
                    {TEXT("Blocked"), EAbilityPortPayload::Origin, false},
+                   {TEXT("Parried"), EAbilityPortPayload::Origin, false},
                    {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
     auto Contact = Strike;
     Contact.TypeId = TEXT("Combat.TelegraphedContact");

@@ -65,13 +65,28 @@ bool FPlayerBasicInputTest::RunTest(const FString&)
         ASC->RemoveLooseGameplayTag(Tags.Player_Block_InputHeld);
         PC->bBackpackUIOpen = true;
         Held();
-        TestFalse(TEXT("Open backpack blocks combat"), ASC->FindAbilitySpecFromHandle(Handle)->IsActive());
-        PC->bBackpackUIOpen = false;
+        TestFalse(TEXT("Open backpack blocks mouse combat"), ASC->FindAbilitySpecFromHandle(Handle)->IsActive());
         if (Mass)
             CastChecked<APureMassPlayerController>(PC)->MoveMass(FInputActionValue(FVector2D(0, 1)));
         else
             PC->Move(FInputActionValue(FVector2D(0, 1)));
-        TestFalse(TEXT("Keyboard still requests movement"), Pawn->GetPendingMovementInputVector().IsNearlyZero());
+        TestFalse(TEXT("Keyboard requests movement while backpack is open"),
+                  Pawn->GetPendingMovementInputVector().IsNearlyZero());
+        FGameplayAbilitySpec KeyboardSpec(UDungeonPlayerRunTestTaggedAbility::StaticClass());
+        KeyboardSpec.GetDynamicSpecSourceTags().AddTag(Tags.InputTag_1);
+        const auto KeyboardHandle = ASC->GiveAbility(KeyboardSpec);
+        if (Mass)
+        {
+            CastChecked<APureMassPlayerController>(PC)->Held(Tags.InputTag_1);
+        }
+        else
+        {
+            PC->AbilityInputTagHeld(Tags.InputTag_1);
+        }
+        TestTrue(TEXT("Open backpack permits a keyboard ability"),
+                 ASC->FindAbilitySpecFromHandle(KeyboardHandle)->IsActive());
+        ASC->ClearAbility(KeyboardHandle);
+        PC->bBackpackUIOpen = false;
         ASC->ClearAbility(Handle);
         FGameplayAbilitySpec Toggle(UDungeonPlayerRunTestToggle::StaticClass());
         Toggle.GetDynamicSpecSourceTags().AddTag(Tags.InputTag_LMB);

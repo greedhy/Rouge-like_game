@@ -1,6 +1,5 @@
-/**
- * 分叉连锁链：GA ActivateAbility -> 鼠标目标任务 ReceiveTarget -> Commit -> Delivery.ForkedChain图策略的广度优先 Queue/Visited -> Actor GE 或 Mass 伤害 -> Presentation Actor。不是 Extension 子图递归。预算限制总目标/深度/兄弟数；结果段复制给客户端，表现 Actor 1.5 秒后销毁，本地组件重建时先回收旧组件。
- * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
+/** 调用链：GA 选点与 Commit -> RunGraph Task -> 叉状或逐跳策略 -> 共享伤害与复制光束。
+ *  源技能结束时 GAS 销毁任务并取消剩余跳跃，已出现的光束由其表现 Actor 到期清理。
  */
 #include "AbilitySystem/Batch6/Batch6ChainAbility.h"
 #include "PureMass/PureMassAbility.h"
@@ -18,7 +17,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "AbilitySystem/Unified/Nodes/AbilityBatch6NodeExecutions.h"
-#include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "AbilitySystem/Unified/AbilityTask_RunGraph.h"
 
 /** 构造始终相关的复制 Actor 并加载圆柱兜底网格，避免 Niagara 参数不兼容时无连线。 */
 ABatch6ChainPresentation::ABatch6ChainPresentation()
@@ -69,15 +68,22 @@ void ABatch6ChainPresentation::Present()
             PresentationComponents.Add(Cylinder);
         }
         if (BeamSystem)
-            if (auto* V = UNiagaraFunctionLibrary::SpawnSystemAttached(BeamSystem, GetRootComponent(), NAME_None,
-                                                                       S.Start, FRotator::ZeroRotator,
-                                                                       EAttachLocation::KeepWorldPosition, true))
+        {
+            if (auto* V = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                    BeamSystem, GetRootComponent(), NAME_None, S.Start, FRotator::ZeroRotator,
+                    EAttachLocation::KeepWorldPosition, true, false))
             {
+                // 先写入世界坐标，再激活 Niagara，避免首帧使用素材内置端点。
                 V->SetVariableVec3(TEXT("User.Start"), S.Start);
                 V->SetVariableVec3(TEXT("User.End"), S.End);
                 V->SetVariableVec3(TEXT("User.BeamEnd"), S.End);
+                V->SetVariableVec3(TEXT("BeamEnd"), S.End);
+                V->SetVariableVec3(TEXT("Beam Start"), S.Start);
+                V->SetVariableVec3(TEXT("Beam End"), S.End);
                 PresentationComponents.Add(V);
+                V->Activate(true);
             }
+        }
     }
 }
 /** 构造每 Actor 实例化、本地预测输入 GA，默认关闭基础 Debuff/击退概率。 */
@@ -121,42 +127,45 @@ void UBatch6ChainAbility::ApplyCost(FGameplayAbilitySpecHandle Handle, const FGa
     if (Info && Info->IsNetAuthority() && Prototype)
         UPureMassAbility::SpendMana(Info->AvatarActor.Get(), Prototype->ManaCost);
 }
-/** UI 生成当前等级伤害、总目标、深度、分叉数和费用说明。 */
+/** 展示两种传播方式，沿用原技能的伤害、费用及冷却参数。 */
 FString UBatch6ChainAbility::GetDescription(int32 Level)
 {
     if (!Prototype)
+    {
         return Super::GetDescription(Level);
+    }
+    const FString Behavior = bSequentialChain
+        ? FString::Printf(TEXT("每 %.2f 秒传导一次"), JumpDelay)
+        : FString(TEXT("同时击中主目标及附近敌人"));
     return FString::Printf(
-        TEXT(
-            "<Title>%s</>\n<Small>Lv.%d | MP %.0f | CD %.1fs</>\n<Default>%.0f damage; %d branches, %d hops, up to %d foes.</>"),
+        TEXT("<Title>%s</>\n<Small>Lv.%d | MP %.0f | CD %.1fs</>\n<Default>%.0f 伤害；%s，最多 %d 个目标。</>"),
         *Prototype->DisplayName.ToString(), Level, Prototype->ManaCost, Prototype->Cooldown,
-        Prototype->DamageAtLevel(Level), BranchesPerTarget, MaxDepth, MaxTargets);
+        Prototype->DamageAtLevel(Level), *Behavior, MaxTargets);
 }
 /** 无论成功取消都清除本技能目标超时，再交父类清理任务。 */
 void UBatch6ChainAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                      FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled)
 {
     CloseExecutionSession(Cancelled);
-    if (Batch6Execution)
-    {
-        auto* Execution = Batch6Execution.Get();
-        Batch6Execution = nullptr;
-        if (!Execution->IsFinished())
-        {
-            Execution->Cancel();
-        }
-    }
     ActivationSource = {};
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timeout);
     Super::EndAbility(Handle, Info, Activation, Replicate, Cancelled);
 }
-/** 服务器消费一次目标请求，查询瞄准点附近首目标并校验距离遮挡；Commit 后广度优先结算、生成复制连线宿主并结束。 */
+/** 鼠标目标回调在服务器选出首个有效敌人，验证图并提交一次费用。 */
 void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& Data)
 {
-    if (!IsActive() || bResolved || !CurrentActorInfo->IsNetAuthority())
+    if (!IsActive() || bResolved || !CurrentActorInfo)
+    {
         return;
+    }
     bResolved = true;
+    GetWorld()->GetTimerManager().ClearTimer(Timeout);
+    if (!CurrentActorInfo->IsNetAuthority())
+    {
+        // 本地选点已提交，GA 的结束由权威端复制，不能用选点超时中止正在传导的图。
+        return;
+    }
     const auto* Hit = Data.Num() == 1 && Data.Get(0) ? Data.Get(0)->GetHitResult() : nullptr;
     AActor* Caster = nullptr;
     if (!Hit || Hit->ImpactPoint.ContainsNaN() || !AbilityExecutionIdentity::ResolveSource(ActivationSource, Caster) ||
@@ -190,16 +199,24 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
     auto* Graph = NewObject<UAbilityGraphDefinition>(this);
     Graph->SchemaVersion = 2;
     Graph->CompatibilityProfile = TEXT("UnifiedV2");
-    auto* Config = NewObject<UAbilityForkedChainNodeConfig>(Graph);
+    UAbilityLightningNodeConfig* Config = nullptr;
+    if (bSequentialChain)
+    {
+        auto* Sequential = NewObject<UAbilitySequentialChainNodeConfig>(Graph);
+        Sequential->JumpDelay = JumpDelay;
+        Config = Sequential;
+    }
+    else
+    {
+        Config = NewObject<UAbilityForkedVolleyNodeConfig>(Graph);
+    }
     Config->MaxTargets = MaxTargets;
-    Config->MaxDepth = MaxDepth;
-    Config->BranchesPerTarget = BranchesPerTarget;
     Config->JumpRadius = JumpRadius;
     Config->DamageFalloff = Prototype ? Prototype->DamageFalloff : 1.f;
     Config->BeamSystem = BeamSystem;
     FAbilityGraphNode Node;
     Node.NodeId = FGuid::NewGuid();
-    Node.TypeId = TEXT("Delivery.ForkedChain");
+    Node.TypeId = bSequentialChain ? TEXT("Delivery.SequentialChain") : TEXT("Delivery.ForkedVolley");
     Node.Config = Config;
     Graph->EntryNodeId = Node.NodeId;
     Graph->Nodes.Add(Node);
@@ -227,18 +244,16 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
         return;
     }
     Input.LiveTargetToken = FirstToken;
-    Batch6Execution = NewObject<UAbilityGraphInstance>(this);
-    auto* Execution = Batch6Execution.Get();
-    const bool bStarted = Execution->StartWithInput(Graph, Input, {}, Registry, Error);
-    // 单节点已同步结算，最多129条结果/完成事件；分批清空通知，不推进额外游戏时间或再次伤害。
-    for (int32 Batch = 0; bStarted && !Execution->IsFinished() && Batch < 3; ++Batch)
-    {
-        Execution->Advance(0.f);
-    }
-    const bool bSucceeded =
-        bStarted && Execution->IsFinished() && Execution->GetEndReason() == EAbilityGraphEndReason::Completed;
+    auto* Task = UAbilityTask_RunGraph::RunAbilityGraphWithInput(this, Graph, Input, {}, bSequentialChain);
+    Task->OnFinished.AddDynamic(this, &ThisClass::GraphFinished);
+    Task->ReadyForActivation();
+}
+
+/** 图正常完成或失效时结束这次施法，显式取消仍由 GAS 销毁任务。 */
+void UBatch6ChainAbility::GraphFinished(bool bCancelled)
+{
     if (IsActive())
     {
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bSucceeded);
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bCancelled);
     }
 }

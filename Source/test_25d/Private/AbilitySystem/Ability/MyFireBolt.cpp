@@ -109,6 +109,7 @@ void UMyFireBolt::SpawnProjectiles(const FVector& ProjectileTargetLocation, cons
     }
     const FVector Origin = ICombatInterface::Execute_GetCombatSocketLocation(Source.Avatar.Get(), SocketTag);
     FAbilityActorProjectileSettings Settings;
+    Settings.EquipmentAbilityTag = FMyGameplayTags::Get().Abilities_Fire_FireBolt;
     Settings.ProjectileClass = ProjectileClass;
     Settings.Count = NumProjectiles;
     Settings.bLimitCountToLevel = true;

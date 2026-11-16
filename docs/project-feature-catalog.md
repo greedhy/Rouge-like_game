@@ -17,6 +17,7 @@
 | Actor 敌人 | Character / ASC、AIController / 行为树、受击状态；保留近战、远程、召唤等敌人技能资产 | 基础：[EnemyCharacter](../Source/test_25d/Private/Character/EnemyCharacter.cpp)、[敌人 GA](../Content/BluePrints/AbilitySystem/Enemy/Ability) |
 | Actor 敌人掉落 | 死亡调用 SpawnLoot；LootTiers 按物品概率、最大数量和等级配置生成掉落候选 | 基础：[LootTiers](../Source/test_25d/Private/AbilitySystem/Data/LootTiers.cpp)；不代表 Mass 死亡已经复刻整套掉落流程 |
 | 战斗反馈 | Actor 与 Mass 的伤害数字、命中特效；玩家 HUD 的生命 / 法力与技能显示 | 基础 + 扩展：[Mass 伤害数字](2026-10-23-mass-damage-numbers.md) |
+| 标准玩家弹反 | 现有右键格挡起手窗口反射合格弹道、眩晕近战敌人，成功复用独立世界减速机制 | 扩展；2026-11-16 增补：[行为、资产与验证边界](guard-parry-guide.md)；未新增技能槽 |
 | 传统玩家技能 | FireBolt、Electrocute、ArcaneShards，以及 HaloOfProtection、LifeSiphon、ManaSiphon 等被动资产 | 基础：[玩家 GA](../Content/BluePrints/AbilitySystem/Player/Ability)；这些资产并非全都完成了直接攻击 Mass 的适配 |
 
 ## 2. Mass 怪物与 Actor / Mass 混合架构

@@ -29,3 +29,17 @@ UEquipmentTestHealth::UEquipmentTestHealth()
 {
     Add(*this, UMyAttributeSet::GetMaxHealthAttribute(), 50.f);
 }
+
+// 两项上限同时变化，用于验证替换旧生命装备后的最终比例。
+UEquipmentTestResourceLimits::UEquipmentTestResourceLimits()
+{
+    Add(*this, UMyAttributeSet::GetMaxHealthAttribute(), 100.f);
+    Add(*this, UMyAttributeSet::GetMaxManaAttribute(), 40.f);
+}
+
+// 只改变主属性，由真实初始化GE派生生命和法力上限。
+UEquipmentTestResourcePrimaryStats::UEquipmentTestResourcePrimaryStats()
+{
+    Add(*this, UMyAttributeSet::GetVigorAttribute(), 4.f);
+    Add(*this, UMyAttributeSet::GetIntelligenceAttribute(), 2.f);
+}

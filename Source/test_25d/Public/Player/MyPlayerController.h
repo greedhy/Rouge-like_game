@@ -19,6 +19,7 @@ class UMyAbilitySystemComponent;
 struct FInputActionValue;
 class AMagicCircle;
 class UUserWidget;
+class IInputProcessor;
 
 /**
  * 
@@ -42,6 +43,11 @@ public:
     virtual void ReceivedPlayer() override;
     // 切换受控角色时清除能力与光标缓存，再初始化本地输入。
     virtual void AcknowledgePossession(APawn* P) override;
+    // 游戏内菜单先处理鼠标，控制器消费未被控件处理的左右键。
+    virtual bool InputKey(const FInputKeyEventArgs& Params) override;
+
+    void RegisterGameplayMenu(UUserWidget* Menu);
+    void UnregisterGameplayMenu(UUserWidget* Menu);
 
     UFUNCTION(Client, Reliable)
     // 仅本地控制器将伤害数字排入世界飘字池。
@@ -79,10 +85,10 @@ public:
     // 依据当前开关状态打开或关闭背包。
     void ToggleBackpackUI();
     UFUNCTION(BlueprintCallable, Category = "Backpack|UI")
-    // 创建背包并绑定视图模型与装备面板；首帧布局完成后显示，避免模板闪烁。
+    // 创建背包并绑定视图模型；首帧布局完成后显示，避免模板闪烁。
     void OpenBackpackUI();
     UFUNCTION(BlueprintCallable, Category = "Backpack|UI")
-    // 移除背包和装备面板，恢复游戏与界面输入模式。
+    // 移除背包并解除输入注册。
     void CloseBackpackUI();
     UFUNCTION(BlueprintPure, Category = "Backpack|UI")
     // 读取背包界面开关状态。
@@ -100,6 +106,9 @@ public:
     void HideMagicCircle();
 
 protected:
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    bool IsGameplayMenuVisible() const;
+    bool IsMenuMouseAbility(FGameplayTag InputTag) const;
     // 开始游戏后尝试初始化本地输入。
     virtual void BeginPlay() override;
     // 绑定移动动作与能力标签的按下、松开、持续事件。
@@ -109,6 +118,10 @@ private:
     friend class FPlayerBasicInputTest;
     // 仅为已有本地玩家的控制器安装基础输入映射与鼠标模式。
     void InitializeLocalInput();
+    void ApplyGameplayInputMode();
+    void ReleaseGameplayMouseButtons();
+    void RemoveMenuKeyboardRouting();
+    void ShowSelectedBackpackEquipment();
     UPROPERTY(EditAnywhere, Category = "Input")
     TObjectPtr<UInputMappingContext> PlayerContext;
 
@@ -123,10 +136,12 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UUserWidget> BackpackWidget;
-    UPROPERTY(Transient)
-    TObjectPtr<class UEquipmentPanel> EquipmentWidget;
+    TWeakObjectPtr<class UMVVM_Backpack> ObservedBackpack;
+    FDelegateHandle BackpackClickHandle;
 
     bool bBackpackUIOpen = false;
+    TArray<TWeakObjectPtr<UUserWidget>> GameplayMenus;
+    TSharedPtr<IInputProcessor> MenuKeyboardRouting;
     TWeakObjectPtr<AActor> FocusedEquipmentPickup;
     float EquipmentFocusElapsed = 0.f;
 

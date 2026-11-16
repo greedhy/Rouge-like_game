@@ -10,6 +10,8 @@
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Equipment/EquipmentAbilityModifiers.h"
+#include "MyGameplayTags.h"
 
 bool UAbilityNovaNodeConfig::Validate(FString& Error) const
 {
@@ -17,6 +19,11 @@ bool UAbilityNovaNodeConfig::Validate(FString& Error) const
     if (!FMath::IsFinite(Radius) || Radius <= 0.f)
     {
         Error = TEXT("Nova radius must be finite and positive.");
+        return false;
+    }
+    if (EquipmentAbilityTag.IsValid() && EquipmentAbilityTag != FMyGameplayTags::Get().Abilities_Arcane_ArcaneNova)
+    {
+        Error = TEXT("Nova equipment rules require the exact Nova identity.");
         return false;
     }
     return true;
@@ -57,8 +64,17 @@ bool UAbilityNovaNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid&
         Error = TEXT("Nova source life expired.");
         return false;
     }
+    float Radius = Settings.Radius;
+    FDamageEffectParams ResolvedDamage = Input.DamageParams;
+    int32 ExtraChainTargets = 0;
+    if (!EquipmentAbilityModifiers::ApplySpellRules(Input.SourceToken, Settings.EquipmentAbilityTag, Radius,
+                                                    ResolvedDamage, ExtraChainTargets))
+    {
+        Error = TEXT("Nova equipment parameters failed to resolve.");
+        return false;
+    }
     TArray<AActor*> Actors;
-    AbilityNovaNodes::GatherActorTargets(Avatar, Input.Origin, Settings.Radius, Actors);
+    AbilityNovaNodes::GatherActorTargets(Avatar, Input.Origin, Radius, Actors);
     Actors.Sort(
         [Center = Input.Origin](const AActor& A, const AActor& B)
         {
@@ -79,7 +95,7 @@ bool UAbilityNovaNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid&
     if (Settings.bIncludeMass)
     {
         for (const auto& Target :
-             PureMassCombat::Gather(Input.SourceToken.World.Get(), Avatar, Input.Origin, Settings.Radius))
+             PureMassCombat::Gather(Input.SourceToken.World.Get(), Avatar, Input.Origin, Radius))
         {
             FAbilityTargetToken Token;
             FString Ignored;
@@ -119,7 +135,7 @@ bool UAbilityNovaNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid&
         {
             continue;
         }
-        auto Params = Input.DamageParams;
+        auto Params = ResolvedDamage;
         Params.bIsRadialDamage = false;
         Params.KnockbackForce = FVector::ZeroVector;
         Params.DeathImpulse = (Location - Avatar->GetActorLocation()).GetSafeNormal() * Params.DeathImpulseMagnitude;
@@ -152,7 +168,7 @@ bool UAbilityNovaNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid&
                 Cue.Location.Z -= Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
             }
             Cue.Normal = FVector::UpVector;
-            Cue.RawMagnitude = Settings.Radius;
+            Cue.RawMagnitude = Radius;
             Cue.Instigator = Avatar;
             Cue.EffectCauser = Avatar;
             Input.SourceToken.ASC->ExecuteGameplayCue(Settings.CueTag, Cue);

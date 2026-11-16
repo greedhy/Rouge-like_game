@@ -15,11 +15,13 @@ UAbilityTask_RunTimeline::UAbilityTask_RunTimeline()
 // 仅保存GC可追踪的资产引用；实际播放发生于Activate，留出绑定回调的时机。
 UAbilityTask_RunTimeline* UAbilityTask_RunTimeline::RunAbilityTimeline(UGameplayAbility* OwningAbility,
                                                                        UAnimMontage* InMontage,
-                                                                       UAbilityTimelineDefinition* InDefinition)
+                                                                       UAbilityTimelineDefinition* InDefinition,
+                                                                       bool bInAllowEndBlendOut)
 {
     auto* Task = NewAbilityTask<UAbilityTask_RunTimeline>(OwningAbility);
     Task->Montage = InMontage;
     Task->Definition = InDefinition;
+    Task->bAllowEndBlendOut = bInAllowEndBlendOut;
     if (const auto* ProjectAbility = Cast<UMyGameplayAbility>(OwningAbility))
     {
         Task->ExecutionSession = ProjectAbility->GetExecutionSession();
@@ -53,7 +55,7 @@ void UAbilityTask_RunTimeline::Activate()
     const auto* Info = Ability ? Ability->GetCurrentActorInfo() : nullptr;
     FString Error;
     if (!Info || !Info->IsNetAuthority() || !ASC || !Definition ||
-        !Definition->ResolveMontage(Montage, Snapshot, Error))
+        !Definition->ResolveMontage(Montage, Snapshot, Error, bAllowEndBlendOut))
     {
         Finish(true);
         return;

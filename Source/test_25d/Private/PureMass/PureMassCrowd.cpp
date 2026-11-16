@@ -22,6 +22,9 @@
 #include "Net/UnrealNetwork.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
+#include "AbilitySystem/Debuff/DebuffNiagaraComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPureMassCrowd, Log, All);
 
@@ -48,6 +51,7 @@ FPureMassView FPureMassNetEntity::ToView() const
     View.Health = Health;
     View.MaxHealth = MaxHealth;
     View.bPetrified = bPetrified;
+    View.bStunned = bStunned;
     View.State = State;
     View.Type = Type;
     return View;
@@ -59,13 +63,14 @@ bool FPureMassNetEntity::SetFromView(const FPureMassView& View)
     const FVector NewVelocity = QuantizeVector(View.Velocity);
     const bool bChanged = Id != View.Id || Location != NewLocation || Velocity != NewVelocity ||
                           Health != View.Health || MaxHealth != View.MaxHealth || State != View.State ||
-                          bPetrified != View.bPetrified || Type != View.Type;
+                          bPetrified != View.bPetrified || bStunned != View.bStunned || Type != View.Type;
     Id = View.Id;
     Location = NewLocation;
     Velocity = NewVelocity;
     Health = View.Health;
     MaxHealth = View.MaxHealth;
     bPetrified = View.bPetrified;
+    bStunned = View.bStunned;
     State = View.State;
     Type = View.Type;
     return bChanged;
@@ -386,6 +391,28 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
         if (View.Velocity.SizeSquared2D() > FMath::Square(10.f))
             Existing->TargetFacing = FRotator(0.f, View.Velocity.Rotation().Yaw, 0.f).Quaternion();
         SetAnimation(*Existing, View.State);
+        // 同一快照同时携带眩晕状态；客户端不另启计时器，也不为单个实体生成 Actor。
+        if (View.bStunned && View.Type->StunSystem && !Existing->StunStars.IsValid())
+        {
+            const FTransform Placement = UDebuffNiagaraComponent::MakeStunTransform(View.Type->HalfHeight,
+                                                                                  View.Type->Radius);
+            UNiagaraComponent* Stars = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                View.Type->StunSystem, RootComponent, NAME_None,
+                Existing->DisplayLocation + Placement.GetLocation(), FRotator::ZeroRotator,
+                EAttachLocation::KeepWorldPosition, false, false, ENCPoolMethod::None, false);
+            if (Stars)
+            {
+                Stars->SetWorldScale3D(Placement.GetScale3D());
+                Stars->Activate(true);
+                Existing->StunStars = Stars;
+            }
+        }
+        else if (!View.bStunned && Existing->StunStars.IsValid())
+        {
+            Existing->StunStars->DeactivateImmediate();
+            Existing->StunStars->DestroyComponent();
+            Existing->StunStars.Reset();
+        }
     }
     for (auto Iterator = RenderInstances.CreateIterator(); Iterator; ++Iterator)
     {
@@ -438,6 +465,12 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
         const FTransform WorldTransform =
             Batch.Type->MeshOffset * FTransform(Instance.Facing, Instance.DisplayLocation);
         Batch.Component->SetInstanceTransform(Instance.Instance, WorldTransform, true);
+        if (Instance.StunStars.IsValid())
+        {
+            const FTransform Placement = UDebuffNiagaraComponent::MakeStunTransform(Batch.Type->HalfHeight,
+                                                                                  Batch.Type->Radius);
+            Instance.StunStars->SetWorldLocation(Instance.DisplayLocation + Placement.GetLocation());
+        }
         if (Instance.State == 4 && !Batch.bPetrified)
         {
             if (!WarningInstances)
@@ -461,6 +494,13 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
 
 void APureMassCrowd::RemoveRenderInstance(FPureMassRenderInstance& Instance)
 {
+    // 死亡、移除、切换渲染批次和 EndPlay 共用此出口，循环粒子不能留在旧位置。
+    if (Instance.StunStars.IsValid())
+    {
+        Instance.StunStars->DeactivateImmediate();
+        Instance.StunStars->DestroyComponent();
+        Instance.StunStars.Reset();
+    }
     if (!RenderBatches.IsValidIndex(Instance.BatchIndex))
         return;
     const FPureMassRenderBatch& Batch = RenderBatches[Instance.BatchIndex];

@@ -135,9 +135,10 @@ private:
     FActiveGameplayEffectHandle Apply(const FBackpackItemDefEntry& Def, const FEquipmentRollData& Roll);
     // 按实例句柄检查当前能力系统上的装备效果是否仍有效。
     bool HasEffect(const FGuid& Id) const;
-    // 统一提交装备版本、背包复制和资源修正，再通知界面及持久化监听者。
-    void Commit();
-    // 按最终生命和法力上限裁剪当前资源，不因上限增加补满。
+    struct FResourceSnapshot;
+    // 按操作前比例结算最终资源，再发布背包与装备的联合状态。
+    void Commit(const FResourceSnapshot& ResourcesBefore);
+    // 初始化或对账重建GE时，将现有资源限制在最终上限内。
     void ClampResources();
     // 解绑移除通知并按本组件保存的句柄清除效果。
     void ClearEffects();
