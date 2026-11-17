@@ -9,6 +9,8 @@
 #include "Interface/CombatInterface.h"
 #include "MyDamageGameplayAbility.generated.h"
 
+class UAnimMontage;
+
 /**
  * 
  */
@@ -51,7 +53,19 @@ public:
     UFUNCTION(BlueprintPure)
     float GetDamageAtLevel() const;
 
+    /** 仅匹配显式配置的既有施法事件和蒙太奇；旧能力默认维持原播放。 */
+    float GetPostReleaseSeconds(FGameplayTag Event, const UAnimMontage* Montage) const;
+
 protected:
+    UPROPERTY(EditDefaultsOnly, Category = "Animation|Recovery")
+    TObjectPtr<UAnimMontage> RecoveryMontage;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Animation|Recovery")
+    FGameplayTag RecoveryReleaseEvent;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Animation|Recovery", meta = (ClampMin = "0.03", ClampMax = "1.0"))
+    float PostReleaseSeconds = .12f;
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     TSubclassOf<UGameplayEffect> DamageEffectClass;
 

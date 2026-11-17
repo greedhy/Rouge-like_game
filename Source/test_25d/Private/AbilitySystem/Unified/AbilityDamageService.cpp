@@ -38,7 +38,11 @@ FAbilityDamageResult AbilityDamageService::Apply(const FAbilitySourceToken& Sour
             return Result;
         }
         Result.bAttempted = true;
-        UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
+        const auto Context = UMyAbilitySystemLibrary::ApplyDamageEffect(Params);
+        if (const auto* Resolved = FMyGameplayEffectContext::GetMutable(Context))
+        {
+            Result.ActualDamage = Resolved->ResolvedHealthDamage;
+        }
         // 不解引用被同步伤害回调销毁的 Actor。致死后仍可输出位置快照，不能复活旧目标令牌。
         if (IsValid(Actor))
         {

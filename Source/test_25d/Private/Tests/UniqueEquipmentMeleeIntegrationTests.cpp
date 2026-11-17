@@ -1,4 +1,4 @@
-// 调用链：Automation真实背包换装 -> 真实Sword_Shield GA_Attack1/GA_Skill7_Around/蒙太奇/Timeline -> 共享接触动作 -> Mass实际扣血。
+// 调用链：Automation 真实背包换装 -> 生产武器 GA/蒙太奇/Timeline -> 共享接触动作 -> Mass 扣血或周身 Niagara。
 // 不直接调用共享动作，不覆盖技能CDO或动作DA；移除生产GA传递的装备技能身份时，本测试必须失败。
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Tests/AbilityTimelineTestAbility.h"
@@ -19,8 +19,11 @@
 #include "Equipment/UniqueEquipmentGameplayEffect.h"
 #include "Equipment/WeaponSetConfig.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Misc/App.h"
 #include "Misc/AutomationTest.h"
 #include "MyGameplayTags.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "PureMass/PureMassSubsystem.h"
 #include "TimerManager.h"
 #include "UObject/Script.h"
@@ -522,5 +525,169 @@ bool FUniqueStormSetTimelineIntegration::RunTest(const FString&)
     TestFalse(TEXT("Mail identity is removed with its last instance"),
               F.ASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("Equipment.Unique.StormboundMail"))));
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUniqueMeleeBodyEffectIntegration,
+                                 "test_25d.Equipment.Unique.WeaponBodyEffectIntegration",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// 两个生产武器 GA 在空场地完整施放。可渲染进程观察根组件，验证每次接触生成一次并按期回收。
+bool FUniqueMeleeBodyEffectIntegration::RunTest(const FString&)
+{
+    using namespace UniqueEquipmentMeleeIntegrationTests;
+    FEditorScriptExecutionGuard ScriptGuard;
+    auto* Catalog = LoadObject<UBackpackItemDefinitions>(
+        nullptr, TEXT("/Game/BluePrints/DA/DA_BackpackItemDefinitions.DA_BackpackItemDefinitions"));
+    auto* Mesh = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/PlatformAnimation/Models/Stander.Stander"));
+    if (!TestNotNull(TEXT("Production catalog"), Catalog) || !TestNotNull(TEXT("Production Stander mesh"), Mesh))
+    {
+        return false;
+    }
+
+    const bool bCanRender = FApp::CanEverRender();
+    if (!bCanRender)
+    {
+        AddInfo(TEXT("No render device: validating both real GA casts; rerun with an RHI to exercise attached Niagara."));
+    }
+    const auto RunWeapon = [this, Catalog, Mesh, bCanRender](
+                               const TCHAR* Family, const TCHAR* Skill, FName Gear, const TCHAR* SlotTag)
+    {
+        const FString Folder = FString::Printf(TEXT("/Game/BluePrints/Characters/Stander/Weapons/%s/"), Family);
+        auto* Set = LoadObject<UWeaponSetConfig>(nullptr, *(Folder + TEXT("DA_WeaponSet.DA_WeaponSet")));
+        auto* Class = LoadClass<UStanderWeaponActionAbility>(
+            nullptr, *FString::Printf(TEXT("%sGA_%s.GA_%s_C"), *Folder, Skill, Skill));
+        const FPrimaryAssetId ItemId(TEXT("BackpackItem"), Gear);
+        const auto* Item = Catalog->FindDefinition(ItemId);
+        const auto* Effect = Item ? Cast<UUniqueEquipmentGameplayEffect>(Item->EquipEffect.GetDefaultObject()) : nullptr;
+        if (!TestNotNull(TEXT("Production weapon set"), Set) || !TestNotNull(TEXT("Production skill class"), Class) ||
+            !TestNotNull(TEXT("Production item effect"), Effect) ||
+            !TestNotNull(TEXT("Production attached system"), Effect->MeleeRule.BodyEffect.Get()))
+        {
+            return false;
+        }
+
+        FFixture F;
+        F.Pawn->GetMesh()->SetSkeletalMeshAsset(Mesh);
+        F.Pawn->DefaultWeaponSet = Set;
+        F.Bag->SetItemDefinitions(Catalog);
+        F.Bag->Initialize();
+        F.Bag->SetCapacity(4);
+        if (!TestTrue(TEXT("Production weapon set equips with its actions"), F.Equipment->ReconcileEffects()) ||
+            !TestNotNull(TEXT("Real weapon animation instance"), F.Pawn->GetMesh()->GetAnimInstance()) ||
+            !TestTrue(TEXT("Production backpack accepts the unique"), F.Bag->TryAddItem(ItemId, 1).bSucceeded))
+        {
+            return false;
+        }
+        const auto* Spec = F.ASC->FindAbilitySpecFromClass(Class);
+        auto* Ability = Spec ? Cast<UStanderWeaponActionAbility>(Spec->GetPrimaryInstance()) : nullptr;
+        if (!TestNotNull(TEXT("Real equipped ability instance"), Ability) ||
+            !TestNotNull(TEXT("Actual action configuration"), Ability->ActionConfig.Get()) ||
+            !TestNotNull(TEXT("Actual action Timeline"), Ability->ActionConfig->Timeline.Get()))
+        {
+            return false;
+        }
+        const auto* Config = Ability->ActionConfig.Get();
+        const auto Handle = Spec->Handle;
+        const auto Slot = FGameplayTag::RequestGameplayTag(FName(SlotTag));
+        const auto& Items = F.Bag->GetInventoryModel()->GetSlots();
+        const int32 Index = Items.IndexOfByPredicate(
+            [&ItemId](const FInventorySlot& Entry)
+            {
+                return Entry.ItemDefinitionId == ItemId;
+            });
+        if (!TestTrue(TEXT("Unique has an inventory instance"), Index != INDEX_NONE))
+        {
+            return false;
+        }
+        const FGuid Instance = Items[Index].ItemInstanceId;
+        if (!TestTrue(TEXT("Equip the real unique with production revisions"),
+                      F.Equipment->TryEquip(Index, Slot, Instance, F.Bag->GetRevision(), F.Equipment->Revision)))
+        {
+            return false;
+        }
+
+        FAbilityTimelineSnapshot Timing;
+        FString Error;
+        if (!TestTrue(TEXT("Timeline resolves the real montage"),
+                      Config->Timeline->ResolveMontage(Config->Montage, Timing, Error)))
+        {
+            return false;
+        }
+        const int32 Frames = FMath::CeilToInt((Timing.ElapsedAt(Config->Montage->GetPlayLength()) + 1.f) / .01f);
+        const auto* System = Effect->MeleeRule.BodyEffect.Get();
+        const auto CountEffects = [&F, System](TSet<FName>& Instances)
+        {
+            int32 Live = 0;
+            for (const auto& Child : F.Pawn->GetRootComponent()->GetAttachChildren())
+            {
+                const auto* Niagara = Cast<UNiagaraComponent>(Child);
+                if (IsValid(Niagara) && Niagara->GetAsset() == System)
+                {
+                    Instances.Add(Niagara->GetFName());
+                    ++Live;
+                }
+            }
+            return Live;
+        };
+        // 采样每一帧的真实挂接物。GA 结束后继续推进世界时钟，让视觉租期独立完成。
+        const auto CastWithoutTarget = [&, this](TSet<FName>& Instances)
+        {
+            F.ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 1000.f);
+            F.Pawn->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+            if (!TestTrue(TEXT("Production GA activates with no enemy"), F.ASC->TryActivateAbility(Handle)))
+            {
+                return false;
+            }
+            TestTrue(TEXT("Production GA plays its authored montage"), F.ASC->GetCurrentMontage() == Config->Montage);
+            for (int32 Frame = 0; Frame < Frames; ++Frame)
+            {
+                ++GFrameCounter;
+                if (Ability->IsActive())
+                {
+                    F.Advance(Ability, 1);
+                }
+                else
+                {
+                    F.World->GetTimerManager().Tick(.01f);
+                }
+                CountEffects(Instances);
+            }
+            TestEqual(TEXT("Attached effects expire after contact"), CountEffects(Instances), 0);
+            return TestFalse(TEXT("Weapon cast finishes"), Ability->IsActive());
+        };
+        TSet<FName> EquippedEffects;
+        if (!CastWithoutTarget(EquippedEffects))
+        {
+            return false;
+        }
+        if (bCanRender)
+        {
+            const int32 Contacts = Config->Events.FilterByPredicate(
+                [](const FStanderWeaponActionEvent& Event)
+                {
+                    return Event.Kind == EStanderWeaponActionKind::Melee;
+                }).Num();
+            TestTrue(TEXT("Real action contains contacts"), Contacts > 0);
+            TestEqual(TEXT("Each whiffed contact spawns one attached effect"), EquippedEffects.Num(), Contacts);
+        }
+
+        if (!TestTrue(TEXT("Exact unique instance unequips"),
+                      F.Equipment->TryUnequip(Slot, Instance, F.Bag->GetRevision(), F.Equipment->Revision)))
+        {
+            return false;
+        }
+        if (Config->CooldownTag.IsValid())
+        {
+            F.ASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(Config->CooldownTag));
+        }
+        TSet<FName> UnequippedEffects;
+        return CastWithoutTarget(UnequippedEffects) &&
+               TestEqual(TEXT("Future casts no longer spawn the unequipped effect"), UnequippedEffects.Num(), 0);
+    };
+    const bool bHammer = RunWeapon(TEXT("Hammer"), TEXT("Skill7_Around"), TEXT("UniqueFaultlineTreads"),
+                                   TEXT("Equipment.Slot.Boots"));
+    const bool bDualBlades = RunWeapon(TEXT("DualBlades"), TEXT("Skill6_Move"), TEXT("UniqueRimefangHelm"),
+                                       TEXT("Equipment.Slot.Helmet"));
+    return bHammer && bDualBlades;
 }
 #endif

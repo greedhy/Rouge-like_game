@@ -10,6 +10,7 @@
 #include "Interface/IEnemyInterface.h"
 #include "UI/WidgetController/OverlayWidgetController.h"
 #include "Equipment/SharedLootSubsystem.h"
+#include "AbilitySystem/Ability/EnemyCombatReactionAbilities.h"
 
 #include "EnemyCharacter.generated.h"
 
@@ -82,6 +83,18 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Combat")
     bool bHitReacting = false;
 
+    UPROPERTY(EditAnywhere, Category = "Combat|Reactions")
+    bool bOverrideCombatReactions = false;
+    UPROPERTY(EditAnywhere, Category = "Combat|Reactions", meta = (EditCondition = "bOverrideCombatReactions"))
+    FEnemyCombatReactionSettings CombatReactions;
+    UPROPERTY(EditAnywhere, Category = "Combat|Reactions")
+    TObjectPtr<UAnimMontage> PoiseBreakMontage;
+
+    FEnemyCombatReactionSettings GetCombatReactionSettings() const;
+    void InitializeCombatReactions();
+    void ApplyCombatDamageReaction(float ActualDamage, const FVector& Launch);
+    bool IsCombatReactionBlocking() const;
+
     virtual void StunTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
@@ -142,6 +155,12 @@ protected:
     }
 
 private:
+    void OnCombatReactionTagChanged(FGameplayTag Tag, int32 Count);
+    void StopCombatReactionPresentation();
+    FGameplayAbilitySpecHandle HitstunSpec;
+    FGameplayAbilitySpecHandle PoiseBreakSpec;
+    TWeakObjectPtr<UAnimMontage> ActiveReactionMontage;
+
     UFUNCTION()
     void OnRep_DungeonPoolLife();
     UPROPERTY(ReplicatedUsing = OnRep_DungeonPoolLife)

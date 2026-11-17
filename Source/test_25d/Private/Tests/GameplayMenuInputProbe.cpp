@@ -18,6 +18,28 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/IToolTip.h"
 #include "Widgets/Text/STextBlock.h"
+#include "UI/WidgetController/SpellMenuWidgetController.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+
+/** 挂到 PIE 世界下一次 Tick，避开编辑器脚本上下文下 RPC 被本地处理的问题。 */
+bool UGameplayMenuInputProbe::QueueSpellSlot(USpellMenuWidgetController* Controller, FGameplayTag Slot,
+                                           FGameplayTag AbilityType)
+{
+#if WITH_EDITOR
+    UWorld* World = Controller ? Controller->GetWorld() : nullptr;
+    if (World && World->WorldType == EWorldType::PIE && Slot.IsValid() && AbilityType.IsValid())
+    {
+        World->GetTimerManager().SetTimerForNextTick(
+            FTimerDelegate::CreateWeakLambda(Controller, [Controller, Slot, AbilityType]()
+            {
+                Controller->SpellRowGlobePressed(Slot, AbilityType);
+            }));
+        return true;
+    }
+#endif
+    return false;
+}
 
 #if WITH_EDITOR
 namespace

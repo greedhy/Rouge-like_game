@@ -1,10 +1,11 @@
-// 调用链：Automation AuthoredAssets → 真实目录/暗金 GE/曲线 → PlayerState 装备事务 → 属性与实际弹体验证。
+// 调用链：Automation AuthoredAssets → 真实目录/暗金 GE/曲线 → PlayerState 装备事务 → 属性、技能快照与实际弹体验证。
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Tests/DungeonPlayerRunTestTypes.h"
 #include "Equipment/EquipmentComponent.h"
 #include "Equipment/EquipmentGenerator.h"
 #include "Equipment/EquipmentAbilityModifiers.h"
+#include "Equipment/EquipmentMeleeModifiers.h"
 #include "Equipment/EquipmentStats.h"
 #include "Equipment/EquipmentSoulPickup.h"
 #include "Equipment/UniqueEquipmentGameplayEffect.h"
@@ -12,6 +13,7 @@
 #include "Backpack/BackpackPersistence.h"
 #include "Backpack/ItemDefinition.h"
 #include "AbilitySystem/MyAttributeSet.h"
+#include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
 #include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
 #include "AbilitySystem/Unified/Nodes/AbilityTraditionalNodeExecutions.h"
 #include "AbilitySystemComponent.h"
@@ -149,6 +151,7 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
     const auto Helmet = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Slot.Helmet"));
     const auto Stone = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Slot.MagicStone"));
     const auto Boots = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Slot.Boots"));
+    const auto Element = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Slot.Element.1"));
     const auto CrownTag = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Unique.AshenCrown"));
     const auto PrismTag = FGameplayTag::RequestGameplayTag(TEXT("Equipment.Unique.AshenPrism"));
     const TArray<FExpectedItem> Items = {
@@ -185,7 +188,19 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
         {TEXT("UniqueFrostWakeHelm"), Helmet, {{UMyAttributeSet::GetArmorAttribute(), .72f}}},
         {TEXT("UniqueSolarStepBoots"),
          Boots,
-         {{UMyAttributeSet::GetArmorAttribute(), .85f}, {UMyAttributeSet::GetMaxManaAttribute(), .80f}}}};
+         {{UMyAttributeSet::GetArmorAttribute(), .85f}, {UMyAttributeSet::GetMaxManaAttribute(), .80f}}},
+        {TEXT("UniqueNeedleflamePrism"), Stone, {{UMyAttributeSet::GetMaxManaAttribute(), .70f}}},
+        {TEXT("UniqueStormLens"), Stone, {{UMyAttributeSet::GetMaxManaAttribute(), .82f}}},
+        {TEXT("UniqueStormweaverMantle"),
+         Chest,
+         {{UMyAttributeSet::GetManaRegenerationAttribute(), 1.75f}, {UMyAttributeSet::GetArmorAttribute(), .65f}}},
+        {TEXT("UniqueFaultlineTreads"), Boots, {{UMyAttributeSet::GetArmorAttribute(), .70f}}},
+        {TEXT("UniqueRimefangHelm"), Helmet, {{UMyAttributeSet::GetMaxHealthAttribute(), .82f}}},
+        {TEXT("UniqueEmberheartElement"),
+         Element,
+         {{UMyAttributeSet::GetStrengthAttribute(), 1.55f},
+          {UMyAttributeSet::GetHealthRegenerationAttribute(), 1.80f},
+          {UMyAttributeSet::GetMaxManaAttribute(), .65f}}}};
 
     FFixture F;
     if (!TestNotNull(TEXT("Authoritative player ASC"), F.ASC))
@@ -258,12 +273,6 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("Expected authored modifier count"), Effect->Modifiers.Num(), Item.Modifiers.Num());
         const FString Description = FEquipmentGenerator::MakeDescription(Definition, {}).ToString();
         TestTrue(TEXT("Details identify unique equipment"), Description.Contains(TEXT("暗金")));
-        TestTrue(TEXT("Details disclose percentage penalty"),
-                 Description.Contains(TEXT("-30%")) || Description.Contains(TEXT("-40%")) ||
-                     Description.Contains(TEXT("-35%")) || Description.Contains(TEXT("-25%")) ||
-                     Description.Contains(TEXT("-50%")) || Description.Contains(TEXT("-20%")) ||
-                     Description.Contains(TEXT("-28%")) || Description.Contains(TEXT("-15%")));
-
         for (const auto& Expected : Item.Modifiers)
         {
             const auto* Modifier = Effect->Modifiers.FindByPredicate(
@@ -292,6 +301,11 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
             TestTrue(TEXT("Curve contains the explicit initial balance value"),
                      FMath::IsNearlyEqual(Curve->Eval(Definition->EquipEffectLevel), Expected.Multiplier));
             TestTrue(TEXT("Modifier matches that curve value"), FMath::IsNearlyEqual(Value, Expected.Multiplier));
+            if (Expected.Multiplier < 1.f)
+            {
+                const FString Penalty = FString::Printf(TEXT("%+g%%"), (Expected.Multiplier - 1.f) * 100.f);
+                TestTrue(TEXT("Details disclose each percentage penalty"), Description.Contains(Penalty));
+            }
             TestTrue(TEXT("Final channel applies a true compound multiplier"),
                      Modifier->ModifierOp == EGameplayModOp::MultiplyCompound &&
                          Modifier->EvaluationChannelSettings.GetEvaluationChannel() ==
@@ -454,6 +468,17 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Equipment removal does not rewrite existing projectile snapshot"),
                  FMath::IsNearlyEqual(Shot->DamageEffectParams.BaseDamage, 55.f, .01f));
     }
+    TestTrue(TEXT("Equip the authored needleflame prism"), F.AddAndEquip(TEXT("UniqueNeedleflamePrism"), Stone));
+    const auto NeedleShots = Spawn(1.f);
+    TestEqual(TEXT("Needleflame keeps FireBolt's original projectile count"), NeedleShots.Num(), 1);
+    if (!NeedleShots.IsEmpty())
+    {
+        const auto* Shot = NeedleShots[0];
+        TestTrue(TEXT("Needleflame preserves the original homing"), Shot->ProjectileMovement->bIsHomingProjectile);
+        TestEqual(TEXT("Needleflame scales actual direct damage"), Shot->DamageEffectParams.BaseDamage, 165.f, .01f);
+        TestEqual(TEXT("Needleflame scales actual burning damage"), Shot->DamageEffectParams.DebuffDamage, 33.f, .01f);
+    }
+    TestTrue(TEXT("Remove Needleflame by equipped instance"), F.Unequip(Stone));
 
     const auto& Melee = Effects.FindChecked(TEXT("UniqueCinderOathBoots"))->MeleeRule;
     TestTrue(TEXT("Melee unique only changes sword shield Attack1"),
@@ -488,6 +513,82 @@ bool FUniqueEquipmentAuthoredAssetsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Fire tag does not cause another radius change"), ShardRadius, 350.f);
     TestEqual(TEXT("Fire tag does not cause another damage change"), ShardDamage.BaseDamage, 80.f);
     TestTrue(TEXT("Remove family item before fixture cleanup"), F.Unequip(Chest));
+
+    // 逐次改变真实装备事务，验证齐套只替换导管倍率，分雷戒仍用独立的雷链预算。
+    const auto CheckChain = [this, &Source](float ExpectedDamage, float ExpectedRadius, int32 ExpectedExtra)
+    {
+        FDamageEffectParams ChainDamage;
+        ChainDamage.BaseDamage = 100.f;
+        float ChainRadius = 300.f;
+        int32 ChainExtra = 0;
+        TestTrue(TEXT("Live equipment resolves through the chain action's parameter resolver"),
+                 EquipmentAbilityModifiers::ApplySpellRules(Source, FMyGameplayTags::Get().Abilities_Thunder_Electrocute,
+                                                             ChainRadius, ChainDamage, ChainExtra));
+        TestEqual(TEXT("Expected chain damage after set or equipment change"), ChainDamage.BaseDamage, ExpectedDamage,
+                  .01f);
+        TestEqual(TEXT("Expected secondary radius after set or equipment change"), ChainRadius, ExpectedRadius, .01f);
+        TestEqual(TEXT("Expected secondary count after set or equipment change"), ChainExtra, ExpectedExtra);
+    };
+    TestTrue(TEXT("Equip real Storm Lens"), F.AddAndEquip(TEXT("UniqueStormLens"), Stone));
+    CheckChain(128.f, 246.f, 0);
+    TestTrue(TEXT("Equip distinct Stormweaver Mantle"), F.AddAndEquip(TEXT("UniqueStormweaverMantle"), Chest));
+    CheckChain(165.f, 246.f, 0);
+    const auto ConduitSnapshot = F.State->ExportBackpackSnapshot();
+    TestTrue(TEXT("Restore real Storm Conduit loadout"), F.State->ImportBackpackSnapshot(ConduitSnapshot));
+    TestTrue(TEXT("Restore real Storm Conduit loadout again"), F.State->ImportBackpackSnapshot(ConduitSnapshot));
+    CheckChain(165.f, 246.f, 0);
+    TestTrue(TEXT("A Forkstorm Ring can coexist with Storm Conduit"), F.AddAndEquip(TEXT("UniqueForkstormRing"), Left));
+    CheckChain(118.8f, 300.12f, 2);
+    TestTrue(TEXT("Remove only the ring"), F.Unequip(Left));
+    TestTrue(TEXT("Break Storm Conduit via its lens"), F.Unequip(Stone));
+    CheckChain(100.f, 300.f, 0);
+    TestTrue(TEXT("Restore Storm Lens"), F.AddAndEquip(TEXT("UniqueStormLens"), Stone));
+    CheckChain(165.f, 246.f, 0);
+    TestTrue(TEXT("Break Storm Conduit via its mantle"), F.Unequip(Chest));
+    CheckChain(128.f, 246.f, 0);
+    TestTrue(TEXT("Remove the remaining lens"), F.Unequip(Stone));
+
+    // 从生产 GA 的动作配置读身份，检查同穿时两个动作各取自己的伤害与特效。
+    TestTrue(TEXT("Equip the real Hammer boots"), F.AddAndEquip(TEXT("UniqueFaultlineTreads"), Boots));
+    TestTrue(TEXT("Equip the real DualBlades helm"), F.AddAndEquip(TEXT("UniqueRimefangHelm"), Helmet));
+    const auto CheckWeapon = [this, &F](const TCHAR* AbilityPath, const TCHAR* SystemName, float DamageFactor,
+                                        float Duration, FGameplayTag DamageType)
+    {
+        auto* Class = LoadClass<UStanderWeaponActionAbility>(nullptr, AbilityPath);
+        const auto* Ability = Class ? GetDefault<UStanderWeaponActionAbility>(Class) : nullptr;
+        if (!TestNotNull(TEXT("Real weapon action GA"), Ability) ||
+            !TestNotNull(TEXT("Real weapon action config"), Ability->ActionConfig.Get()))
+        {
+            return;
+        }
+        const auto* Contact = Ability->ActionConfig->Events.FindByPredicate(
+            [](const FStanderWeaponActionEvent& Event)
+            {
+                return Event.Kind == EStanderWeaponActionKind::Melee && Event.Damage > 0.f;
+            });
+        if (!TestNotNull(TEXT("Configured GA has a real damage contact"), Contact))
+        {
+            return;
+        }
+        const FGameplayTag Action = Ability->ActionConfig->ActionTag;
+        FEquipmentMeleeSnapshot Snapshot;
+        Snapshot.Damage = Contact->Damage;
+        Snapshot.DamageType = FMyGameplayTags::Get().Damage_Physics;
+        TestTrue(TEXT("Compatible equipped melee rules resolve"),
+                 EquipmentMeleeModifiers::Resolve(F.ASC, Action, Snapshot));
+        TestEqual(TEXT("Contact damage uses its equipped multiplier"), Snapshot.Damage, Contact->Damage * DamageFactor,
+                  .01f);
+        TestEqual(TEXT("Contact damage uses its equipped type"), Snapshot.DamageType, DamageType);
+        TestEqual(TEXT("Attached effect duration uses its equipped curve"), Snapshot.BodyEffectDuration, Duration, .01f);
+        TestTrue(TEXT("Contact inherits only its authored attached system"),
+                 Snapshot.BodyEffect && Snapshot.BodyEffect->GetName() == SystemName);
+    };
+    CheckWeapon(TEXT("/Game/BluePrints/Characters/Stander/Weapons/Hammer/GA_Skill7_Around.GA_Skill7_Around_C"),
+                TEXT("NS_EarthShockwave"), 1.75f, .55f, FMyGameplayTags::Get().Damage_Physics);
+    CheckWeapon(TEXT("/Game/BluePrints/Characters/Stander/Weapons/DualBlades/GA_Skill6_Move.GA_Skill6_Move_C"),
+                TEXT("NS_GlacialStorm"), 1.45f, .75f, FMyGameplayTags::Get().Damage_Water);
+    TestTrue(TEXT("Remove the Hammer boots"), F.Unequip(Boots));
+    TestTrue(TEXT("Remove the DualBlades helm"), F.Unequip(Helmet));
     TestNotNull(TEXT("Health potion remains available in original catalog"),
                 Catalog->FindDefinition(FPrimaryAssetId(TEXT("BackpackItem"), TEXT("HealthPotion"))));
     TestNotNull(TEXT("Mana potion remains available in original catalog"),

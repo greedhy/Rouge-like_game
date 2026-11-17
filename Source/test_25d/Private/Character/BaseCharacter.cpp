@@ -2,6 +2,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Character/BaseCharacter.h"
+#include "Character/EnemyCharacter.h"
 #include "AbilitySystem/Batch6/Batch6Slow.h"
 
 #include "MyGameplayTags.h"
@@ -181,8 +182,11 @@ void ABaseCharacter::StunTagChanged(const FGameplayTag CallbackTag, int32 NewCou
 // 合并死亡、眩晕、受击、藤蔓定身与减速；定身时立即停止移动。
 void ABaseCharacter::RefreshMovementSpeed()
 {
-    const bool bHitReact = AbilitySystemComponent &&
-                           AbilitySystemComponent->HasMatchingGameplayTag(FMyGameplayTags::Get().Effects_HitReact);
+    const auto* Enemy = Cast<AEnemyCharacter>(this);
+    const bool bHitReact =
+        (AbilitySystemComponent &&
+         AbilitySystemComponent->HasMatchingGameplayTag(FMyGameplayTags::Get().Effects_HitReact)) ||
+        (Enemy && Enemy->IsCombatReactionBlocking());
     const bool bRooted = TerrainStatus && TerrainStatus->IsTerrainStatusActive(ETerrainSurfaceType::Vines);
     const float Multiplier = FMath::Min(TerrainStatus ? TerrainStatus->GetTerrainMovementMultiplier() : 1.f,
                                         UBatch6SlowComponent::GetMultiplier(this));

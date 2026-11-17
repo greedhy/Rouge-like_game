@@ -1,3 +1,4 @@
+// 调用链：技能树构建 -> 目录与 GA 默认值生成按钮 -> 选择 -> 技能菜单控制器。
 #include "UI/Widget/PrototypeSpellTree.h"
 #include "UI/WidgetController/SpellMenuWidgetController.h"
 #include "Blueprint/WidgetTree.h"
@@ -14,6 +15,7 @@
 #include "AbilitySystem/Data/AbilityInfo.h"
 #include "AbilitySystem/Prototypes/PrototypeAbility.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
+#include "AbilitySystem/Unified/MageGraphAbility.h"
 #include "Equipment/WeaponSetConfig.h"
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
 #include "Player/StanderWeaponActionConfig.h"
@@ -105,21 +107,34 @@ void UPrototypeSpellTree::NativeConstruct()
         LoadObject<UAbilityInfo>(nullptr, TEXT("/Game/BluePrints/AbilitySystem/Data/DA_AbilityInfo.DA_AbilityInfo"));
     int32 Index = 0;
     if (Catalog)
+    {
         for (const auto& Row : Catalog->AbilityInformation)
         {
-            const auto* GA = Row.Ability ? Cast<UPrototypeAbility>(Row.Ability->GetDefaultObject()) : nullptr;
-            if (!GA || !GA->Prototype)
+            const auto* Defaults = Row.Ability ? Row.Ability->GetDefaultObject<UGameplayAbility>() : nullptr;
+            FText Label;
+            if (const auto* Prototype = Cast<UPrototypeAbility>(Defaults); Prototype && Prototype->Prototype)
+            {
+                Label = Prototype->Prototype->DisplayName;
+            }
+            else if (const auto* Mage = Cast<UMageGraphAbility>(Defaults))
+            {
+                Label = Mage->SpellName;
+            }
+            if (Label.IsEmpty())
+            {
                 continue;
+            }
             // NewObject + Initialize lets us supply the label before NativeOnInitialized builds its button.
             auto* Entry = NewObject<UPrototypeSpellEntry>(this);
             Entry->Tree = this;
-            Entry->Label = GA->Prototype->DisplayName;
+            Entry->Label = Label;
             Entry->AbilityTag = Row.AbilityTag;
             Entry->Icon = const_cast<UTexture2D*>(Row.Icon.Get());
             Entry->Initialize();
             Grid->AddChildToUniformGrid(Entry, Index / 2, Index % 2);
             ++Index;
         }
+    }
     WeaponGrid = WidgetTree->ConstructWidget<UUniformGridPanel>();
     WeaponGrid->SetMinDesiredSlotHeight(42.f);
     WeaponGrid->SetSlotPadding(FMargin(3.f));

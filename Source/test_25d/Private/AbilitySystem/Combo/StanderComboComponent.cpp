@@ -3,6 +3,7 @@
 
 #include "AbilitySystem/Ability/StanderAbility.h"
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
+#include "AbilitySystem/Ability/PerfectDodgeAbility.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystem/Time/AbilityWorldTimeSubsystem.h"
 #include "Character/StanderPlayer.h"
@@ -20,12 +21,18 @@ UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_ComboSword1, "Abilities.StanderWeapons.Sword_S
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_ComboSword2, "Abilities.StanderWeapons.Sword_Shield.Attack2");
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_ComboSword3, "Abilities.StanderWeapons.Sword_Shield.Attack3");
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_ComboPress, "InputTag.LMB");
+UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_StanderGuardInput, "InputTag.RMB");
 
 namespace
 {
     UEquipmentComponent* FindEquipment(const UMyAbilitySystemComponent& ASC)
     {
         return ASC.GetOwnerActor() ? ASC.GetOwnerActor()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+    }
+
+    bool IsSwordShield(const UStanderWeaponActionAbility* Weapon)
+    {
+        return Weapon && Weapon->ActionConfig && Weapon->ActionConfig->WeaponFamily == TEXT("Sword_Shield");
     }
 }
 
@@ -144,6 +151,165 @@ bool UStanderComboComponent::IsComboInput(UMyAbilitySystemComponent& ASC, FGamep
         }));
 }
 
+bool UStanderComboComponent::IsWeaponActionInput(UMyAbilitySystemComponent& ASC, FGameplayTag Input) const
+{
+    const auto* Entry = ASC.FindAbilitySpecFromHandle(ResolveEntry(ASC));
+    const auto* Target = ASC.GetSpecWithSlot(Input);
+    return Entry && IsSwordShield(Cast<UStanderWeaponActionAbility>(Entry->Ability)) && Target && Target->Ability &&
+           (IsSwordShield(Cast<UStanderWeaponActionAbility>(Target->Ability)) ||
+            Target->Ability->IsA<UPerfectDodgeAbility>());
+}
+
+void UStanderComboComponent::RequestWeaponActionInput(UMyAbilitySystemComponent& ASC, FGameplayTag Input)
+{
+    auto* Avatar = Cast<AStanderPlayer>(GetOwner());
+    if (!Avatar || !Avatar->HasAuthority() ||
+        bWeaponHandoffPending ||
+        ASC.HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed) ||
+        !IsWeaponActionInput(ASC, Input))
+    {
+        return;
+    }
+    const auto* Spec = ASC.GetSpecWithSlot(Input);
+    const auto* Equipment = FindEquipment(ASC);
+    if (!Spec || !Equipment ||
+        (!Equipment->IsWeaponAbility(Spec->Handle) && !Spec->Ability->IsA<UPerfectDodgeAbility>()))
+    {
+        return;
+    }
+    if (auto* Current = Cast<UStanderWeaponActionAbility>(ASC.GetAnimatingAbility()); IsSwordShield(Current))
+    {
+        Current->BufferHandoff(Input);
+        if (IsComboInput(ASC, Input) && ActiveSpec.IsValid())
+        {
+            RequestComboInput(Input);
+        }
+        return;
+    }
+    if (IsComboInput(ASC, Input))
+    {
+        RequestComboInput(Input);
+    }
+    else if (!Spec->IsActive())
+    {
+        ASC.TryActivateAbility(Spec->Handle, false);
+    }
+}
+
+FGameplayAbilitySpecHandle UStanderComboComponent::GetPreflightSource(FGameplayAbilitySpecHandle Target) const
+{
+    return Target == PreflightTarget ? PreflightSource : FGameplayAbilitySpecHandle();
+}
+
+bool UStanderComboComponent::TryWeaponHandoff(UStanderWeaponActionAbility& From, FGameplayTag Input)
+{
+    auto* Avatar = Cast<AStanderPlayer>(GetOwner());
+    auto* ASC = Avatar ? Cast<UMyAbilitySystemComponent>(Avatar->GetAbilitySystemComponent()) : nullptr;
+    const auto* Equipment = ASC ? FindEquipment(*ASC) : nullptr;
+    const auto* Slotted = ASC ? ASC->GetSpecWithSlot(Input) : nullptr;
+    const auto FromHandle = From.GetCurrentAbilitySpecHandle();
+    if (!Avatar || !Avatar->HasAuthority() || !ASC || !Equipment || !Slotted || !From.CanBeCanceled() ||
+        !Equipment->IsWeaponAbility(FromHandle) || ASC->GetAnimatingAbility() != &From ||
+        ASC->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed))
+    {
+        return false;
+    }
+
+    const bool bComboInput = IsComboInput(*ASC, Input);
+    const bool bAdvanceStage = bComboInput && ActiveSpec == FromHandle;
+    const auto HandoffStage = bAdvanceStage ? FindNext(Input) : FGameplayTag();
+    const auto Destination = bAdvanceStage ? ResolveWeaponStage(HandoffStage) : Slotted->Handle;
+    const auto* To = ASC->FindAbilitySpecFromHandle(Destination);
+    if (!To || !To->Ability || To->IsActive() || Destination == FromHandle || (bAdvanceStage && !IsContextCurrent()))
+    {
+        return false;
+    }
+    const auto* Weapon = Cast<UStanderWeaponActionAbility>(To->Ability);
+    const bool bDodge = To->Ability->IsA<UPerfectDodgeAbility>();
+    if (!bDodge && (!IsSwordShield(Weapon) || !Equipment->IsWeaponAbility(Destination)))
+    {
+        return false;
+    }
+    const auto ToTag = Weapon ? Weapon->ActionConfig->ActionTag : To->Ability->GetAssetTags().First();
+    if (!From.CanYieldTo(ToTag, bDodge || Input == TAG_StanderGuardInput))
+    {
+        return false;
+    }
+    {
+        // 预检查仅识别本次目标和旧 Spec，不删除 Busy 标签，也不对外广播临时可移动状态。
+        const TGuardValue<FGameplayAbilitySpecHandle> SourceGuard(PreflightSource, FromHandle);
+        const TGuardValue<FGameplayAbilitySpecHandle> TargetGuard(PreflightTarget, Destination);
+        const TGuardValue<FGameplayAbilitySpecHandle> StageGuard(PreflightStage, bAdvanceStage ? Destination :
+                                                                                           FGameplayAbilitySpecHandle());
+        const auto* Instance = To->GetPrimaryInstance();
+        const auto* Ability = Instance ? Instance : To->Ability.Get();
+        if (!Ability->CanActivateAbility(Destination, ASC->AbilityActorInfo.Get()))
+        {
+            return false;
+        }
+    }
+    const uint32 Generation = Equipment->GetWeaponGeneration();
+    FAbilitySourceToken HandoffSource;
+    FString Error;
+    if (!AbilityExecutionIdentity::CaptureSource(Avatar, HandoffSource, Error))
+    {
+        return false;
+    }
+    if (bAdvanceStage)
+    {
+        BufferedInput = {};
+    }
+    From.EndForHandoff(bAdvanceStage);
+    bWeaponHandoffPending = true;
+    const uint32 ExpectedSerial = Serial;
+    const TWeakObjectPtr<UStanderComboComponent> WeakThis(this);
+    const TWeakObjectPtr<UMyAbilitySystemComponent> WeakASC(ASC);
+    GetWorld()->GetTimerManager().SetTimerForNextTick([WeakThis, WeakASC, HandoffSource, ExpectedSerial, Generation,
+                                                      Input, Destination, HandoffStage, bComboInput, FromHandle]()
+    {
+        auto* Combo = WeakThis.Get();
+        if (Combo)
+        {
+            Combo->bWeaponHandoffPending = false;
+        }
+        auto* CurrentASC = WeakASC.Get();
+        const auto* CurrentEquipment = CurrentASC ? FindEquipment(*CurrentASC) : nullptr;
+        const auto* OldSpec = CurrentASC ? CurrentASC->FindAbilitySpecFromHandle(FromHandle) : nullptr;
+        AActor* CurrentAvatar = nullptr;
+        if (!Combo || !CurrentEquipment || Combo->Serial != ExpectedSerial || CurrentASC->GetAnimatingAbility() ||
+            (OldSpec && OldSpec->IsActive()) || CurrentEquipment->GetWeaponGeneration() != Generation ||
+            CurrentASC->HasMatchingGameplayTag(FMyGameplayTags::Get().Player_Block_InputPressed) ||
+            !AbilityExecutionIdentity::ResolveSource(HandoffSource, CurrentAvatar) || CurrentAvatar != Combo->GetOwner())
+        {
+            return;
+        }
+        if (HandoffStage.IsValid())
+        {
+            if (Combo->ResolveWeaponStage(HandoffStage) == Destination)
+            {
+                Combo->StartStage(HandoffStage);
+            }
+        }
+        else
+        {
+            const auto* CurrentSlot = CurrentASC->GetSpecWithSlot(Input);
+            if (!CurrentSlot || CurrentSlot->Handle != Destination)
+            {
+                return;
+            }
+            if (bComboInput)
+            {
+                Combo->RequestComboInput(Input);
+            }
+            else
+            {
+                CurrentASC->TryActivateAbility(Destination, false);
+            }
+        }
+    });
+    return true;
+}
+
 double UStanderComboComponent::Now() const
 {
     const auto* Time = GetWorld()->GetSubsystem<UAbilityWorldTimeSubsystem>();
@@ -254,18 +420,7 @@ bool UStanderComboComponent::StartStage(FGameplayTag Stage)
         }
         if (Entry->Ability->IsA<UStanderWeaponActionAbility>())
         {
-            Selected = {};
-            const auto* Equipment = FindEquipment(*ASC);
-            for (const auto& Spec : ASC->GetActivatableAbilities())
-            {
-                const auto* Weapon = Cast<UStanderWeaponActionAbility>(Spec.Ability);
-                if (Equipment && Equipment->IsWeaponAbility(Spec.Handle) && Weapon && Weapon->ActionConfig &&
-                    Weapon->ActionConfig->ActionTag == Row->WeaponActionTag)
-                {
-                    Selected = Spec.Handle;
-                    break;
-                }
-            }
+            Selected = ResolveWeaponStage(Stage);
         }
     }
     ++Serial;
@@ -287,6 +442,27 @@ bool UStanderComboComponent::StartStage(FGameplayTag Stage)
     return bActivated;
 }
 
+FGameplayAbilitySpecHandle UStanderComboComponent::ResolveWeaponStage(FGameplayTag Stage) const
+{
+    const auto* ASC = BoundASC.Get();
+    const auto* Equipment = ASC ? FindEquipment(*ASC) : nullptr;
+    const auto* Row = FindStage(Stage);
+    if (!Equipment || !Row)
+    {
+        return {};
+    }
+    for (const auto& Spec : ASC->GetActivatableAbilities())
+    {
+        const auto* Weapon = Cast<UStanderWeaponActionAbility>(Spec.Ability);
+        if (Equipment->IsWeaponAbility(Spec.Handle) && Weapon && Weapon->ActionConfig &&
+            Weapon->ActionConfig->ActionTag == Row->WeaponActionTag)
+        {
+            return Spec.Handle;
+        }
+    }
+    return {};
+}
+
 // 非连招动作以及入口维持原语义。后续段必须持有与目标 Spec 相符的接续凭证。
 bool UStanderComboComponent::CanStartWeaponStage(FGameplayAbilitySpecHandle Spec, FGameplayTag Action) const
 {
@@ -294,7 +470,7 @@ bool UStanderComboComponent::CanStartWeaponStage(FGameplayAbilitySpecHandle Spec
     {
         return Stage.WeaponActionTag == Action;
     });
-    return !Row || Row->StageTag == EntryStage ||
+    return !Row || Row->StageTag == EntryStage || Spec == PreflightStage ||
            (Spec == ActiveSpec && CurrentStage == Row->StageTag && ReadyTags.HasTagExact(Row->RequiredTag) &&
             IsContextCurrent() && BoundASC->HasMatchingGameplayTag(Row->RequiredTag));
 }

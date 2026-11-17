@@ -6,6 +6,7 @@
 // 主要调用链：装备授予动作 GA -> CanActivateAbility -> ActivateAbility -> Advance -> Execute / Move；发射物交由 AStanderWeaponProjectile 推进，EndAbility 清理占用。
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
 #include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
+#include "AbilitySystem/Time/AbilityWorldTimeSubsystem.h"
 #include "AbilitySystem/Unified/Nodes/AbilityCharacterNodeExecutions.h"
 #include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
 #include "AbilitySystem/Combo/StanderComboComponent.h"
@@ -120,7 +121,6 @@ UStanderWeaponActionAbility::UStanderWeaponActionAbility()
 {
     const auto Busy = FGameplayTag::RequestGameplayTag(TEXT("State.Stander.Busy"));
     ActivationOwnedTags.AddTag(Busy);
-    ActivationBlockedTags.AddTag(Busy);
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
     NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::ServerOnly;
     DebuffChance = KnockbackChance = 0;
@@ -133,11 +133,16 @@ bool UStanderWeaponActionAbility::CanActivateAbility(FGameplayAbilitySpecHandle 
     auto* P = I ? Cast<AStanderPlayer>(I->AvatarActor.Get()) : nullptr;
     auto* Equipment =
         P && P->GetPlayerState() ? P->GetPlayerState()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+    auto* ASC = I ? I->AbilitySystemComponent.Get() : nullptr;
+    const auto Busy = FGameplayTag::RequestGameplayTag(TEXT("State.Stander.Busy"));
+    const bool bHandoff = P && P->ComboComponent->GetPreflightSource(H).IsValid();
     return P && Equipment && Equipment->GetWeaponSet() && ActionConfig &&
+           ASC && (ASC->GetTagCount(Busy) == 0 || (bHandoff && ASC->GetTagCount(Busy) == 1)) &&
            Equipment->GetWeaponSet()->Family == ActionConfig->WeaponFamily && ActionConfig->Validate() &&
            P->ComboComponent->CanStartWeaponStage(H, ActionConfig->ActionTag) &&
            !P->IsDead_Implementation() && !P->IsDungeonDowned() && !P->bIsStunned &&
-           P->GetCharacterMovement()->IsMovingOnGround() && P->GetMesh()->GetAnimInstance() && DamageType.IsValid() &&
+           (bHandoff || P->GetCharacterMovement()->IsMovingOnGround()) && P->GetMesh()->GetAnimInstance() &&
+           !ASC->HasMatchingGameplayTag(FMyGameplayTags::Get().Effects_HitReact) && DamageType.IsValid() &&
            DamageEffectClass && Super::CanActivateAbility(H, I, S, T, R);
 }
 // 提交技能消耗和冷却，锁定朝向与移动，播放蒙太奇并启动推进定时器。
@@ -152,6 +157,10 @@ void UStanderWeaponActionAbility::ActivateAbility(FGameplayAbilitySpecHandle H, 
     OwnMovement = false;
     JumpOffset = 0;
     BlockedMoves.Reset();
+    PendingHandoffInput = {};
+    bConfirmedDamage = false;
+    bEndingForHandoff = false;
+    bContinueComboOnHandoff = false;
     if (!Player.IsValid() || !ActionConfig || !ActionConfig->Validate() || !I->IsNetAuthority() ||
         !CommitAbility(H, I, A))
     {
@@ -209,7 +218,78 @@ void UStanderWeaponActionAbility::TimelinePosition(float SourcePosition)
     {
         Player->ComboComponent->UpdateStage(CurrentSpecHandle, NextEvent > 0,
                                    TimelineTask->DurationBetween(SourcePosition, ActionConfig->Montage->GetPlayLength()));
+        const auto* Clock = GetWorld()->GetSubsystem<UAbilityWorldTimeSubsystem>();
+        const double Now = Clock ? Clock->GetGameplayRealTime() : GetWorld()->GetTimeSeconds();
+        if (PendingHandoffInput.IsValid())
+        {
+            const auto Input = PendingHandoffInput;
+            if (Now > PendingHandoffUntil)
+            {
+                PendingHandoffInput = {};
+            }
+            else if (Player->ComboComponent->TryWeaponHandoff(*this, Input))
+            {
+                return;
+            }
+        }
     }
+}
+
+void UStanderWeaponActionAbility::BufferHandoff(FGameplayTag Input)
+{
+    if (!IsActive() || !TimelineTask || !Player.IsValid() || !Input.IsValid())
+    {
+        return;
+    }
+    const auto* Clock = GetWorld()->GetSubsystem<UAbilityWorldTimeSubsystem>();
+    const double Now = Clock ? Clock->GetGameplayRealTime() : GetWorld()->GetTimeSeconds();
+    const auto Priority = [](FGameplayTag Tag)
+    {
+        if (Tag == FGameplayTag::RequestGameplayTag(TEXT("InputTag.Dodge")))
+        {
+            return 3;
+        }
+        if (Tag == FGameplayTag::RequestGameplayTag(TEXT("InputTag.RMB")))
+        {
+            return 2;
+        }
+        return Tag == FGameplayTag::RequestGameplayTag(TEXT("InputTag.LMB")) ? 0 : 1;
+    };
+    if (!PendingHandoffInput.IsValid() || Now > PendingHandoffUntil ||
+        Priority(Input) >= Priority(PendingHandoffInput))
+    {
+        PendingHandoffInput = Input;
+        PendingHandoffUntil = Now + .15;
+    }
+}
+
+bool UStanderWeaponActionAbility::CanYieldTo(FGameplayTag Destination, bool bDefensive) const
+{
+    if (!IsActive() || !TimelineTask || !TimelineTask->CanCancelInto(Destination) || !Player.IsValid() ||
+        !OwnMovement || Player->GetCharacterMovement()->MovementMode != MOVE_None || JumpOffset > 5.f ||
+        (PreviousMovement != MOVE_Walking && PreviousMovement != MOVE_NavWalking) ||
+        NextEvent != ActionConfig->Events.Num() || (!bDefensive && !bConfirmedDamage))
+    {
+        return false;
+    }
+    for (const auto& Event : ActionConfig->Events)
+    {
+        if ((Event.Kind == EStanderWeaponActionKind::Move || Event.Kind == EStanderWeaponActionKind::Guard) &&
+            LastPosition < Event.Time + Event.Duration)
+        {
+            return false;
+        }
+    }
+    FFindFloorResult Floor;
+    Player->GetCharacterMovement()->FindFloor(Player->GetActorLocation(), Floor, false);
+    return Floor.IsWalkableFloor();
+}
+
+void UStanderWeaponActionAbility::EndForHandoff(bool bContinueCombo)
+{
+    bEndingForHandoff = true;
+    bContinueComboOnHandoff = bContinueCombo;
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
 // 正常结束保留已发射弹体，取消沿用现有投射物/格挡/移动清理策略。
@@ -353,12 +433,23 @@ void UStanderWeaponActionAbility::Execute(const FStanderWeaponActionEvent& E)
     Settings->Strike.Radius = E.Radius;
     Settings->Strike.Angle = E.Angle;
     Settings->LocalDeathImpulse = E.DeathImpulse;
+    Settings->LocalLiveHitImpulse = E.LiveHitImpulse;
     Settings->bRadialImpulse = E.Angle >= 359.f;
     FAbilityCharacterActionCallbacks Callbacks;
     Callbacks.IsCurrent = [this, Session = GetExecutionSession()]()
     {
         return Session && Session->IsSourceCurrent() && GetExecutionSession() == Session && IsActive() &&
                Player.IsValid();
+    };
+    Callbacks.AfterDamage = [this, Session = GetExecutionSession()](const FAbilityTargetToken&, const FVector&,
+                                                                   const FAbilityDamageResult& Result)
+    {
+        if (!IsActive() || GetExecutionSession() != Session || !Session || !Session->IsSourceCurrent())
+        {
+            return false;
+        }
+        bConfirmedDamage |= Result.ActualDamage.Get(0.f) > 0.f;
+        return true;
     };
     AbilityCharacterActions::ExecuteStrike(Source, Params, *Settings, Origin, Forward, Callbacks);
 }
@@ -367,7 +458,11 @@ void UStanderWeaponActionAbility::EndAbility(FGameplayAbilitySpecHandle H, const
                                              FGameplayAbilityActivationInfo A, bool R, bool C)
 {
     const TWeakObjectPtr<AStanderPlayer> ComboOwner = Player;
-    const bool bCompletedStage = !C && TimelineTask && NextEvent == ActionConfig->Events.Num();
+    const bool bCompletedStage = bContinueComboOnHandoff || (!C && TimelineTask && NextEvent == ActionConfig->Events.Num());
+    const bool bDestroyProjectiles = C && !bEndingForHandoff;
+    bEndingForHandoff = false;
+    bContinueComboOnHandoff = false;
+    PendingHandoffInput = {};
     CloseExecutionSession(C);
     // 先解绑并关闭事件入口，后面的蒙太奇停止不能再触发一次结束回调。
     if (TimelineTask)
@@ -380,7 +475,7 @@ void UStanderWeaponActionAbility::EndAbility(FGameplayAbilitySpecHandle H, const
     }
     if (GetWorld())
         GetWorld()->GetTimerManager().ClearTimer(Timer);
-    if (C)
+    if (bDestroyProjectiles)
         for (auto P : Projectiles)
             if (P.IsValid())
                 P->Destroy();

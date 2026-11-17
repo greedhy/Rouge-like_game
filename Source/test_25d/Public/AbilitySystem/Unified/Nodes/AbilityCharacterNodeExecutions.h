@@ -35,6 +35,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FVector LocalDeathImpulse = FVector(800, 0, 300);
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FVector LocalLiveHitImpulse = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bRadialImpulse = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TObjectPtr<UNiagaraSystem> SwingEffect;

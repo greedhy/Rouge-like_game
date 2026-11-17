@@ -33,6 +33,9 @@ struct TEST_25D_API FStanderWeaponActionEvent
     float Angle = 120;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     FVector DeathImpulse = FVector(800, 0, 300);
+    /** 活体受击速度，局部 X 为前方，Z 为上方。死亡仍使用独立的 DeathImpulse。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FVector LiveHitImpulse = FVector::ZeroVector;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     float ProjectileSpeed = 1200;
     UPROPERTY(EditAnywhere, BlueprintReadOnly)

@@ -56,13 +56,13 @@ UPerfectDodgeComponent* UPerfectDodgeComponent::FindOrCreate(ACharacter* Charact
     return Component;
 }
 
-bool UPerfectDodgeComponent::CanStart(ACharacter* Character)
+bool UPerfectDodgeComponent::CanStart(ACharacter* Character, bool bPreflightGroundHandoff)
 {
     FAbilitySourceToken Token;
     FString Error;
     if (!Character || !Character->GetWorld() || Character->GetNetMode() != NM_Standalone ||
         !AbilityExecutionIdentity::CaptureSource(Character, Token, Error) ||
-        !Character->GetCharacterMovement()->IsMovingOnGround() ||
+        (!bPreflightGroundHandoff && !Character->GetCharacterMovement()->IsMovingOnGround()) ||
         UAbilityMovementOwnershipComponent::HasActiveClaim(Character))
     {
         return false;

@@ -3,6 +3,7 @@
 #include "Tests/AbilityTimelineTestAbility.h"
 #include "AbilitySystem/Ability/StanderWeaponActionAbility.h"
 #include "AbilitySystem/Ability/StanderAbility.h"
+#include "AbilitySystem/Ability/PerfectDodgeAbility.h"
 #include "AbilitySystem/Combo/StanderComboComponent.h"
 #include "AbilitySystem/Time/AbilityWorldTimeSubsystem.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
@@ -11,6 +12,8 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Equipment/EquipmentComponent.h"
@@ -19,6 +22,7 @@
 #include "Misc/AutomationTest.h"
 #include "MyGameplayTags.h"
 #include "Player/MyPlayerState.h"
+#include "PureMass/PureMassSubsystem.h"
 #include "TimerManager.h"
 #include "UObject/Script.h"
 
@@ -123,6 +127,102 @@ bool FStanderComboInputTest::RunTest(const FString&)
     ASC->AbilityInputTagPressed(LMB);
     TestTrue(TEXT("Expired right to continue starts from first"), CurrentStage().EndsWith(TEXT(".Attack1")));
     TestFalse(TEXT("Previous ready tag cannot authorize stages after expiry"), ASC->HasMatchingGameplayTag(Ready2));
+    ASC->CancelAllAbilities();
+
+    // 提供真实可行走地面，取消预检查必须核对旧动作持有的地面移动及真实 Timeline。
+    auto* Floor = World->SpawnActor<AActor>();
+    auto* Surface = NewObject<UBoxComponent>(Floor);
+    Floor->SetRootComponent(Surface);
+    Floor->AddInstanceComponent(Surface);
+    Surface->SetBoxExtent(FVector(800, 800, 10));
+    Surface->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Surface->SetCollisionObjectType(ECC_WorldStatic);
+    Surface->SetCollisionResponseToAllChannels(ECR_Block);
+    Surface->RegisterComponent();
+    Floor->SetActorLocation(FVector(0, 0, -10));
+    Pawn->SetActorLocation(FVector(0, 0, Pawn->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 2.f));
+    Pawn->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+    ASC->AbilityInputTagPressed(LMB);
+    const auto RMB = FMyGameplayTags::Get().InputTag_RMB;
+    TestTrue(TEXT("Default weapon includes right mouse Block"), ASC->GetSpecWithSlot(RMB) != nullptr);
+    TestTrue(TEXT("RMB resolves through the native sword input frontend"),
+             Pawn->ComboComponent->IsWeaponActionInput(*ASC, RMB));
+    ASC->AbilityInputTagPressed(RMB);
+    TestTrue(TEXT("Early guard press does not interrupt windup"), CurrentStage().EndsWith(TEXT(".Attack1")));
+    const auto* OldAttack = Cast<UStanderWeaponActionAbility>(ASC->GetAnimatingAbility());
+    const auto GuardTag = FGameplayTag::RequestGameplayTag(TEXT("Abilities.StanderWeapons.Sword_Shield.Block"));
+    bool bReachedCancelWindow = false;
+    for (int32 Frame = 0; Frame < 48 && !CurrentStage().EndsWith(TEXT(".Block")); ++Frame)
+    {
+        if (OldAttack && OldAttack->IsActive() && OldAttack->CanYieldTo(GuardTag, true) && !bReachedCancelWindow)
+        {
+            bReachedCancelWindow = true;
+            ASC->AbilityInputTagPressed(RMB);
+            AdvanceFrame();
+            TestTrue(TEXT("Unaffordable guard preserves the old attack"), OldAttack->IsActive());
+            ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxManaAttribute(), 1000.f);
+            ASC->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 1000.f);
+            ASC->AbilityInputTagPressed(RMB);
+        }
+        AdvanceFrame();
+    }
+    TestTrue(TEXT("Recovery opened the authored cancel window on level ground"), bReachedCancelWindow);
+    TestTrue(TEXT("A real whiff can hand off from recovery to the guard spec"),
+             CurrentStage().EndsWith(TEXT(".Block")));
+    TestFalse(TEXT("Defense handoff discards attack stage authorization"), ASC->HasMatchingGameplayTag(Ready2));
+    ASC->CancelAllAbilities();
+
+    // 用真实 Mass 伤害回执验证命中交接，击杀也可以确认玩家的接续窗口。
+    auto* Mass = World->GetSubsystem<UPureMassSubsystem>();
+    Mass->Enable();
+    Pawn->Tags.AddUnique(TEXT("Player"));
+    auto* Fodder = NewObject<UPureMassMonsterType>(World);
+    Fodder->Health = 1.f;
+    Fodder->XPReward = 0;
+    const FVector VictimPosition = Pawn->GetActorLocation() + Pawn->GetActorForwardVector() * 180.f;
+    const int32 Victim = Mass->SpawnMonster(Fodder, VictimPosition);
+    TestTrue(TEXT("Spawned a real fodder within the attack sweep"), Victim > 0);
+    ASC->AbilityInputTagPressed(LMB);
+    const auto* First = Cast<UStanderWeaponActionAbility>(ASC->GetAnimatingAbility());
+    const auto Attack2 = FGameplayTag::RequestGameplayTag(TEXT("Abilities.StanderWeapons.Sword_Shield.Attack2"));
+    bool bConfirmedWindow = false;
+    for (int32 Frame = 0; Frame < 48 && !CurrentStage().EndsWith(TEXT(".Attack2")); ++Frame)
+    {
+        if (!bConfirmedWindow && First && First->IsActive() && First->CanYieldTo(Attack2, false))
+        {
+            bConfirmedWindow = true;
+            ASC->AbilityInputTagPressed(LMB);
+        }
+        AdvanceFrame();
+    }
+    FPureMassView Removed;
+    TestFalse(TEXT("One real sword event killed the fodder"), Mass->Resolve(Victim, Removed));
+    TestTrue(TEXT("Actual damage, including a kill, authorizes the attack window"), bConfirmedWindow);
+    TestTrue(TEXT("Authorized attack window hands off to slotless Attack2"), CurrentStage().EndsWith(TEXT(".Attack2")));
+    ASC->CancelAllAbilities();
+
+    // 固有技能保留原翻滚组件，预检查只忽略本次要结束的剑盾动作。
+    ASC->AddCharacterAbilities({UPerfectDodgeAbility::StaticClass()});
+    ASC->AbilityInputTagPressed(LMB);
+    const auto DodgeInput = FMyGameplayTags::Get().InputTag_Dodge;
+    const auto DodgeTag = FGameplayTag::RequestGameplayTag(TEXT("Abilities.Common.PerfectDodge"));
+    First = Cast<UStanderWeaponActionAbility>(ASC->GetAnimatingAbility());
+    bool bSentDodge = false;
+    const auto IsDodging = [&]()
+    {
+        const auto* Spec = ASC->GetSpecWithSlot(DodgeInput);
+        return Spec && Spec->IsActive();
+    };
+    for (int32 Frame = 0; Frame < 48 && !IsDodging(); ++Frame)
+    {
+        if (!bSentDodge && First && First->IsActive() && First->CanYieldTo(DodgeTag, true))
+        {
+            bSentDodge = true;
+            ASC->AbilityInputTagPressed(DodgeInput);
+        }
+        AdvanceFrame();
+    }
+    TestTrue(TEXT("Whiff recovery starts the actual startup dodge spec"), IsDodging());
     ASC->CancelAllAbilities();
 
     // 在隔离夹具模拟无默认武器组的旧角色。实际旧 GA 仍通过原启动授予和自己的变体时间轴。

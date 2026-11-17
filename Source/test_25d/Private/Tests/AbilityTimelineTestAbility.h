@@ -1,6 +1,6 @@
 // 测试调用链：自动化夹具授予本GA -> RunTimeline -> 记录Notify/结束；游戏角色不授予此测试类型。
 #pragma once
-#include "AbilitySystem/Ability/MyGameplayAbility.h"
+#include "AbilitySystem/Ability/MyDamageGameplayAbility.h"
 #include "AbilitySystem/Timeline/AbilityTask_RunTimeline.h"
 #include "Character/StanderPlayer.h"
 #include "Player/MyPlayerState.h"
@@ -23,7 +23,7 @@ public:
 
 /** 真实ASC/蒙太奇任务的测试接收器，计数仅存在于当前测试对象，不复制。 */
 UCLASS()
-class UAbilityTimelineTestAbility : public UMyGameplayAbility
+class UAbilityTimelineTestAbility : public UMyDamageGameplayAbility
 {
     GENERATED_BODY()
 public:
@@ -44,6 +44,12 @@ public:
     float HitTime = -1;
     float LastSourcePosition = 0;
     bool bKeepAbilityActive = false;
+    void ConfigureRelease(FGameplayTag Release)
+    {
+        RecoveryMontage = TestMontage;
+        RecoveryReleaseEvent = Release;
+        PostReleaseSeconds = .12f;
+    }
     /** 绑定回调后开始播放，不生成实际伤害。 */
     virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* Info,
                                  FGameplayAbilityActivationInfo Activation, const FGameplayEventData* Data) override;

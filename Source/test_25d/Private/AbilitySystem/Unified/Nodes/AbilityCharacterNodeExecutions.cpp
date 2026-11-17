@@ -60,7 +60,7 @@ bool UAbilityCharacterStrikeNodeConfig::Validate(FString& Error) const
     Error.Reset();
     if (!FMath::IsFinite(Strike.Damage) || Strike.Damage < 0.f || !FMath::IsFinite(Strike.Radius) ||
         Strike.Radius <= 0.f || !FMath::IsFinite(Strike.Angle) || Strike.Angle <= 0.f || Strike.Angle > 360.f ||
-        LocalDeathImpulse.ContainsNaN() || !FMath::IsFinite(SwingOffset))
+        LocalDeathImpulse.ContainsNaN() || LocalLiveHitImpulse.ContainsNaN() || !FMath::IsFinite(SwingOffset))
     {
         Error = TEXT("Character strike requires finite damage, geometry and impulse.");
     }
@@ -187,6 +187,11 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
                 ImpulseForward = Radial;
             }
             Params.DeathImpulse = UStanderCombatConfig::WorldDeathImpulse(Settings.LocalDeathImpulse, ImpulseForward);
+            if (!Settings.LocalLiveHitImpulse.IsNearlyZero())
+            {
+                Params.KnockbackForce =
+                    UStanderCombatConfig::WorldDeathImpulse(Settings.LocalLiveHitImpulse, ImpulseForward);
+            }
         }
         if (Target.Target.IsActor() && Callbacks.BeforeActorDamage)
         {

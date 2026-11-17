@@ -314,7 +314,9 @@ float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amou
     // ApplyDamage 已计算抗性、格挡、暴击和护甲；持续伤害/地表入口直接提供本次结算量。
     // 与 Actor IncomingDamage 飘字保持一致，过量伤害也显示结算值；Removed 只用于真实扣血和结果返回。
     const float EvaluatedDamage = FinitePositive(Amount);
-    const float Removed = FMath::Min(Fragment.Health, EvaluatedDamage);
+    // 一点生命的小怪在实际受到正伤害后直接走原死亡流程，即使减伤后只有小数。
+    const bool bOneHitFodder = Fragment.MaxHealth == 1.f && EvaluatedDamage > 0.f;
+    const float Removed = bOneHitFodder ? Fragment.Health : FMath::Min(Fragment.Health, EvaluatedDamage);
     if (Removed <= 0)
     {
         return 0;

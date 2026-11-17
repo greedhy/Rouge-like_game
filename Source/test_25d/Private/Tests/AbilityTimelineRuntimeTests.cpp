@@ -80,6 +80,62 @@ void UAbilityTimelineTestAbility::Finish(bool bInterrupted)
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAbilityReleaseRecoveryTest, "test_25d.AbilityTimeline.SpellReleaseRecovery",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FAbilityReleaseRecoveryTest::RunTest(const FString&)
+{
+    auto* Config = LoadObject<UStanderWeaponActionConfig>(
+        nullptr, TEXT("/Game/BluePrints/Characters/Stander/Weapons/Sword_Shield/DA_Attack1.DA_Attack1"));
+    auto* MeshAsset = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/PlatformAnimation/Models/Stander.Stander"));
+    if (!TestNotNull(TEXT("Real single-section montage"), Config) || !TestNotNull(TEXT("Compatible mesh"), MeshAsset))
+    {
+        return false;
+    }
+    FEditorScriptExecutionGuard ScriptGuard;
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    auto* Actor = World->SpawnActor<AEnemyCharacter>();
+    auto* ASC = CastChecked<UMyAbilitySystemComponent>(Actor->GetAbilitySystemComponent());
+    auto* Mesh = Actor->GetMesh();
+    Mesh->SetSkeletalMeshAsset(MeshAsset);
+    Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+    Mesh->SetAnimInstanceClass(UAnimInstance::StaticClass());
+    ASC->InitAbilityActorInfo(Actor, Actor);
+    const auto Handle = ASC->GiveAbility(FGameplayAbilitySpec(UAbilityTimelineTestAbility::StaticClass(), 1));
+    auto* GA = CastChecked<UAbilityTimelineTestAbility>(ASC->FindAbilitySpecFromHandle(Handle)->GetPrimaryInstance());
+    GA->TestMontage = Config->Montage;
+    const float Length = GA->TestMontage->GetPlayLength();
+    GA->TestDefinition = NewObject<UAbilityTimelineDefinition>();
+    auto& Phase = GA->TestDefinition->Phases.AddDefaulted_GetRef();
+    Phase.Name = TEXT("Cast");
+    Phase.SourceEnd = Phase.Duration = Length;
+    const auto Release = FGameplayTag::RequestGameplayTag(TEXT("Event.Montage.FireBolt"));
+    GA->ConfigureRelease(Release);
+    if (TestTrue(TEXT("Owned montage starts before release"), ASC->TryActivateAbility(Handle)))
+    {
+        auto* Anim = Mesh->GetAnimInstance();
+        Anim->Montage_SetPosition(GA->TestMontage, Length * .5f);
+        FGameplayEventData Event;
+        ASC->HandleGameplayEvent(FGameplayTag::RequestGameplayTag(TEXT("Event.Montage.AracaneShards")), &Event);
+        TestEqual(TEXT("Other spell events leave windup alone"), Anim->Montage_GetPlayRate(GA->TestMontage), 1.f);
+        ASC->HandleGameplayEvent(Release, &Event);
+        TestTrue(TEXT("Release changes no source position"),
+                 FMath::IsNearlyEqual(Anim->Montage_GetPosition(GA->TestMontage), Length * .5f));
+        TestTrue(TEXT("Owned release tail takes 120 milliseconds"),
+                 FMath::IsNearlyEqual(Length * .5f / Anim->Montage_GetPlayRate(GA->TestMontage), .12f));
+        for (int32 Frame = 0; Frame < 17 && GA->IsActive(); ++Frame)
+        {
+            Mesh->TickAnimation(.01f, false);
+            Anim->DispatchQueuedAnimEvents();
+        }
+        TestFalse(TEXT("Existing montage cleanup ends ability"), GA->IsActive());
+    }
+    ASC->CancelAllAbilities();
+    GEngine->DestroyWorldContext(World);
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimelineRuntimeNotify, "test_25d.AbilityTimeline.RealMontageNotifyAndCleanup",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 /** 在真实蒙太奇连续播放时检查变速后的通知时刻、取消清理与下一次施法。 */

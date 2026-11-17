@@ -84,6 +84,17 @@ struct FMyGameplayEffectContext : public FGameplayEffectContext
     GENERATED_BODY() //宏 自动生成构造函数、析构函数、拷贝构造函数等
 
 public:
+    // 只用于本次服务端 Apply 的同步结算回执，无需跨网络或延续到另一个伤害 GE。
+    TOptional<float> ResolvedHealthDamage;
+
+    static FMyGameplayEffectContext* GetMutable(FGameplayEffectContextHandle Context)
+    {
+        auto* Value = Context.Get();
+        return Value && Value->GetScriptStruct()->IsChildOf(StaticStruct())
+                   ? static_cast<FMyGameplayEffectContext*>(Value)
+                   : nullptr;
+    }
+
     bool IsBlockedHit() const
     {
         return bIsBlockedHit;

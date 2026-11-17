@@ -124,7 +124,7 @@ bool ATelegraphedEnemyCharacter::TryChooseAttack()
 }
 int32 ATelegraphedEnemyCharacter::BeginAttack(const FStoneGolemAttackTuning& Tuning, const FVector& Center, float Yaw)
 {
-    if (!HasAuthority() || bDead || bAttackActive)
+    if (!HasAuthority() || bDead || bAttackActive || bIsStunned || IsCombatReactionBlocking())
         return 0;
     ClearImpact();
     bAttackActive = true;

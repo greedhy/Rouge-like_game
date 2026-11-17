@@ -26,6 +26,9 @@ public:
     {
         return TimelineTask;
     }
+    void BufferHandoff(FGameplayTag Input);
+    bool CanYieldTo(FGameplayTag Destination, bool bDefensive) const;
+    void EndForHandoff(bool bContinueCombo);
     // 在蓝图默认对象上同步动作配置的技能身份标签。
     UFUNCTION(BlueprintCallable, Category = "Weapon Authoring")
     void InitializeActionIdentity();
@@ -104,4 +107,9 @@ private:
     int32 OriginRoom = INDEX_NONE;
     TSet<int32> BlockedMoves;
     float GuardEnds = -1;
+    FGameplayTag PendingHandoffInput;
+    double PendingHandoffUntil = 0.;
+    bool bConfirmedDamage = false;
+    bool bEndingForHandoff = false;
+    bool bContinueComboOnHandoff = false;
 };

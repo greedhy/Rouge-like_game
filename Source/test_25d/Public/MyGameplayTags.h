@@ -1,4 +1,4 @@
-/** 调用链与单例生命周期：UMyAssetManager::StartInitialLoading -> InitializeNativeGameplayTags -> UGameplayTagsManager注册 -> 各模块Get只读访问。GameplayTags是静态C++值实例，不是UObject，不由GC或对象池管理；存活于模块静态生命周期，不随地图重建。各进程独立注册同名标签，不能把静态实例地址当成网络身份。 */
+// 调用链：资产管理器注册标签 -> 模块提供只读快照；编辑器重载后可从引擎标签树重建快照。
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
@@ -10,12 +10,12 @@
  */
 struct FMyGameplayTags
 {
-public:
-    static const FMyGameplayTags& Get()
-    {
+#if WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
+    friend class FGameplayTagModuleReloadTest;
+#endif
 
-        return GameplayTags;
-    }
+public:
+    static const FMyGameplayTags& Get();
     static void InitializeNativeGameplayTags();
     FGameplayTag Attributes_Primary_Strength;
 
@@ -153,5 +153,6 @@ public:
     FGameplayTag GameplayCue_ArcaneNova;
 
 private:
+    static FMyGameplayTags BuildTagSnapshot(bool bRegisterNativeTags);
     static FMyGameplayTags GameplayTags;
 };

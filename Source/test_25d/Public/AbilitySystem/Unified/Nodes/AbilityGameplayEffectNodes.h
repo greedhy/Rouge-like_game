@@ -32,6 +32,9 @@ class TEST_25D_API UAbilityOwnedEffectNodeConfig : public UAbilityGameplayEffect
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float DurationSeconds = 1.f;
+    /** Keeps an Infinite GE until the owning execution stops or the effect is externally removed. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bUntilGraphEnds = false;
     virtual bool Validate(FString& Error) const override;
     virtual bool MatchesType(FName TypeId) const override;
 };
@@ -79,6 +82,7 @@ public:
 private:
     FAbilityGameplayEffectApplication Applied;
     float Remaining = 0.f;
+    bool bUntilGraphEnds = false;
 };
 namespace AbilityGameplayEffectNodes
 {

@@ -63,6 +63,7 @@ bool UTelegraphedEnemyAbility::CanActivateAbility(FGameplayAbilitySpecHandle Han
         !Actor->GetCombatConfig() || !Actor->GetCombatConfig()->DamageEffect ||
         !FMath::IsFinite(Actor->GetCombatConfig()->BaseDamage) || Actor->GetCombatConfig()->BaseDamage < 0 ||
         Actor->IsDead_Implementation() || Actor->IsDungeonPoolSleeping() || Actor->IsAttacking() || Actor->bIsStunned ||
+        Actor->IsCombatReactionBlocking() ||
         !Actor->GetMesh()->GetAnimInstance() || !Actor->GetMesh()->GetSkeletalMeshAsset() ||
         Actor->GetMesh()->GetSkeletalMeshAsset()->GetSkeleton() != AttackConfig->Tuning.Montage->GetSkeleton())
         return false;

@@ -3,10 +3,12 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "InputCoreTypes.h"
+#include "GameplayTagContainer.h"
 #include "GameplayMenuInputProbe.generated.h"
 
 class APlayerController;
 class UUserWidget;
+class USpellMenuWidgetController;
 
 UCLASS()
 class UGameplayMenuInputProbe : public UBlueprintFunctionLibrary
@@ -25,4 +27,7 @@ public:
 
     UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly))
     static TArray<FString> ReadSlateText(UUserWidget* Root, bool bReadToolTips);
+    /** Dispatch the normal slot selection on the PIE world tick so client RPCs reach authority. */
+    UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly))
+    static bool QueueSpellSlot(USpellMenuWidgetController* Controller, FGameplayTag Slot, FGameplayTag AbilityType);
 };

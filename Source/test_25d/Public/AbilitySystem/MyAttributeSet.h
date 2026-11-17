@@ -227,6 +227,18 @@ public:
     void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const;
     ATTRIBUTE_ACCESSORS(UMyAttributeSet, MaxHealth);
 
+    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Poise, Category = "Enemy Attributes")
+    FGameplayAttributeData Poise;
+    UFUNCTION()
+    void OnRep_Poise(const FGameplayAttributeData& OldPoise) const;
+    ATTRIBUTE_ACCESSORS(UMyAttributeSet, Poise);
+
+    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MaxPoise, Category = "Enemy Attributes")
+    FGameplayAttributeData MaxPoise;
+    UFUNCTION()
+    void OnRep_MaxPoise(const FGameplayAttributeData& OldMaxPoise) const;
+    ATTRIBUTE_ACCESSORS(UMyAttributeSet, MaxPoise);
+
     UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Mana, Category = "Vital Attributes")
     FGameplayAttributeData Mana;
     UFUNCTION()
@@ -249,7 +261,7 @@ private:
     void ShowFloatingText(const FEffectProperties& Props, float Damage, bool bBlockHit, bool bCriticalHit) const;
 
     // 消费并清零伤害元属性，扣血后结算死亡或受击，再显示数字与施加减益。
-    void HandleIncomingDamage(const FEffectProperties& Props);
+    void HandleIncomingDamage(const FEffectProperties& Props, bool bPeriodic);
     // 消费经验元属性，结算跨级奖励并设置升级资源补满标记。
     void HandleIncomingXP(const FEffectProperties& Props);
     // 构造限时周期伤害 GE，附加状态标签并施加给目标。

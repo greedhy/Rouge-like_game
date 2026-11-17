@@ -41,11 +41,14 @@ bool UAbilityOwnedEffectNodeConfig::Validate(FString& Error) const
         return false;
     }
     const auto* Effect = EffectClass->GetDefaultObject<UGameplayEffect>();
-    if (!FMath::IsFinite(DurationSeconds) || DurationSeconds <= 0.f ||
-        Effect->DurationPolicy == EGameplayEffectDurationType::Instant ||
+    const bool bValidLifetime = bUntilGraphEnds
+        ? Effect->DurationPolicy == EGameplayEffectDurationType::Infinite
+        : FMath::IsFinite(DurationSeconds) && DurationSeconds > 0.f &&
+          Effect->DurationPolicy != EGameplayEffectDurationType::Instant;
+    if (!bValidLifetime ||
         Effect->GetStackingType() != EGameplayEffectStackingType::None)
     {
-        Error = TEXT("Owned effect requires a nonstacking persistent GE and finite positive ownership duration.");
+        Error = TEXT("Owned effect requires a nonstacking GE with a finite lease or Infinite duration until graph exit.");
     }
     return Error.IsEmpty();
 }
@@ -158,6 +161,7 @@ bool UAbilityOwnedEffectNodeExecution::Start(UAbilityGraphInstance& Owner, const
     }
     const auto* Settings = CastChecked<UAbilityOwnedEffectNodeConfig>(&Config);
     Remaining = Settings->DurationSeconds;
+    bUntilGraphEnds = Settings->bUntilGraphEnds;
     auto Result = AbilityGameplayEffectActions::Apply(Input.SourceToken, *Settings, Input.LiveTargetToken);
     // 应用GE可同步结束图；Stop在句柄返回前发生时，由当前栈撤回刚返回的句柄。
     if (bStopped || Owner.IsFinished())
@@ -181,8 +185,12 @@ void UAbilityOwnedEffectNodeExecution::Advance(float Delta)
     {
         return;
     }
-    Remaining -= Delta;
-    if (Remaining <= 0.f || !Applied.TargetASC.IsValid() || !Applied.TargetASC->GetActiveGameplayEffect(Applied.Handle))
+    if (!bUntilGraphEnds)
+    {
+        Remaining -= Delta;
+    }
+    if ((!bUntilGraphEnds && Remaining <= 0.f) || !Applied.TargetASC.IsValid() ||
+        !Applied.TargetASC->GetActiveGameplayEffect(Applied.Handle))
     {
         Owner->Publish(InvocationId, TEXT("Completed"), Input);
     }

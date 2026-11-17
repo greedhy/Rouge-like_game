@@ -2,11 +2,21 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AbilitySystem/Ability/MyDamageGameplayAbility.h"
-
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "Animation/AnimMontage.h"
 #include "Roguelike/DungeonRunDirector.h"
+
+float UMyDamageGameplayAbility::GetPostReleaseSeconds(FGameplayTag Event, const UAnimMontage* Montage) const
+{
+    if (!Montage || RecoveryMontage != Montage || !Event.IsValid() || RecoveryReleaseEvent != Event ||
+        !FMath::IsFinite(PostReleaseSeconds) || PostReleaseSeconds < .03f || PostReleaseSeconds > 1.f)
+    {
+        return 0.f;
+    }
+    return PostReleaseSeconds;
+}
 
 // 缓存攻击目标，已提交时立即报告。
 void UMyDamageGameplayAbility::SetOffensiveAttackTarget(AActor* TargetActor)

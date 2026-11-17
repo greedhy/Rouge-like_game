@@ -60,6 +60,8 @@ public:
 
     // Replay the latest owner snapshot after a weapon or avatar refreshes its AnimInstance.
     void RefreshStanderOwnerMontage();
+    /** 原事件执行之后才调整仍属于该施法的同一个蒙太奇实例。 */
+    virtual int32 HandleGameplayEvent(FGameplayTag EventTag, const FGameplayEventData* Payload) override;
 
     FEffectAssectTags EffectAssectTags;
     FAbilitiesGiven AbilitiesGiven;

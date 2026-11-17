@@ -10,6 +10,7 @@
 
 class UMyAbilitySystemComponent;
 class UGameplayAbility;
+class UStanderWeaponActionAbility;
 
 USTRUCT(BlueprintType)
 struct FStanderComboStage
@@ -52,6 +53,15 @@ public:
     bool IsComboInput(UMyAbilitySystemComponent& ASC, FGameplayTag Input) const;
     UFUNCTION(BlueprintCallable, Category = "Combat|Combo")
     bool RequestComboInput(FGameplayTag Input);
+    /** 默认剑盾与固有翻滚的数据入口。无对应武器 Spec 时交给普通输入路由。 */
+    bool IsWeaponActionInput(UMyAbilitySystemComponent& ASC, FGameplayTag Input) const;
+    void RequestWeaponActionInput(UMyAbilitySystemComponent& ASC, FGameplayTag Input);
+    bool IsWeaponHandoffPending() const
+    {
+        return bWeaponHandoffPending;
+    }
+    bool TryWeaponHandoff(UStanderWeaponActionAbility& From, FGameplayTag Input);
+    FGameplayAbilitySpecHandle GetPreflightSource(FGameplayAbilitySpecHandle Target) const;
     bool CanStartWeaponStage(FGameplayAbilitySpecHandle Spec, FGameplayTag Action) const;
     int32 DefaultStrikeIndex(FGameplayAbilitySpecHandle Spec) const;
     /** 入口尚未播放时保持窗口关闭；更新时复核装备代次和当前 Avatar。 */
@@ -68,6 +78,7 @@ private:
     bool ValidateRules() const;
     bool IsContextCurrent() const;
     bool StartStage(FGameplayTag Stage);
+    FGameplayAbilitySpecHandle ResolveWeaponStage(FGameplayTag Stage) const;
     void ContinueBuffered(uint32 ExpectedSerial);
     void RemoveReadyTags();
     void OnOtherAbilityActivated(UGameplayAbility* Ability);
@@ -93,6 +104,9 @@ private:
     FAbilitySourceToken Source;
     FGameplayAbilitySpecHandle EntrySpec;
     FGameplayAbilitySpecHandle ActiveSpec;
+    FGameplayAbilitySpecHandle PreflightSource;
+    FGameplayAbilitySpecHandle PreflightTarget;
+    FGameplayAbilitySpecHandle PreflightStage;
     FGameplayTag CurrentStage;
     FGameplayTag BufferedInput;
     FGameplayTagContainer ReadyTags;
@@ -100,4 +114,5 @@ private:
     uint32 Serial = 0;
     double ReadyUntil = 0.;
     bool bOpen = false;
+    bool bWeaponHandoffPending = false;
 };

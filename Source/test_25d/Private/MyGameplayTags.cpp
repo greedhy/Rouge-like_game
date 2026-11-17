@@ -1,4 +1,4 @@
-/** 调用链与单例生命周期：UMyAssetManager::StartInitialLoading -> InitializeNativeGameplayTags -> UGameplayTagsManager注册 -> 各模块Get只读访问。GameplayTags是静态C++值实例，不是UObject，不由GC或对象池管理；存活于模块静态生命周期，不随地图重建。各进程独立注册同名标签，不能把静态实例地址当成网络身份。 */
+// 调用链：AssetManager 注册原生标签 -> BuildTagSnapshot -> GAS 伤害、输入和表现。
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "MyGameplayTags.h"
@@ -8,195 +8,228 @@ FMyGameplayTags FMyGameplayTags::GameplayTags;
 
 void FMyGameplayTags::InitializeNativeGameplayTags()
 {
-    GameplayTags.Attributes_Primary_Strength =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Primary.Strength"));
+    GameplayTags = BuildTagSnapshot(true);
+}
 
-    GameplayTags.Attributes_Primary_Intelligence =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Primary.Intelligence"));
+const FMyGameplayTags& FMyGameplayTags::Get()
+{
+#if WITH_EDITOR
+    if (GameplayTags.DamageTypesToResistance.IsEmpty())
+    {
+        // 热重载重置模块静态快照，但保留引擎已注册的标签，也不会重跑 AssetManager 的启动加载。
+        // 使用旧模块注册的末段标签判断标签树是否已就绪，冷启动仍走标准注册入口。
+        const auto* Manager = UGameplayTagsManager::GetIfAllocated();
+        static const FName ReadyTag(TEXT("CombatSocket.Tail"));
+        if (Manager && Manager->RequestGameplayTag(ReadyTag, false).IsValid())
+        {
+            static const FMyGameplayTags RecoveredTags = BuildTagSnapshot(false);
+            return RecoveredTags;
+        }
+    }
+#endif
+    return GameplayTags;
+}
 
-    GameplayTags.Attributes_Primary_Resilience =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Primary.Resilience"));
-    GameplayTags.Attributes_Primary_Vigor =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Primary.Vigor"));
+FMyGameplayTags FMyGameplayTags::BuildTagSnapshot(bool bRegisterNativeTags)
+{
+    FMyGameplayTags Snapshot;
+    auto& Manager = UGameplayTagsManager::Get();
+    const auto ResolveTag = [&Manager, bRegisterNativeTags](const TCHAR* Name)
+    {
+        const FName TagName(Name);
+        return bRegisterNativeTags ? Manager.AddNativeGameplayTag(TagName) : Manager.RequestGameplayTag(TagName, false);
+    };
 
-    GameplayTags.Attributes_Secondary_Armor =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.Armor"));
-    GameplayTags.Attributes_Secondary_MaxHealth =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.MaxHealth"));
+    Snapshot.Attributes_Primary_Strength =
+        ResolveTag(TEXT("Attributes.Primary.Strength"));
 
-    GameplayTags.Attributes_Secondary_MaxMana =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.MaxMana"));
-    GameplayTags.Attributes_Secondary_ArmorPene =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.ArmorPene"));
+    Snapshot.Attributes_Primary_Intelligence =
+        ResolveTag(TEXT("Attributes.Primary.Intelligence"));
 
-    GameplayTags.Attributes_Secondary_BlockChance =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.BlockChance"));
+    Snapshot.Attributes_Primary_Resilience =
+        ResolveTag(TEXT("Attributes.Primary.Resilience"));
+    Snapshot.Attributes_Primary_Vigor =
+        ResolveTag(TEXT("Attributes.Primary.Vigor"));
 
-    GameplayTags.Attributes_Secondary_CriticalHitChance =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.CriticalHitChance"));
-    GameplayTags.Attributes_Secondary_CriticalHitDamage =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.CriticalHitDamage"));
+    Snapshot.Attributes_Secondary_Armor =
+        ResolveTag(TEXT("Attributes.Secondary.Armor"));
+    Snapshot.Attributes_Secondary_MaxHealth =
+        ResolveTag(TEXT("Attributes.Secondary.MaxHealth"));
 
-    GameplayTags.Attributes_Secondary_CriticalHitResistence =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.CriticalHitResistence"));
+    Snapshot.Attributes_Secondary_MaxMana =
+        ResolveTag(TEXT("Attributes.Secondary.MaxMana"));
+    Snapshot.Attributes_Secondary_ArmorPene =
+        ResolveTag(TEXT("Attributes.Secondary.ArmorPene"));
 
-    GameplayTags.Attributes_Secondary_HealthRegeneration =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.HealthRegeneration"));
-    GameplayTags.Attributes_Secondary_ManaRegeneration =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Secondary.ManaRegeneration"));
+    Snapshot.Attributes_Secondary_BlockChance =
+        ResolveTag(TEXT("Attributes.Secondary.BlockChance"));
 
-    GameplayTags.Attributes_Meta_IncomingXP =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Meta.IncomingXP"));
+    Snapshot.Attributes_Secondary_CriticalHitChance =
+        ResolveTag(TEXT("Attributes.Secondary.CriticalHitChance"));
+    Snapshot.Attributes_Secondary_CriticalHitDamage =
+        ResolveTag(TEXT("Attributes.Secondary.CriticalHitDamage"));
 
-    GameplayTags.InputTag_LMB = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.LMB"));
-    GameplayTags.InputTag_RMB = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.RMB"));
-    GameplayTags.InputTag_1 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.1"));
-    GameplayTags.InputTag_2 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.2"));
-    GameplayTags.InputTag_3 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.3"));
-    GameplayTags.InputTag_4 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.4"));
-    GameplayTags.InputTag_Backpack = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.Backpack"));
-    GameplayTags.InputTag_Pickup = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.Pickup"));
-    GameplayTags.InputTag_Dodge = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.Dodge"));
+    Snapshot.Attributes_Secondary_CriticalHitResistence =
+        ResolveTag(TEXT("Attributes.Secondary.CriticalHitResistence"));
 
-    GameplayTags.InputTag_Passive_1 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.Passive.1"));
-    GameplayTags.InputTag_Passive_2 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("InputTag.Passive.2"));
+    Snapshot.Attributes_Secondary_HealthRegeneration =
+        ResolveTag(TEXT("Attributes.Secondary.HealthRegeneration"));
+    Snapshot.Attributes_Secondary_ManaRegeneration =
+        ResolveTag(TEXT("Attributes.Secondary.ManaRegeneration"));
 
-    GameplayTags.Damage = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage"));
+    Snapshot.Attributes_Meta_IncomingXP =
+        ResolveTag(TEXT("Attributes.Meta.IncomingXP"));
 
-    GameplayTags.Damage_Physics = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Physics"));
-    GameplayTags.Damage_Magic = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Magic"));
-    GameplayTags.Damage_Pure = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Pure"));
-    GameplayTags.Damage_Fire = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Fire"));
-    GameplayTags.Damage_Thunder = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Thunder"));
-    GameplayTags.Damage_Water = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Damage.Water"));
+    Snapshot.InputTag_LMB = ResolveTag(TEXT("InputTag.LMB"));
+    Snapshot.InputTag_RMB = ResolveTag(TEXT("InputTag.RMB"));
+    Snapshot.InputTag_1 = ResolveTag(TEXT("InputTag.1"));
+    Snapshot.InputTag_2 = ResolveTag(TEXT("InputTag.2"));
+    Snapshot.InputTag_3 = ResolveTag(TEXT("InputTag.3"));
+    Snapshot.InputTag_4 = ResolveTag(TEXT("InputTag.4"));
+    Snapshot.InputTag_Backpack = ResolveTag(TEXT("InputTag.Backpack"));
+    Snapshot.InputTag_Pickup = ResolveTag(TEXT("InputTag.Pickup"));
+    Snapshot.InputTag_Dodge = ResolveTag(TEXT("InputTag.Dodge"));
 
-    GameplayTags.Attributes_Resistance_Fire =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Fire"));
-    GameplayTags.Attributes_Resistance_Water =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Water"));
-    GameplayTags.Attributes_Resistance_Thunder =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Thunder"));
-    GameplayTags.Attributes_Resistance_Magic =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Magic"));
-    GameplayTags.Attributes_Resistance_Physics =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Physics"));
-    GameplayTags.Attributes_Resistance_Pure =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Attributes.Resistance.Pure"));
+    Snapshot.InputTag_Passive_1 = ResolveTag(TEXT("InputTag.Passive.1"));
+    Snapshot.InputTag_Passive_2 = ResolveTag(TEXT("InputTag.Passive.2"));
 
-    GameplayTags.Effects_HitReact = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Effects.HitReact"));
+    Snapshot.Damage = ResolveTag(TEXT("Damage"));
+
+    Snapshot.Damage_Physics = ResolveTag(TEXT("Damage.Physics"));
+    Snapshot.Damage_Magic = ResolveTag(TEXT("Damage.Magic"));
+    Snapshot.Damage_Pure = ResolveTag(TEXT("Damage.Pure"));
+    Snapshot.Damage_Fire = ResolveTag(TEXT("Damage.Fire"));
+    Snapshot.Damage_Thunder = ResolveTag(TEXT("Damage.Thunder"));
+    Snapshot.Damage_Water = ResolveTag(TEXT("Damage.Water"));
+
+    Snapshot.Attributes_Resistance_Fire =
+        ResolveTag(TEXT("Attributes.Resistance.Fire"));
+    Snapshot.Attributes_Resistance_Water =
+        ResolveTag(TEXT("Attributes.Resistance.Water"));
+    Snapshot.Attributes_Resistance_Thunder =
+        ResolveTag(TEXT("Attributes.Resistance.Thunder"));
+    Snapshot.Attributes_Resistance_Magic =
+        ResolveTag(TEXT("Attributes.Resistance.Magic"));
+    Snapshot.Attributes_Resistance_Physics =
+        ResolveTag(TEXT("Attributes.Resistance.Physics"));
+    Snapshot.Attributes_Resistance_Pure =
+        ResolveTag(TEXT("Attributes.Resistance.Pure"));
+
+    Snapshot.Effects_HitReact = ResolveTag(TEXT("Effects.HitReact"));
 
     /* 将属性和抗性标签对应 */
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Fire, GameplayTags.Attributes_Resistance_Fire);
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Thunder, GameplayTags.Attributes_Resistance_Thunder);
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Magic, GameplayTags.Attributes_Resistance_Magic);
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Physics, GameplayTags.Attributes_Resistance_Physics);
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Water, GameplayTags.Attributes_Resistance_Water);
-    GameplayTags.DamageTypesToResistance.Add(GameplayTags.Damage_Pure, GameplayTags.Attributes_Resistance_Pure);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Fire, Snapshot.Attributes_Resistance_Fire);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Thunder, Snapshot.Attributes_Resistance_Thunder);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Magic, Snapshot.Attributes_Resistance_Magic);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Physics, Snapshot.Attributes_Resistance_Physics);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Water, Snapshot.Attributes_Resistance_Water);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Pure, Snapshot.Attributes_Resistance_Pure);
 
     //
 
     //abilities
-    GameplayTags.Abilities_None = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.None"));
+    Snapshot.Abilities_None = ResolveTag(TEXT("Abilities.None"));
 
-    GameplayTags.Abilities_Attack = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Attack"));
-    GameplayTags.Abilities_Summon = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Summon"));
-    GameplayTags.Abilities_HitReact = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.HitReact"));
+    Snapshot.Abilities_Attack = ResolveTag(TEXT("Abilities.Attack"));
+    Snapshot.Abilities_Summon = ResolveTag(TEXT("Abilities.Summon"));
+    Snapshot.Abilities_HitReact = ResolveTag(TEXT("Abilities.HitReact"));
 
-    GameplayTags.Abilities_Status_Locked =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Status.Locked"));
-    GameplayTags.Abilities_Status_Eligible =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Status.Eligible"));
-    GameplayTags.Abilities_Status_Unlocked =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Status.Unlocked"));
-    GameplayTags.Abilities_Status_Equipped =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Status.Equipped"));
+    Snapshot.Abilities_Status_Locked =
+        ResolveTag(TEXT("Abilities.Status.Locked"));
+    Snapshot.Abilities_Status_Eligible =
+        ResolveTag(TEXT("Abilities.Status.Eligible"));
+    Snapshot.Abilities_Status_Unlocked =
+        ResolveTag(TEXT("Abilities.Status.Unlocked"));
+    Snapshot.Abilities_Status_Equipped =
+        ResolveTag(TEXT("Abilities.Status.Equipped"));
 
-    GameplayTags.Abilities_Type_Offensive =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Type.Offensive"));
-    GameplayTags.Abilities_Type_Passive =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Type.Passive"));
-    GameplayTags.Abilities_Type_None = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Type.None"));
+    Snapshot.Abilities_Type_Offensive =
+        ResolveTag(TEXT("Abilities.Type.Offensive"));
+    Snapshot.Abilities_Type_Passive =
+        ResolveTag(TEXT("Abilities.Type.Passive"));
+    Snapshot.Abilities_Type_None = ResolveTag(TEXT("Abilities.Type.None"));
     //
-    GameplayTags.Abilities_Passive_HaloOfProtection =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Passive.HaloOfProtection"));
-    GameplayTags.Abilities_Passive_LifeSiphon =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Passive.LifeSiphon"));
-    GameplayTags.Abilities_Passive_ManaSiphon =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Passive.ManaSiphon"));
-    GameplayTags.Abilities_Passive_OrbitingFireBolt =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Passive.OrbitingFireBolt"));
+    Snapshot.Abilities_Passive_HaloOfProtection =
+        ResolveTag(TEXT("Abilities.Passive.HaloOfProtection"));
+    Snapshot.Abilities_Passive_LifeSiphon =
+        ResolveTag(TEXT("Abilities.Passive.LifeSiphon"));
+    Snapshot.Abilities_Passive_ManaSiphon =
+        ResolveTag(TEXT("Abilities.Passive.ManaSiphon"));
+    Snapshot.Abilities_Passive_OrbitingFireBolt =
+        ResolveTag(TEXT("Abilities.Passive.OrbitingFireBolt"));
 
-    GameplayTags.Abilities_Passive_ListenForEvent =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Passive.ListenForEvent"));
+    Snapshot.Abilities_Passive_ListenForEvent =
+        ResolveTag(TEXT("Abilities.Passive.ListenForEvent"));
 
     //
 
-    GameplayTags.Abilities_Fire_FireBolt =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Fire.FireBolt"));
+    Snapshot.Abilities_Fire_FireBolt =
+        ResolveTag(TEXT("Abilities.Fire.FireBolt"));
 
-    GameplayTags.Abilities_Fire_FireBlast =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Fire.FireBlast"));
-    GameplayTags.Abilities_Thunder_Electrocute =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Thunder.Electrocute"));
-    GameplayTags.Abilities_Arcane_ArcaneShards =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Arcane.ArcaneShards"));
-    GameplayTags.Abilities_Arcane_ArcaneNova =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Abilities.Arcane.ArcaneNova"));
+    Snapshot.Abilities_Fire_FireBlast =
+        ResolveTag(TEXT("Abilities.Fire.FireBlast"));
+    Snapshot.Abilities_Thunder_Electrocute =
+        ResolveTag(TEXT("Abilities.Thunder.Electrocute"));
+    Snapshot.Abilities_Arcane_ArcaneShards =
+        ResolveTag(TEXT("Abilities.Arcane.ArcaneShards"));
+    Snapshot.Abilities_Arcane_ArcaneNova =
+        ResolveTag(TEXT("Abilities.Arcane.ArcaneNova"));
 
     //cooldown
 
-    GameplayTags.Cooldown_Fire_FireBolt =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Cooldown.Fire.FireBolt"));
-    GameplayTags.Cooldown_Thunder_Electrocute =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Cooldown.Thunder.Electrocute"));
-    GameplayTags.Cooldown_Arcane_ArcaneShards =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Cooldown.Arcane.ArcaneShards"));
-    GameplayTags.Cooldown_Arcane_ArcaneNova =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Cooldown.Arcane.ArcaneNova"));
+    Snapshot.Cooldown_Fire_FireBolt =
+        ResolveTag(TEXT("Cooldown.Fire.FireBolt"));
+    Snapshot.Cooldown_Thunder_Electrocute =
+        ResolveTag(TEXT("Cooldown.Thunder.Electrocute"));
+    Snapshot.Cooldown_Arcane_ArcaneShards =
+        ResolveTag(TEXT("Cooldown.Arcane.ArcaneShards"));
+    Snapshot.Cooldown_Arcane_ArcaneNova =
+        ResolveTag(TEXT("Cooldown.Arcane.ArcaneNova"));
 
     //debuff
-    GameplayTags.Debuff_Burn = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Burn"));
-    GameplayTags.Debuff_Stun = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Stun"));
-    GameplayTags.Debuff_Arcane = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Arcane"));
-    GameplayTags.Debuff_Physical = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Physical"));
+    Snapshot.Debuff_Burn = ResolveTag(TEXT("Debuff.Burn"));
+    Snapshot.Debuff_Stun = ResolveTag(TEXT("Debuff.Stun"));
+    Snapshot.Debuff_Arcane = ResolveTag(TEXT("Debuff.Arcane"));
+    Snapshot.Debuff_Physical = ResolveTag(TEXT("Debuff.Physical"));
 
-    GameplayTags.Debuff_Chance = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Chance"));
-    GameplayTags.Debuff_Damage = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Damage"));
-    GameplayTags.Debuff_Duration = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Duration"));
-    GameplayTags.Debuff_Frequency = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Debuff.Frequency"));
+    Snapshot.Debuff_Chance = ResolveTag(TEXT("Debuff.Chance"));
+    Snapshot.Debuff_Damage = ResolveTag(TEXT("Debuff.Damage"));
+    Snapshot.Debuff_Duration = ResolveTag(TEXT("Debuff.Duration"));
+    Snapshot.Debuff_Frequency = ResolveTag(TEXT("Debuff.Frequency"));
 
-    GameplayTags.DamageTypesToDebuffs.Add(GameplayTags.Damage_Fire, GameplayTags.Debuff_Burn);
-    GameplayTags.DamageTypesToDebuffs.Add(GameplayTags.Damage_Thunder, GameplayTags.Debuff_Stun);
-    GameplayTags.DamageTypesToDebuffs.Add(GameplayTags.Damage_Magic, GameplayTags.Debuff_Arcane);
-    GameplayTags.DamageTypesToDebuffs.Add(GameplayTags.Damage_Physics, GameplayTags.Debuff_Physical);
-
-    //
-
-    GameplayTags.Player_Block_InputPressed =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Player.Block.InputPressed"));
-    GameplayTags.Player_Block_InputHeld =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Player.Block.InputHeld"));
-    GameplayTags.Player_Block_InputReleased =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Player.Block.InputReleased"));
-    GameplayTags.Player_Block_CursorTrace =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Player.Block.CursorTrace"));
+    Snapshot.DamageTypesToDebuffs.Add(Snapshot.Damage_Fire, Snapshot.Debuff_Burn);
+    Snapshot.DamageTypesToDebuffs.Add(Snapshot.Damage_Thunder, Snapshot.Debuff_Stun);
+    Snapshot.DamageTypesToDebuffs.Add(Snapshot.Damage_Magic, Snapshot.Debuff_Arcane);
+    Snapshot.DamageTypesToDebuffs.Add(Snapshot.Damage_Physics, Snapshot.Debuff_Physical);
 
     //
 
-    GameplayTags.CombatSocket_Weapon = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("CombatSocket.Weapon"));
-    GameplayTags.CombatSocket_RightHand =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("CombatSocket.RightHand"));
-    GameplayTags.CombatSocket_LeftHand =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("CombatSocket.LeftHand"));
-    GameplayTags.CombatSocket_Tail = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("CombatSocket.Tail"));
+    Snapshot.Player_Block_InputPressed =
+        ResolveTag(TEXT("Player.Block.InputPressed"));
+    Snapshot.Player_Block_InputHeld =
+        ResolveTag(TEXT("Player.Block.InputHeld"));
+    Snapshot.Player_Block_InputReleased =
+        ResolveTag(TEXT("Player.Block.InputReleased"));
+    Snapshot.Player_Block_CursorTrace =
+        ResolveTag(TEXT("Player.Block.CursorTrace"));
 
-    GameplayTags.Montage_Attack_1 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Montage.Attack.1"));
-    GameplayTags.Montage_Attack_2 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Montage.Attack.2"));
-    GameplayTags.Montage_Attack_3 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Montage.Attack.3"));
-    GameplayTags.Montage_Attack_4 = UGameplayTagsManager::Get().AddNativeGameplayTag(FName("Montage.Attack.4"));
+    //
 
-    GameplayTags.GameplayCue_FireBlast =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("GameplayCue.FireBlast"));
-    GameplayTags.GameplayCue_ArcaneNova =
-        UGameplayTagsManager::Get().AddNativeGameplayTag(FName("GameplayCue.ArcaneNova"));
+    Snapshot.CombatSocket_Weapon = ResolveTag(TEXT("CombatSocket.Weapon"));
+    Snapshot.CombatSocket_RightHand =
+        ResolveTag(TEXT("CombatSocket.RightHand"));
+    Snapshot.CombatSocket_LeftHand =
+        ResolveTag(TEXT("CombatSocket.LeftHand"));
+    Snapshot.CombatSocket_Tail = ResolveTag(TEXT("CombatSocket.Tail"));
+
+    Snapshot.Montage_Attack_1 = ResolveTag(TEXT("Montage.Attack.1"));
+    Snapshot.Montage_Attack_2 = ResolveTag(TEXT("Montage.Attack.2"));
+    Snapshot.Montage_Attack_3 = ResolveTag(TEXT("Montage.Attack.3"));
+    Snapshot.Montage_Attack_4 = ResolveTag(TEXT("Montage.Attack.4"));
+
+    Snapshot.GameplayCue_FireBlast =
+        ResolveTag(TEXT("GameplayCue.FireBlast"));
+    Snapshot.GameplayCue_ArcaneNova =
+        ResolveTag(TEXT("GameplayCue.ArcaneNova"));
+    return Snapshot;
 }

@@ -7,6 +7,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "MyAbilityTypes.h"
 #include "MyGameplayTags.h"
+#include "Character/EnemyCharacter.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
 #include "Interface/CombatInterface.h"
@@ -57,6 +58,10 @@ void UMyAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, fl
     {
         NewValue = FMath::Clamp(NewValue, 0.f, GetMaxMana());
     }
+    if (Attribute == GetPoiseAttribute())
+    {
+        NewValue = FMath::Clamp(NewValue, 0.f, GetMaxPoise());
+    }
 }
 
 // 解析效果来源目标，过滤死亡目标，再分派资源、伤害与经验处理。
@@ -87,7 +92,7 @@ void UMyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallback
     }
     if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
     {
-        HandleIncomingDamage(Props);
+        HandleIncomingDamage(Props, Data.EffectSpec.GetPeriod() > 0.f);
     }
     if (Data.EvaluatedData.Attribute == GetIncomingXPAttribute())
     {
@@ -260,6 +265,8 @@ void UMyAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, Health, COND_None, REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
+    DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, Poise, COND_None, REPNOTIFY_Always);
+    DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, MaxPoise, COND_None, REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, Mana, COND_None, REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, MaxMana, COND_None, REPNOTIFY_Always);
 
@@ -336,7 +343,17 @@ void UMyAttributeSet::ShowFloatingText(const FEffectProperties& Props, float Dam
     }
 }
 // 消费并清零伤害元属性，扣血后结算死亡或受击，再显示数字与施加减益。
-void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props)
+void UMyAttributeSet::OnRep_Poise(const FGameplayAttributeData& OldPoise) const
+{
+    GAMEPLAYATTRIBUTE_REPNOTIFY(UMyAttributeSet, Poise, OldPoise);
+}
+
+void UMyAttributeSet::OnRep_MaxPoise(const FGameplayAttributeData& OldMaxPoise) const
+{
+    GAMEPLAYATTRIBUTE_REPNOTIFY(UMyAttributeSet, MaxPoise, OldMaxPoise);
+}
+
+void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool bPeriodic)
 {
 
     //如果IncomingDamage被修改了,就调用PostAttributeChange
@@ -344,8 +361,16 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props)
     SetIncomingDamage(0.f);
     if (LocalIncomingDamage > 0.f)
     {
-        const float NewHealth = GetHealth() - LocalIncomingDamage;
-        SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+        const float PreviousHealth = GetHealth();
+        const float NewHealth = FMath::Clamp(PreviousHealth - LocalIncomingDamage, 0.f, GetMaxHealth());
+        const float HealthRemoved = FMath::Max(0.f, PreviousHealth - NewHealth);
+        auto* Enemy = Cast<AEnemyCharacter>(Props.TargetAvatarActor);
+        const int32 EnemyLife = Enemy ? Enemy->GetDungeonPoolLease() : 0;
+        if (auto* Context = FMyGameplayEffectContext::GetMutable(Props.EffectContextHandle); Context && !bPeriodic)
+        {
+            Context->ResolvedHealthDamage = HealthRemoved;
+        }
+        SetHealth(NewHealth);
 
         const bool bFatal = NewHealth <= 0.f;
         if (bFatal)
@@ -361,19 +386,26 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props)
         }
         else
         {
-            if (!Cast<UTerrainStatusComponent>(Props.EffectContextHandle.GetSourceObject()) &&
-                Props.TargetCharacter->Implements<UCombatInterface>() &&
-                !ICombatInterface::Execute_IsBeingShocked(Props.TargetCharacter))
+            const bool bTerrain = Cast<UTerrainStatusComponent>(Props.EffectContextHandle.GetSourceObject()) != nullptr;
+            const FVector Knockback = UMyAbilitySystemLibrary::GetKnockbackForce(Props.EffectContextHandle);
+            if (IsValid(Enemy) && EnemyLife == Enemy->GetDungeonPoolLease())
             {
-                FGameplayTagContainer TagContainer;
-                TagContainer.AddTag(FMyGameplayTags::Get().Effects_HitReact);
-                Props.TargetASC->TryActivateAbilitiesByTag(TagContainer);
+                if (!bTerrain && !bPeriodic)
+                {
+                    Enemy->ApplyCombatDamageReaction(HealthRemoved, Knockback);
+                }
             }
-
-            const FVector& KnockbackForce = UMyAbilitySystemLibrary::GetKnockbackForce(Props.EffectContextHandle);
-            if (!KnockbackForce.IsNearlyZero(1.f))
+            else if (!Enemy)
             {
-                Props.TargetCharacter->LaunchCharacter(KnockbackForce, true, true);
+                if (!bTerrain && Props.TargetCharacter->Implements<UCombatInterface>() &&
+                    !ICombatInterface::Execute_IsBeingShocked(Props.TargetCharacter))
+                {
+                    Props.TargetASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FMyGameplayTags::Get().Effects_HitReact));
+                }
+                if (!Knockback.IsNearlyZero(1.f))
+                {
+                    Props.TargetCharacter->LaunchCharacter(Knockback, true, true);
+                }
             }
         }
 

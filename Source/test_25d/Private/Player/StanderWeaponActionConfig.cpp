@@ -30,6 +30,7 @@ bool UStanderWeaponActionConfig::Validate() const
         if (!FMath::IsFinite(E.Time) || E.Time < Previous || E.Time < 0 || E.Time >= Montage->GetPlayLength() ||
             !FMath::IsFinite(E.Damage) || E.Damage < 0 || !FMath::IsFinite(E.Radius) || E.Radius <= 0 ||
             !FMath::IsFinite(E.Angle) || E.Angle <= 0 || E.Angle > 360 || E.DeathImpulse.ContainsNaN() ||
+            E.LiveHitImpulse.ContainsNaN() ||
             !FMath::IsFinite(E.Duration) || E.Duration < 0 || !FMath::IsFinite(E.ProjectileSpeed) ||
             E.ProjectileSpeed <= 0 || !FMath::IsFinite(E.ProjectileLifetime) || E.ProjectileLifetime <= 0 ||
             !FMath::IsFinite(E.MoveDistance) || !FMath::IsFinite(E.MoveHeight) || E.MoveHeight < 0 ||

@@ -28,6 +28,43 @@
 #include "Animation/AnimMontage.h"
 #include "Net/UnrealNetwork.h"
 
+int32 UMyAbilitySystemComponent::HandleGameplayEvent(FGameplayTag EventTag, const FGameplayEventData* Payload)
+{
+    auto* Montage = GetCurrentMontage();
+    auto* Ability = Cast<UMyDamageGameplayAbility>(GetAnimatingAbility());
+    const float Seconds = Ability ? Ability->GetPostReleaseSeconds(EventTag, Montage) : 0.f;
+    if (Seconds <= 0.f || Montage->CompositeSections.Num() > 1)
+    {
+        return Super::HandleGameplayEvent(EventTag, Payload);
+    }
+    auto* Anim = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
+    auto* Instance = Anim ? Anim->GetActiveInstanceForMontage(Montage) : nullptr;
+    if (!Instance)
+    {
+        return Super::HandleGameplayEvent(EventTag, Payload);
+    }
+    const int32 InstanceId = Instance->GetInstanceID();
+    const TWeakObjectPtr<UMyDamageGameplayAbility> Releasing(Ability);
+    // 保留 GA 原有 Notify 回调、伤害和费用顺序。同步结束或换片后，旧事件没有改速权限。
+    const int32 Triggered = Super::HandleGameplayEvent(EventTag, Payload);
+    if (!Releasing.IsValid() || !Releasing->IsActive() || GetAnimatingAbility() != Releasing.Get() ||
+        GetCurrentMontage() != Montage || !AbilityActorInfo.IsValid() || AbilityActorInfo->GetAnimInstance() != Anim)
+    {
+        return Triggered;
+    }
+    Instance = Anim->GetActiveInstanceForMontage(Montage);
+    if (Instance && Instance->GetInstanceID() == InstanceId)
+    {
+        const float Tail = Montage->GetPlayLength() - Instance->GetPosition();
+        const float RecoveryRate = FMath::Min(10.f, Tail / Seconds);
+        if (RecoveryRate > Instance->GetPlayRate())
+        {
+            CurrentMontageSetPlayRate(RecoveryRate);
+        }
+    }
+    return Triggered;
+}
+
 // Simulated proxies still receive GAS's normal montage state. This is the missing owner view.
 void UMyAbilitySystemComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -224,7 +261,9 @@ void UMyAbilitySystemComponent::AbilityInputTagHeld(const FGameplayTag& InputTag
     if (!InputTag.IsValid())
         return;
     if (const auto* Player = Cast<AStanderPlayer>(GetAvatarActor());
-        Player && Player->ComboComponent->IsComboInput(*this, InputTag))
+        Player && (Player->ComboComponent->IsComboInput(*this, InputTag) ||
+                   (Player->ComboComponent->IsWeaponHandoffPending() &&
+                    Player->ComboComponent->IsWeaponActionInput(*this, InputTag))))
     {
         return;
     }
@@ -621,11 +660,25 @@ void UMyAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 {
     if (!InputTag.IsValid())
         return;
-    if (auto* Player = Cast<AStanderPlayer>(GetAvatarActor());
-        Player && Player->ComboComponent->IsComboInput(*this, InputTag))
+    if (auto* Player = Cast<AStanderPlayer>(GetAvatarActor()); Player)
     {
-        Player->ComboComponent->RequestComboInput(InputTag);
-        return;
+        if (Player->ComboComponent->IsWeaponActionInput(*this, InputTag))
+        {
+            if (Player->HasAuthority())
+            {
+                Player->ComboComponent->RequestWeaponActionInput(*this, InputTag);
+            }
+            else if (Player->IsLocallyControlled())
+            {
+                ServerStanderComboInput(Player, InputTag);
+            }
+            return;
+        }
+        if (Player->ComboComponent->IsComboInput(*this, InputTag))
+        {
+            Player->ComboComponent->RequestComboInput(InputTag);
+            return;
+        }
     }
     FScopedAbilityListLock ActiveScopeLoc(*this);
     for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
@@ -662,7 +715,14 @@ void UMyAbilitySystemComponent::ServerStanderComboInput_Implementation(AActor* E
 {
     if (auto* Player = Cast<AStanderPlayer>(GetAvatarActor()); Player && Player == ExpectedAvatar)
     {
-        Player->ComboComponent->RequestComboInput(InputTag);
+        if (Player->ComboComponent->IsWeaponActionInput(*this, InputTag))
+        {
+            Player->ComboComponent->RequestWeaponActionInput(*this, InputTag);
+        }
+        else
+        {
+            Player->ComboComponent->RequestComboInput(InputTag);
+        }
     }
 }
 

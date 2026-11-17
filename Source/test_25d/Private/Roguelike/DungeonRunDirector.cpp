@@ -804,6 +804,17 @@ void ADungeonRunDirector::UpdateBoss()
     if (!ASC)
         return;
     const double Now = GetWorld()->GetTimeSeconds();
+    if (Boss->IsCombatReactionBlocking() || Boss->bIsStunned)
+    {
+        // 旧版导演驱动的王怪脉冲也必须撤回正在预警的攻击；退出控制后重新预警。
+        if (bPulseWarning)
+        {
+            bPulseWarning = false;
+            ForceNetUpdate();
+        }
+        NextBossPulse = FMath::Max(NextBossPulse, Now + .5);
+        return;
+    }
     if (!bBossSummoned && ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()) <= Profile->BossHealth * .5f)
     {
         bBossSummoned = true;

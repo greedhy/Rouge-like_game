@@ -1,6 +1,8 @@
 // 调用链：固定按下 -> CanActivate -> Reserve -> Commit -> Begin；组件动作秒结束通知GA归还输入占用。
 #include "AbilitySystem/Ability/PerfectDodgeAbility.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Combo/StanderComboComponent.h"
+#include "Character/StanderPlayer.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NativeGameplayTags.h"
@@ -38,9 +40,12 @@ bool UPerfectDodgeAbility::CanActivateAbility(FGameplayAbilitySpecHandle Handle,
 {
     FString Error;
     auto* Character = Info ? Cast<ACharacter>(Info->AvatarActor.Get()) : nullptr;
+    const auto* Stander = Cast<AStanderPlayer>(Character);
+    const auto HandoffSource = Stander ? Stander->ComboComponent->GetPreflightSource(Handle)
+                                      : FGameplayAbilitySpecHandle();
     if (!Super::CanActivateAbility(Handle, Info, SourceTags, TargetTags, OptionalRelevantTags) ||
         !DodgeSettings.Validate(Error) || !FMath::IsFinite(CooldownSeconds) || CooldownSeconds < 0.f ||
-        CooldownSeconds > 60.f || !UPerfectDodgeComponent::CanStart(Character))
+        CooldownSeconds > 60.f || !UPerfectDodgeComponent::CanStart(Character, HandoffSource.IsValid()))
     {
         return false;
     }
@@ -48,7 +53,8 @@ bool UPerfectDodgeAbility::CanActivateAbility(FGameplayAbilitySpecHandle Handle,
     const auto InputRoot = FGameplayTag::RequestGameplayTag(TEXT("InputTag"));
     for (const auto& Spec : Info->AbilitySystemComponent->GetActivatableAbilities())
     {
-        if (Spec.Handle != Handle && Spec.IsActive() && Spec.GetDynamicSpecSourceTags().HasTag(InputRoot))
+        if (Spec.Handle != Handle && Spec.Handle != HandoffSource && Spec.IsActive() &&
+            Spec.GetDynamicSpecSourceTags().HasTag(InputRoot))
         {
             return false;
         }

@@ -42,7 +42,7 @@ class TEST_25D_API UPerfectDodgeComponent : public UActorComponent
 public:
     UPerfectDodgeComponent();
     static UPerfectDodgeComponent* FindOrCreate(ACharacter* Character);
-    static bool CanStart(ACharacter* Character);
+    static bool CanStart(ACharacter* Character, bool bPreflightGroundHandoff = false);
     /** Commit前预约位移；预约本身不开窗口，不移动。失败必须不消耗冷却。 */
     FGuid Reserve(const FAbilitySourceToken& Source, UObject* Requester, const FPerfectDodgeSettings& Settings,
                   const FVector& Direction, FString& Error);

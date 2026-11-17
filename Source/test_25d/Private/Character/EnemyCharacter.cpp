@@ -20,6 +20,7 @@
 #include "Terrain/TerrainStatusComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Animation/AnimMontage.h"
 
 AEnemyCharacter::AEnemyCharacter()
 {
@@ -64,9 +65,15 @@ void AEnemyCharacter::BeginPlay()
     Super::BeginPlay();
     InitAbilityActorInfo();
 
+    for (const auto Tag : {EnemyCombatReactionTags::Hitstun.GetTag(), EnemyCombatReactionTags::PoiseBroken.GetTag()})
+    {
+        AbilitySystemComponent->RegisterGameplayTagEvent(Tag, EGameplayTagEventType::NewOrRemoved)
+            .AddUObject(this, &ThisClass::OnCombatReactionTagChanged);
+    }
     if (HasAuthority())
     {
         GrantEnemyAbilities();
+        InitializeCombatReactions();
         if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
             Manager->RegisterEnemy(this);
     }
@@ -114,6 +121,8 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
     // Mark terminal state before loot/ability callbacks can reenter Die.
     bDead = true;
     InvalidateEnemyAttack();
+    const FGameplayTagContainer Reactions(EnemyCombatReactionTags::ReactionAbility);
+    AbilitySystemComponent->CancelAbilities(&Reactions);
     // 在对象池提前返回之前快照奖励；bDead 已置位，重入不会再次排队。
     if (auto* Loot = GetWorld()->GetSubsystem<USharedLootSubsystem>())
     {
@@ -333,6 +342,7 @@ bool AEnemyCharacter::WakeFromDungeonPool(const FTransform& Transform, FName Roo
     if (UMyAbilitySystemLibrary::GetCharacterClassInfo(this))
         InitlizeDefaultAttributes();
     GrantEnemyAbilities();
+    InitializeCombatReactions();
     bPoolResetDone = false;
     DungeonPoolLife = FMath::Abs(DungeonPoolLife) + 1;
     OnRep_DungeonPoolLife();
@@ -386,10 +396,151 @@ void AEnemyCharacter::InitlizeDefaultAttributes() const
 
 void AEnemyCharacter::HitReactTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
 {
-    bHitReacting = NewCount > 0;
+    bHitReacting = IsCombatReactionBlocking() ||
+                    AbilitySystemComponent->HasMatchingGameplayTag(FMyGameplayTags::Get().Effects_HitReact);
     RefreshMovementSpeed();
     if (MyAIController && MyAIController->GetBlackboardComponent())
         MyAIController->GetBlackboardComponent()->SetValueAsBool(FName("HitReacting"), bHitReacting);
+}
+
+FEnemyCombatReactionSettings AEnemyCharacter::GetCombatReactionSettings() const
+{
+    if (bOverrideCombatReactions)
+    {
+        return CombatReactions;
+    }
+    FEnemyCombatReactionSettings Settings;
+    switch (GetLootRank())
+    {
+    case EEnemyLootRank::Elite:
+        Settings.bAllowLaunch = false;
+        Settings.HitLimit = 3;
+        Settings.HitstunLimitSeconds = .8f;
+        Settings.MaxPoise = 120.f;
+        Settings.PoiseRecoveryPerSecond = 105.f;
+        break;
+    case EEnemyLootRank::Boss:
+        Settings.bAllowHitstun = false;
+        Settings.bAllowLaunch = false;
+        Settings.MaxPoise = 220.f;
+        Settings.PoiseRecoveryPerSecond = 195.f;
+        break;
+    default:
+        break;
+    }
+    return Settings;
+}
+
+void AEnemyCharacter::InitializeCombatReactions()
+{
+    if (!HasAuthority() || !AbilitySystemComponent ||
+        !AbilitySystemComponent->HasAttributeSetForAttribute(UMyAttributeSet::GetPoiseAttribute()))
+    {
+        return;
+    }
+    const float Capacity = FMath::Max(1.f, GetCombatReactionSettings().MaxPoise);
+    AbilitySystemComponent->SetNumericAttributeBase(UMyAttributeSet::GetMaxPoiseAttribute(), Capacity);
+    AbilitySystemComponent->SetNumericAttributeBase(UMyAttributeSet::GetPoiseAttribute(), Capacity);
+    if (!AbilitySystemComponent->FindAbilitySpecFromHandle(HitstunSpec))
+    {
+        HitstunSpec = AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(UEnemyHitstunAbility::StaticClass(), 1));
+    }
+    if (!AbilitySystemComponent->FindAbilitySpecFromHandle(PoiseBreakSpec))
+    {
+        PoiseBreakSpec =
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(UEnemyPoiseBreakAbility::StaticClass(), 1));
+    }
+}
+
+void AEnemyCharacter::ApplyCombatDamageReaction(float ActualDamage, const FVector& Launch)
+{
+    if (!HasAuthority() || bDead || IsDungeonPoolSleeping() || !FMath::IsFinite(ActualDamage) || ActualDamage <= 0.f ||
+        !AbilitySystemComponent->FindAbilitySpecFromHandle(PoiseBreakSpec))
+    {
+        return;
+    }
+    const int32 Life = GetDungeonPoolLease();
+    const auto StillAlive = [this, Life]()
+    {
+        return IsValid(this) && !bDead && GetDungeonPoolLease() == Life;
+    };
+    const auto Settings = GetCombatReactionSettings();
+    const auto Poise = UMyAttributeSet::GetPoiseAttribute();
+    if (!AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::PoiseBroken) &&
+        Settings.PoiseDamageMultiplier > 0.f)
+    {
+        const float Remaining = FMath::Max(0.f, AbilitySystemComponent->GetNumericAttribute(Poise) -
+                                                    ActualDamage * Settings.PoiseDamageMultiplier);
+        AbilitySystemComponent->SetNumericAttributeBase(Poise, Remaining);
+        if (Remaining <= 0.f && StillAlive())
+        {
+            AbilitySystemComponent->TryActivateAbility(PoiseBreakSpec, false);
+        }
+    }
+    if (!StillAlive() || !Settings.bAllowHitstun || bIsBeingShocked)
+    {
+        return;
+    }
+    const auto* Spec = AbilitySystemComponent->FindAbilitySpecFromHandle(HitstunSpec);
+    auto* Hitstun = Spec ? Cast<UEnemyHitstunAbility>(Spec->GetPrimaryInstance()) : nullptr;
+    if (!Hitstun)
+    {
+        return;
+    }
+    const bool bControlled = Hitstun->IsActive() ? Hitstun->ReceiveHit(Settings)
+                                                 : AbilitySystemComponent->TryActivateAbility(HitstunSpec, false);
+    if (bControlled && StillAlive() && Settings.bAllowLaunch && !Launch.IsNearlyZero(1.f) &&
+        GetCharacterMovement()->IsMovingOnGround() && Hitstun->ConsumeLaunch())
+    {
+        LaunchCharacter(Launch, true, true);
+    }
+}
+
+bool AEnemyCharacter::IsCombatReactionBlocking() const
+{
+    return AbilitySystemComponent &&
+           (AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::Hitstun) ||
+            AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::PoiseBroken));
+}
+
+void AEnemyCharacter::OnCombatReactionTagChanged(FGameplayTag Tag, int32 Count)
+{
+    HitReactTagChanged(Tag, Count);
+    if (bDead || IsDungeonPoolSleeping() || !IsCombatReactionBlocking())
+    {
+        StopCombatReactionPresentation();
+        return;
+    }
+    if (HasAuthority() && Count > 0)
+    {
+        // 先作废预警和本次攻击代次。取消可打断的战斗 GA，保留两个独立状态。
+        InvalidateEnemyAttack();
+        GetCharacterMovement()->StopMovementImmediately();
+        const FGameplayTagContainer ReactionAbilities(EnemyCombatReactionTags::ReactionAbility);
+        AbilitySystemComponent->CancelAbilities(nullptr, &ReactionAbilities);
+    }
+    const bool bBroken = AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::PoiseBroken);
+    auto* Montage = bBroken && PoiseBreakMontage ? PoiseBreakMontage.Get()
+                                                : ICombatInterface::Execute_GetHitReactMontage(this);
+    auto* Anim = GetMesh()->GetAnimInstance();
+    if (Montage && Anim && (ActiveReactionMontage.Get() != Montage || !Anim->Montage_IsPlaying(Montage)))
+    {
+        StopCombatReactionPresentation();
+        ActiveReactionMontage = Montage;
+        Anim->Montage_Play(Montage);
+    }
+}
+
+void AEnemyCharacter::StopCombatReactionPresentation()
+{
+    if (auto* Montage = ActiveReactionMontage.Get())
+    {
+        if (auto* Anim = GetMesh()->GetAnimInstance())
+        {
+            Anim->Montage_Stop(.06f, Montage);
+        }
+    }
+    ActiveReactionMontage.Reset();
 }
 
 void AEnemyCharacter::InitAbilityActorInfo()

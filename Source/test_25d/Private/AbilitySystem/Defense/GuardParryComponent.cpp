@@ -1,5 +1,6 @@
 // 调用链：GuardWindow -> GE/动作时钟 -> 接触裁决 -> Actor/Mass眩晕或反射、独立时间租约 -> 原格挡前端。
 #include "AbilitySystem/Defense/GuardParryComponent.h"
+#include "AbilitySystem/Ability/EnemyCombatReactionAbilities.h"
 #include "AbilitySystem/Time/AbilityWorldTimeSubsystem.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -269,7 +270,8 @@ bool UGuardParryComponent::TryParryMelee(AActor* Target, const FAbilitySourceTok
     }
     if (AbilityExecutionIdentity::ResolveSource(AttackSource, StillAttacking))
     {
-        AttackerASC->CancelAllAbilities();
+        const FGameplayTagContainer ReactionAbilities(EnemyCombatReactionTags::ReactionAbility);
+        AttackerASC->CancelAbilities(nullptr, &ReactionAbilities);
     }
     Component->OnParried.Broadcast(Guard);
     return true;
