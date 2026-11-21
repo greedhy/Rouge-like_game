@@ -1,11 +1,13 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Roguelike/DungeonEliteAffix.h"
 #include "DungeonRunProfile.generated.h"
 
 class AEnemyCharacter;
 class UPureMassMonsterType;
 class UBackpackItemDefinitions;
+enum class EDungeonRoomRole : uint8;
 
 USTRUCT(BlueprintType)
 struct TEST_25D_API FDungeonNormalEnemy
@@ -44,6 +46,28 @@ public:
     bool ValidateNormalRoster(FString& Error) const;
     TArray<int32> BuildNormalComposition(int32 Seed, int32 Room, int32 Group, int32 Count) const;
     int32 NormalPoolQuota(UClass* Class) const;
+
+    // 战斗房首波固定出现一只，第二波按概率补一只。专用精英房也抽取词缀。
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Elite Affixes")
+    bool bEnableEliteAffixes = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Elite Affixes", meta = (ClampMin = "0", ClampMax = "1"))
+    float SecondWaveEliteChance = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Elite Affixes", meta = (ClampMin = "1", ClampMax = "1000000"))
+    float CombatEliteHealth = 180.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Elite Affixes")
+    TArray<FDungeonEliteAffixWeight> EliteAffixWeights = {
+        {EDungeonEliteAffix::Fortified, 1},
+        {EDungeonEliteAffix::Frenzied, 1},
+        {EDungeonEliteAffix::Regenerating, 1},
+        {EDungeonEliteAffix::Protective, 1}};
+
+    // 导演提供本局种子，按房间和波次独立抽样。
+    bool ValidateEliteAffixes(FString& Error) const;
+    EDungeonEliteAffix RollEliteAffix(int32 Seed, int32 Room, EDungeonRoomRole Role, int32 Wave) const;
+
     // Includes active and idle common enemies; 0 disables pooling for A/B profiling.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Pool", meta = (ClampMin = "0", ClampMax = "64"))
     int32 NormalPoolCapacity = 12;

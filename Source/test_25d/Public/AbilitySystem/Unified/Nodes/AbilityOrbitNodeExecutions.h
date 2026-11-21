@@ -48,6 +48,14 @@ public:
     /** 激活费和每秒费用共用现有瞬时 GAS Mana 修改，失败不改属性。 */
     static bool SpendMana(UAbilitySystemComponent* ASC, AActor* Avatar, float Level, float Amount);
 
+protected:
+    /** 原库存生成与细图共用；默认不接管弹体，细宿主可在FinishSpawning前绑定自己的接触模式。 */
+    virtual bool PrepareDelivery(AMyOrbitingFireBolt* Bolt);
+    /** 原入口直接发射；细宿主只发布已准备库存，独立投递节点再调用相同LaunchAt。 */
+    virtual void DispatchLaunch(AMyOrbitingFireBolt* Bolt, const FAbilityTargetToken& Target);
+    /** 只读本次启动时克隆的配置，不回读共享DA。 */
+    const UOrbitingFireBoltConfig* GetOrbitSettings() const;
+
 private:
     bool ValidateSource();
     bool IsValidEnemy(AActor* Target) const;

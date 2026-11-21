@@ -17,6 +17,7 @@
 #include "PureMass/PureMassIncomingDamageEffect.h"
 #include "AbilitySystem/Defense/PerfectDodgeComponent.h"
 #include "Equipment/EquipmentMeleeModifiers.h"
+#include "Combat/BloodFXGameplay.h"
 
 namespace
 {
@@ -112,6 +113,7 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
         Candidates = PureMassCombat::Gather(Source.World.Get(), Avatar, Origin, Settings.Strike.Radius + 100);
     }
     TArray<FAbilityTargetToken> Targets;
+    const FGuid BloodAttackId = FGuid::NewGuid();
     TSet<FPureMassCombatTarget> Seen;
     for (const auto& Target : Candidates)
     {
@@ -201,7 +203,9 @@ void AbilityCharacterActions::ExecuteStrike(const FAbilitySourceToken& Source, c
         {
             return;
         }
+        const FBloodHitSnapshot Blood = BloodFXGameplay::Capture(Target, Origin, Location);
         const auto Result = AbilityDamageService::Apply(Source, Target, Params);
+        BloodFXGameplay::Confirm(Blood, Result, BloodAttackId);
         const bool bApplied = Target.Target.IsActor() ? Result.bAttempted : Result.ActualDamage.Get(0.f) > 0.f;
         if (bApplied && Current(Source, Callbacks, Avatar) && VisualSource && EquipmentSnapshot.HitEffect)
         {

@@ -1,5 +1,6 @@
 """Two-player PIE check of the actual spell list and menu learning/equip RPCs."""
 import json
+import os
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -8,8 +9,15 @@ import unreal as u
 
 
 root = Path(u.Paths.project_dir())
-specs = json.loads((root / 'Scripts/GA/MageBatch/skills.json').read_text(encoding='utf-8-sig'))
-receipt = root / 'Saved/GAAuthoring/MageBatch' / f'menu-{uuid4().hex}.json'
+specs = json.loads((root / os.environ.get('GA_BATCH_SPECS', 'Scripts/GA/MageBatch/skills.json')).read_text(encoding='utf-8-sig'))
+excluded_specs = []
+profession_filter = os.environ.get('GA_MENU_PROFESSION')
+if profession_filter:
+    excluded_specs = [s for s in specs if s.get('profession', 'MAGE') != profession_filter]
+    specs = [s for s in specs if s.get('profession', 'MAGE') == profession_filter]
+namespace = os.environ.get('GA_BATCH_NAMESPACE', 'Mage')
+receipt = root / os.environ.get('GA_MENU_RECEIPT', f'Saved/GAAuthoring/MageBatch/menu-{uuid4().hex}.json')
+receipt.parent.mkdir(parents=True, exist_ok=True)
 state = {'phase':'wait', 'started':time.monotonic(), 'views':[], 'learned':[], 'equipped':[], 'passed':False}
 menus = []
 
@@ -21,7 +29,7 @@ def tag(name):
 
 
 def selected(controller, spec):
-    controller.spell_globe_selected(tag(f'Abilities.Mage.{spec["id"]}'))
+    controller.spell_globe_selected(tag(f'Abilities.{namespace}.{spec["id"]}'))
 
 
 def owns_widget(parent, widget):
@@ -48,6 +56,9 @@ def finish(error=None):
     state.update(passed=error is None, error=error)
     receipt.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
     u.log('MAGE_MENU_RECEIPT ' + str(receipt))
+    if os.environ.get('GA_MENU_QUIT') == '1':
+        u.get_editor_subsystem(u.LevelEditorSubsystem).editor_request_end_play()
+        u.SystemLibrary.quit_editor()
 
 
 def setup_views(controllers):
@@ -67,8 +78,16 @@ def verify_entries(menu):
     tree = trees[0]
     tree.call_method('ShowPrototypes')
     menu.force_layout_prepass()
-    entries = [e for e in u.ObjectIterator(u.PrototypeSpellEntry) if owns_widget(tree, e)]
+    entries = [e for e in u.ObjectIterator(u.PrototypeSpellEntry) if owns_widget(tree, e) and e.get_parent()]
     labels = [t for t in u.ObjectIterator(u.TextBlock) if owns_widget(tree, t)]
+    state.setdefault('tree_diagnostics', []).append({
+        'pawn': menu.get_owning_player().get_controlled_pawn().get_class().get_path_name(),
+        'controller': str(tree.get_editor_property('widget_controller')),
+        'labels': [str(label.get_text()) for label in labels],
+        'menu_controller': str(menu.get_editor_property('widget_controller')),
+    })
+    for spec in excluded_specs:
+        assert all(str(label.get_text()) != spec['name'] for label in labels), ('wrong profession visible', spec['id'])
     descriptions = [t for t in u.ObjectIterator(u.RichTextBlock) if owns_widget(menu, t)]
     icons = [i for i in u.ObjectIterator(u.Image) if owns_widget(tree, i)]
     for spec in specs:
@@ -118,7 +137,7 @@ def tick(_delta):
         control = next(menu.get_editor_property('widget_controller') for menu in menus
                        if menu.get_owning_player() == remote)
         current = specs[state['index']]
-        identity = tag(f'Abilities.Mage.{current["id"]}')
+        identity = tag(f'Abilities.{namespace}.{current["id"]}')
         passive = 'modifiers' in current
         slot = 'InputTag.Passive.1' if passive else 'InputTag.4'
         if state['phase'] == 'spend':

@@ -1,5 +1,10 @@
 /** Extracted authority behavior. Host BeginPlay or graph Start -> Start; graph/host Tick -> Advance. */
 #include "AbilitySystem/Unified/LegacyMixedAbilityDriver.h"
+#include "AbilitySystem/Unified/AbilityBehaviorPrimitives.h"
+#include "AbilitySystem/Unified/AbilityPrototypeSurfaceService.h"
+#include "AbilitySystem/Unified/AbilityProjectileMotion.h"
+#include "AbilitySystem/Unified/AbilityPrototypeTargetServices.h"
+#include "AbilitySystem/Unified/AbilityPrototypeFlightQueries.h"
 #include "PureMass/PureMassRuntime.h"
 #include "AbilitySystem/Batch6/Batch6Slow.h"
 #include "AbilitySystem/Batch6/Batch6FieldAbility.h"
@@ -137,21 +142,28 @@ FPureMassCombatTarget FMixedAbilityDriver::Nearest(FVector Origin, float Radius)
         return {};
     }
 
-    float Best = FMath::Square(Radius);
-    FPureMassCombatTarget Result;
-    for (const auto& Candidate : PureMassCombat::Gather(Host->GetWorld(), Host->GetOwner(), Origin, Radius))
+    auto Resolve =
+        [&](const FPureMassCombatTarget& Candidate, FAbilityTargetToken& Life, FVector& Location, FString& Error)
     {
-        FVector Position;
-        if (HitTargets.Contains(Candidate) || !Host->Context->ResolveTargetLife(Candidate, Position))
-            continue;
-        const float Dist = FVector::DistSquared(Origin, Position);
-        if (Dist <= Best && Visible(Origin, Candidate))
+        if (!Host->Context->ResolveTargetLife(Candidate, Location))
         {
-            Result = Candidate;
-            Best = Dist;
+            return false;
         }
-    }
-    return Result;
+        const auto* Captured = Host->Context->FindTargetLife(Candidate);
+        if (!Captured)
+        {
+            return false;
+        }
+        Life = *Captured;
+        return true;
+    };
+    FAbilityTargetToken Selected;
+    FVector SelectedPoint;
+    FString Error;
+    AbilityPrototypeTargetServices::SelectChainNext(Host->Context->GetSourceLife(), Origin, Radius,
+                                                    EAbilityPrototypeTargetProfile::Mixed, HitTargets.Array(), Resolve,
+                                                    Selected, SelectedPoint, Error);
+    return Selected.Target;
 }
 
 void FMixedAbilityDriver::Pulse()
@@ -164,8 +176,18 @@ void FMixedAbilityDriver::Pulse()
 
     using K = EAbilityPrototypeKind;
     const auto Kind = Host->ExecutionPrototype->Kind;
-    const FVector Facing = Direction.GetSafeNormal2D(SMALL_NUMBER, FVector::ForwardVector);
-    const FVector Right = FVector::CrossProduct(FVector::UpVector, Facing);
+    FAbilityShapeFilter Shape;
+    Shape.Kind = Kind == K::Line   ? EAbilityBehaviorShape::Line
+                 : Kind == K::Ring ? EAbilityBehaviorShape::Ring
+                                   : EAbilityBehaviorShape::Cone;
+    Shape.Radius = Host->ExecutionPrototype->Radius;
+    Shape.InnerRadius = Host->ExecutionPrototype->InnerRadius;
+    Shape.Range = Host->ExecutionPrototype->Range;
+    Shape.Width = Host->ExecutionPrototype->Width;
+    Shape.HalfHeight = Host->ExecutionPrototype->ShapeHalfHeight;
+    Shape.SpreadDegrees = Host->ExecutionPrototype->SpreadDegrees;
+    Shape.bUse3DDistance = Kind == K::Cone;
+    Shape.bRejectOutsideHeight = Kind == K::Line || Kind == K::Ring;
     const float Bounds = Kind == K::Line   ? FMath::Sqrt(FMath::Square(Host->ExecutionPrototype->Range) +
                                                          FMath::Square(Host->ExecutionPrototype->Width * .5f) +
                                                          FMath::Square(Host->ExecutionPrototype->ShapeHalfHeight))
@@ -179,28 +201,18 @@ void FMixedAbilityDriver::Pulse()
         if (!Host->Context->ResolveTargetLife(Candidate, Position))
             continue;
         const FVector Offset = Position - Host->GetActorLocation();
-        if (Kind == K::Cone && !Offset.IsNearlyZero() &&
-            FVector::DotProduct(Facing, Offset.GetSafeNormal2D()) <
-                FMath::Cos(FMath::DegreesToRadians(Host->ExecutionPrototype->SpreadDegrees * .5f)))
-            continue;
-        if ((Kind == K::Line || Kind == K::Ring) && FMath::Abs(Offset.Z) > Host->ExecutionPrototype->ShapeHalfHeight)
-            continue;
-        if (Kind == K::Ring && (Offset.SizeSquared2D() < FMath::Square(Host->ExecutionPrototype->InnerRadius) ||
-                                Offset.SizeSquared2D() > FMath::Square(Host->ExecutionPrototype->Radius)))
-            continue;
-        if (Kind == K::Line)
+        if ((Kind == K::Cone || Kind == K::Line || Kind == K::Ring) &&
+            !AbilityBehaviorPrimitives::ContainsPoint(Shape, Host->GetActorLocation(), Direction, Position))
         {
-            const float Along = FVector::DotProduct(Facing, Offset);
-            if (Along < 0.f || Along > Host->ExecutionPrototype->Range ||
-                FMath::Abs(FVector::DotProduct(Right, Offset)) > Host->ExecutionPrototype->Width * .5f)
-                continue;
+            continue;
         }
         if (Kind == K::Wave &&
             (HitTargets.Contains(Candidate) || Offset.SizeSquared() > FMath::Square(Host->WaveRadius)))
             continue;
         if (const auto* Config = Cast<UBatch6FieldPrototype>(Host->ExecutionPrototype);
             Config && Config->bWaveFrontOnly && Kind == K::Wave &&
-            !UBatch6FieldPrototype::IsInWaveFront(Offset.Size(), PreviousWaveRadius, Host->WaveRadius))
+            !AbilityBehaviorPrimitives::ContainsWavePoint(Host->GetActorLocation(), Position, PreviousWaveRadius,
+                                                          Host->WaveRadius, EAbilityWaveCoverage::SweptShell3D))
             continue;
         if (!Visible(Host->GetActorLocation(), Candidate))
             continue;
@@ -220,18 +232,9 @@ void FMixedAbilityDriver::Projectile(float Delta)
 
     using K = EAbilityPrototypeKind;
     const bool bReturn = Host->ExecutionPrototype->Kind == K::Returning;
-    float Remaining = FMath::Max(0.f, Host->ExecutionPrototype->Range - Travel);
-    if (bReturn && bReturning)
-    {
-        Remaining = FVector::Distance(Host->GetActorLocation(), Host->GetOwner()->GetActorLocation());
-        if (Remaining <= Host->ExecutionPrototype->CollisionRadius)
-        {
-            Finish(false);
-            return;
-        }
-        Direction = (Host->GetOwner()->GetActorLocation() - Host->GetActorLocation()).GetSafeNormal();
-    }
-    if (Host->ExecutionPrototype->Kind == K::Homing)
+    const bool bHoming = Host->ExecutionPrototype->Kind == K::Homing;
+    TOptional<FVector> Aim;
+    if (bHoming)
     {
         FVector Position;
         if (!Host->Context->ResolveTargetLife(Target, Position))
@@ -239,29 +242,78 @@ void FMixedAbilityDriver::Projectile(float Delta)
             Finish(false);
             return;
         }
-        Direction = FMath::VInterpNormalRotationTo(Direction, (Position - Host->GetActorLocation()).GetSafeNormal(),
-                                                   Delta, Host->ExecutionPrototype->HomingTurnRate);
+        Aim = Position;
     }
-    const float Step = FMath::Min(Host->ExecutionPrototype->Speed * Delta, Remaining);
-    const FVector Start = Host->GetActorLocation(), End = Start + Direction * Step;
+    FAbilityProjectileMotionConfig Motion;
+    Motion.Motion = bReturn   ? EAbilityProjectileMotion::Returning
+                    : bHoming ? EAbilityProjectileMotion::LegacyTurnHoming
+                              : EAbilityProjectileMotion::Linear;
+    Motion.Speed = Host->ExecutionPrototype->Speed;
+    Motion.Range = Host->ExecutionPrototype->Range;
+    Motion.CollisionRadius = Host->ExecutionPrototype->CollisionRadius;
+    Motion.HomingTurnRate = Host->ExecutionPrototype->HomingTurnRate;
+    FAbilityProjectileMotionState State;
+    State.Position = Host->GetActorLocation();
+    State.Direction = Direction;
+    State.OutboundDistance = Travel;
+    State.Phase = bReturning ? EAbilityProjectilePhase::Returning : EAbilityProjectilePhase::Outbound;
+    FAbilityFlightSegment Segment;
+    if (!AbilityProjectileMotion::ComputeFlightSegment(Motion, State, Delta, Host->GetOwner()->GetActorLocation(), Aim,
+                                                       Segment))
+    {
+        Finish(false);
+        return;
+    }
+    // 极小的折返余量仍是实际运动，不能把FVector.Equals的坐标容差当成已到达来源的事实。
+    if (bReturn && bReturning && Segment.bReachesPhaseEnd && Segment.Start.Equals(Segment.End))
+    {
+        Finish(false);
+        return;
+    }
+    Direction = Segment.Direction;
+    const FVector Start = Segment.Start;
+    const FVector End = Segment.End;
+    const float Step = FVector::Distance(Start, End);
+    const auto Policy = bReturn                                         ? EAbilityProjectileImpactPolicy::ReturnPerPhase
+                        : Host->ExecutionPrototype->Kind == K::Piercing ? EAbilityProjectileImpactPolicy::Pierce
+                                                                        : EAbilityProjectileImpactPolicy::StopFirst;
     FHitResult Wall;
+    auto Resolve =
+        [&](const FPureMassCombatTarget& Candidate, FAbilityTargetToken& Token, FVector& Location, FString& Error)
+    {
+        const bool bLive = Host->Context->ResolveTargetLife(Candidate, Location);
+        if (const auto* Life = Host->Context->FindTargetLife(Candidate))
+        {
+            Token = *Life;
+        }
+        return bLive;
+    };
     // Re-query both representations with the growing exclusion set; walls still win ties.
     for (int32 I = 0; I < 64; ++I)
     {
-        float Time = 1.f;
-        const auto Candidate =
-            PureMassCombat::Sweep(Host->GetWorld(), Host->GetOwner(), Start, End,
-                                  Host->ExecutionPrototype->CollisionRadius, Time, Wall, &HitTargets, Host);
+        FAbilityPrototypeFlightQueryHit Contact;
+        FString Error;
+        if (!AbilityPrototypeFlightQueries::SweepMixedSegment(Host->Context->GetSourceLife(), Start, End,
+                                                              Host->ExecutionPrototype->CollisionRadius, HitTargets,
+                                                              Resolve, Contact, Wall, Error, Host))
+        {
+            Finish(true);
+            return;
+        }
+        const auto Candidate = Contact.Candidate;
         if (!Candidate.IsSet())
             break;
-        if (bReturn && HitTargets.Num() >= Host->ExecutionPrototype->Count)
+        const auto Admission = AbilityProjectileMotion::AdmitImpact(
+            Policy, State.Phase, HitTargets.Num(), HitTargets.Contains(Candidate), Host->ExecutionPrototype->Count,
+            Host->ExecutionPrototype->DamageFalloff);
+        if (!Admission.bAccepted)
+        {
             break;
-        Host->SetActorLocation(FMath::Lerp(Start, End, Time));
-        Hit(Candidate, bReturn ? (bReturning ? Host->ExecutionPrototype->DamageFalloff : 1.f)
-                               : FMath::Pow(Host->ExecutionPrototype->DamageFalloff, HitTargets.Num()));
+        }
+        Host->SetActorLocation(Contact.Hit.Location);
+        Hit(Candidate, Admission.DamageScale);
         HitTargets.Add(Candidate);
-        if (!bReturn &&
-            (Host->ExecutionPrototype->Kind != K::Piercing || HitTargets.Num() >= Host->ExecutionPrototype->Count))
+        if (Admission.bTerminateAfterImpact)
         {
             Finish(false);
             return;
@@ -279,7 +331,7 @@ void FMixedAbilityDriver::Projectile(float Delta)
     Travel += Step;
     if (bReturn)
     {
-        if (bReturning && Step >= Remaining)
+        if (bReturning && Segment.bReachesPhaseEnd)
         {
             Finish(false);
             return;
@@ -288,7 +340,7 @@ void FMixedAbilityDriver::Projectile(float Delta)
         {
             bReturning = true;
             HitTargets.Reset();
-            const float Remainder = Delta - Step / Host->ExecutionPrototype->Speed;
+            const float Remainder = Segment.RemainingSeconds;
             if (Remainder > SMALL_NUMBER)
                 Projectile(Remainder);
         }
@@ -491,22 +543,14 @@ void FMixedAbilityDriver::Start()
         break;
     case K::Surface:
     {
-        const FTransform Transform(FRotator::ZeroRotator, Host->GetActorLocation());
-        Host->Surface = Host->GetWorld()->SpawnActorDeferred<ATerrainSurface>(
-            Host->ExecutionPrototype->SurfaceClass, Transform, Host->GetOwner(), Cast<APawn>(Host->GetOwner()),
-            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+        Host->Surface =
+            AbilityPrototypeSurfaceService::Spawn(*Host->GetOwner(), *Host->ExecutionPrototype,
+                                                  Host->GetActorLocation(), EAbilityPrototypeSurfaceProfile::Mixed);
         if (!Host->Surface)
         {
             Finish(true);
             break;
         }
-        Host->Surface->bOnlyAffectCasterEnemies = true;
-        Host->Surface->bAffectPlayers = false;
-        Host->Surface->bAffectEnemies = true;
-        Host->Surface->SurfaceSize = FVector2D(Host->ExecutionPrototype->Radius * 2.f);
-        Host->Surface->FinishSpawning(Transform);
-        if (Host->Surface->Ground)
-            Host->Surface->Ground->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         break;
     }
     default:
@@ -540,11 +584,17 @@ void FMixedAbilityDriver::Advance(float Delta)
     Age += Delta;
     if (bFollowToggle)
         Host->SetActorLocation(Host->GetOwner()->GetActorLocation());
-    if ((Kind == K::Beam || Kind == K::Orbit || bFollowToggle) &&
-        !UPureMassAbility::SpendMana(Host->GetOwner(), Host->ExecutionPrototype->ManaPerSecond * Delta))
+    if (Kind == K::Beam || Kind == K::Orbit || bFollowToggle)
     {
-        Finish(true);
-        return;
+        float UnusedWholeSecondClock = 0.f;
+        const float Cost = AbilityPrototypeTargetServices::ManaDue(UnusedWholeSecondClock, Delta,
+                                                                   Host->ExecutionPrototype->ManaPerSecond,
+                                                                   EAbilityPrototypeTargetProfile::Mixed);
+        if (!UPureMassAbility::SpendMana(Host->GetOwner(), Cost))
+        {
+            Finish(true);
+            return;
+        }
     }
     // Orbit is a toggle, finite kinds honor their configured duration.
     if (!bFinalBoundary && !bFollowToggle && (Kind != K::Orbit || Depth > 0) &&
@@ -553,15 +603,30 @@ void FMixedAbilityDriver::Advance(float Delta)
         Finish(false);
         return;
     }
+    if (Kind == K::Surface)
+    {
+        AbilityPrototypeSurfaceService::AdvanceClock(
+            PeriodClock, Delta, Host->ExecutionPrototype->Period, EAbilityPrototypeSurfaceProfile::Mixed,
+            [&]()
+            {
+                Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target);
+                return !Host->bFinished;
+            });
+        return;
+    }
     if (Kind != K::Orbit && Kind != K::Beam && Kind != K::Field && Kind != K::Chain && Kind != K::Emitter)
     {
-        PeriodClock += Delta;
-        for (int32 I = 0; I < 8 && PeriodClock >= Host->ExecutionPrototype->Period; ++I)
-        {
-            PeriodClock -= Host->ExecutionPrototype->Period;
-            if (Kind != K::Burst)
-                Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target);
-        }
+        AbilityBehaviorPrimitives::AdvanceCadence(
+            PeriodClock, Delta, Host->ExecutionPrototype->Period, 8, EAbilityCadenceRemainder::Preserve,
+            [&]()
+            {
+                if (Kind != K::Burst)
+                {
+                    Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target);
+                }
+                // 原辅助周期循环即使Emit拒绝也消费本帧剩余周期；后续投递仍由原Emit权限门拒绝。
+                return true;
+            });
     }
     if (Kind == K::Projectile || Kind == K::Multishot || Kind == K::Homing || Kind == K::Piercing ||
         Kind == K::Returning)
@@ -624,34 +689,47 @@ void FMixedAbilityDriver::Advance(float Delta)
         return;
     }
     // At most eight catch-up pulses per frame; no unbounded bursts after a hitch.
-    for (int32 I = 0; I < 8 && !Host->bFinished && PeriodClock >= Host->ExecutionPrototype->Period; ++I)
+    if (!Host->bFinished)
     {
-        PeriodClock -= Host->ExecutionPrototype->Period;
-        if (Kind == K::Chain)
-        {
-            Chain();
-            continue;
-        }
-        if (Kind == K::Field)
-            Pulse();
-        if (Kind == K::Beam)
-            Hit(Target);
-        if (Kind == K::Emitter)
-        {
-            Target = Nearest(Host->GetActorLocation(), Host->ExecutionPrototype->Radius);
-            FVector Position;
-            if (!Host->Context->ResolveTargetLife(Target, Position))
+        AbilityBehaviorPrimitives::AdvanceCadence(
+            PeriodClock, 0.f, Host->ExecutionPrototype->Period, 8, EAbilityCadenceRemainder::Preserve,
+            [&]()
             {
-                PeriodClock = 0.f;
-                break;
-            }
-            Direction = (Position - Host->GetActorLocation()).GetSafeNormal(SMALL_NUMBER, Direction);
-            if (Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target) &&
-                ++Emissions >= Host->ExecutionPrototype->Count)
-                Finish(false);
-        }
-        else
-            Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target);
+                if (Kind == K::Chain)
+                {
+                    Chain();
+                    return !Host->bFinished;
+                }
+                if (Kind == K::Field)
+                {
+                    Pulse();
+                }
+                if (Kind == K::Beam)
+                {
+                    Hit(Target);
+                }
+                if (Kind == K::Emitter)
+                {
+                    Target = Nearest(Host->GetActorLocation(), Host->ExecutionPrototype->Radius);
+                    FVector Position;
+                    if (!Host->Context->ResolveTargetLife(Target, Position))
+                    {
+                        PeriodClock = 0.f;
+                        return false;
+                    }
+                    Direction = (Position - Host->GetActorLocation()).GetSafeNormal(SMALL_NUMBER, Direction);
+                    if (Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target) &&
+                        ++Emissions >= Host->ExecutionPrototype->Count)
+                    {
+                        Finish(false);
+                    }
+                }
+                else
+                {
+                    Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Host->GetActorLocation(), Target);
+                }
+                return !Host->bFinished;
+            });
     }
     if (bFinalBoundary && Age >= Host->ExecutionPrototype->Duration && !Host->bFinished)
         Finish(false);

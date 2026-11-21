@@ -19,6 +19,8 @@ public:
     bool Adopt(UAbilityGraphInstance* Instance, FString& Error);
     /** 外部取消指定施法；不存在或已经结束时无副作用。 */
     void CancelExecution(FGuid ExecutionId, EAbilityGraphEndReason Reason = EAbilityGraphEndReason::Cancelled);
+    /** 仅取消同一精确归属的独立根；不按技能类/玩家身份批量撤销正式或其他预览。 */
+    void CancelOwnerLease(FGuid OwnerLease, EAbilityGraphEndReason Reason = EAbilityGraphEndReason::Cancelled);
     /** 引擎逐帧驱动当前快照；回调中新接管的图下一帧开始推进，避免数组重入失效。 */
     virtual void Tick(float DeltaSeconds) override;
     /** 世界退出先关闭新接管，再停止全部图并释放引用；不影响其它世界。 */
@@ -32,4 +34,6 @@ private:
     UPROPERTY(Transient)
     TArray<TObjectPtr<UAbilityGraphInstance>> Executions;
     bool bClosing = false;
+    /** 只在取消事务内封口，回调不能把同一租约的新根重新移交进本世界。 */
+    TSet<FGuid> LeasesBeingCancelled;
 };

@@ -1,6 +1,8 @@
 // 调用链：GA ReadyForActivation -> Activate -> Instance Start；Task Tick -> Advance -> GraphFinished。
 // GA 结束触发 OnDestroy；先解绑防重入，再取消尚未结束的图，目标持久石化不归本任务撤销。
 #include "AbilitySystem/Unified/AbilityTask_RunGraph.h"
+#include "AbilitySystem/Ability/MyGameplayAbility.h"
+#include "UObject/StrongObjectPtr.h"
 #include "Engine/World.h"
 
 UAbilityTask_RunGraph::UAbilityTask_RunGraph()
@@ -28,6 +30,10 @@ UAbilityTask_RunGraph* UAbilityTask_RunGraph::RunAbilityGraphWithInput(UGameplay
     Task->Definition = Graph;
     Task->NodeInput = Input;
     Task->ExecutionOptions = Options;
+    if (const auto* Frontend = Cast<UMyGameplayAbility>(Owner))
+    {
+        Task->ExecutionOptions.OwnerLease = Frontend->GetRuntimeExecutionOwnerLease();
+    }
     Task->bMeasureElapsedWorldTime = bMeasureElapsedWorldTime;
     Task->RetainedContext = Input.Context.Get();
     Task->RetainedDamageParams = Input.DamageParams;
@@ -52,9 +58,20 @@ void UAbilityTask_RunGraph::Activate()
     }
     Instance = NewObject<UAbilityGraphInstance>(this);
     Instance->OnFinished.AddUObject(this, &ThisClass::GraphFinished);
-    FString Error;
-    if (!Instance->StartWithInput(Definition, NodeInput, ExecutionOptions, Error))
+    const TStrongObjectPtr<UAbilityGraphInstance> Starting(Instance.Get());
+    const auto StartingSource = NodeInput.SourceToken;
+    auto* Frontend = Cast<UMyGameplayAbility>(Ability);
+    if (Frontend)
     {
+        Frontend->ObserveFrozenRuntimeGraph(Starting.Get(), StartingSource);
+    }
+    FString Error;
+    if (!Starting->StartWithInput(Definition, NodeInput, ExecutionOptions, Error))
+    {
+        if (Frontend)
+        {
+            Frontend->ForgetFrozenRuntimeGraph(Starting.Get(), StartingSource);
+        }
         GraphFinished(EAbilityGraphEndReason::Failed);
     }
 }

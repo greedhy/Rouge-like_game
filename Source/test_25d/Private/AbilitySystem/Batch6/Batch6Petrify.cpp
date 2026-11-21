@@ -1,5 +1,7 @@
 /**
- * 石化链：服务器 GA ActivateAbility/Commit -> Status.PetrifyArea图策略 -> 混合范围查询 -> AbilityStatusService -> Mass ApplyPetrify 或 Enemy 组件 Apply。Actor 用 Infinite Stun GE 控制，组件复制 bPetrified/材质/Lease，OnRep_State 管理本地动画暂停与材质。Tick/GE 移除回调/EndPlay -> Clear；缓存原材质只在匹配当前覆盖时恢复，避免覆盖其他系统修改。
+ * 石化链：服务器 PreActivate 冻结配方 -> ActivateAbility/Commit -> Query.PetrifyArea -> Status.PetrifyBatch -> 原状态服务。
+ * 正式零修正授予保留 Status.PetrifyArea 完整动作，并复用相同 Gather/Apply。Actor 状态组件复制 bPetrified/材质/Lease，
+ * OnRep_State 管理本地动画暂停与材质；Tick/GE 移除/EndPlay 清理，目标状态不由已结束的施法任务撤回。
  * 说明：上面的箭头描述控制流；目标委托、Tick、RepNotify 是后续回调入口，不是同一帧连续调用栈。
  */
 #include "AbilitySystem/Batch6/Batch6Petrify.h"
@@ -20,6 +22,7 @@
 #include "AbilitySystem/Unified/AbilityStatusService.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/Nodes/AbilityBatch6NodeExecutions.h"
+#include "AbilitySystem/Unified/AbilityTask_RunGraph.h"
 /** 构造 Infinite 控制 GE，实际 Stun Tag 在 Apply 的独立 Spec 中加入。 */
 UBatch6PetrifyEffect::UBatch6PetrifyEffect()
 {
@@ -177,23 +180,29 @@ void UBatch6PetrifyAbility::ActivateAbility(const FGameplayAbilitySpecHandle Han
     AActor* Avatar = Info ? Info->AvatarActor.Get() : nullptr;
     FAbilityNodeInput Input;
     FString Error;
-    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
-    Graph->SchemaVersion = 2;
-    Graph->CompatibilityProfile = TEXT("UnifiedV2");
-    auto* Config = NewObject<UAbilityAreaPetrifyNodeConfig>(Graph);
-    Config->Radius = Radius;
-    Config->Duration = Duration;
-    Config->StoneMaterial = StoneMaterial;
-    FAbilityGraphNode Node;
-    Node.NodeId = FGuid::NewGuid();
-    Node.TypeId = TEXT("Status.PetrifyArea");
-    Node.Config = Config;
-    Graph->Nodes.Add(Node);
-    Graph->EntryNodeId = Node.NodeId;
+    auto* Graph = GetRuntimeRecipeSnapshot().Graph.Get();
+    const bool bRuntimeRecipe = Graph != nullptr;
+    if (!Graph)
+    {
+        // 正式零修正授予继续走原完整动作；开发预览/局内修正必须消费激活开始前冻结的图。
+        Graph = NewObject<UAbilityGraphDefinition>(this);
+        Graph->SchemaVersion = 2;
+        Graph->CompatibilityProfile = TEXT("UnifiedV2");
+        auto* Config = NewObject<UAbilityAreaPetrifyNodeConfig>(Graph);
+        Config->Radius = Radius;
+        Config->Duration = Duration;
+        Config->StoneMaterial = StoneMaterial;
+        FAbilityGraphNode Node;
+        Node.NodeId = FGuid::NewGuid();
+        Node.TypeId = TEXT("Status.PetrifyArea");
+        Node.Config = Config;
+        Graph->Nodes.Add(Node);
+        Graph->EntryNodeId = Node.NodeId;
+    }
     FAbilityNodeRegistry Registry;
     Registry.RegisterBuiltins();
     TArray<FString> Errors;
-    if (!Avatar || !Avatar->HasAuthority() ||
+    if (!GetRuntimeRecipeError().IsEmpty() || !Avatar || !Avatar->HasAuthority() ||
         !AbilityExecutionIdentity::CaptureSource(Avatar, Input.SourceToken, Error) ||
         !Graph->Validate(Registry, Errors) || !CommitAbility(Handle, Info, Activation) || !IsActive())
     {
@@ -201,6 +210,20 @@ void UBatch6PetrifyAbility::ActivateAbility(const FGameplayAbilitySpecHandle Han
         return;
     }
     Input.Origin = Avatar->GetActorLocation();
+    if (bRuntimeRecipe)
+    {
+        Input.Level = GetAbilityLevel();
+        Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+        Input.DamageParams.BaseDamage = Prototype->DamageAtLevel(GetAbilityLevel());
+        Input.DamageParams.DamageType = Prototype->DamageType;
+        FAbilityExecutionOptions Options;
+        Options.CompatibilityProfile = Graph->CompatibilityProfile;
+        Options.BudgetPolicy = Graph->BudgetPolicy;
+        auto* Task = UAbilityTask_RunGraph::RunAbilityGraphWithInput(this, Graph, Input, Options);
+        Task->OnFinished.AddDynamic(this, &ThisClass::RuntimeGraphFinished);
+        Task->ReadyForActivation();
+        return;
+    }
     Batch6Execution = NewObject<UAbilityGraphInstance>(this);
     auto* Execution = Batch6Execution.Get();
     const bool bStarted = Execution->StartWithInput(Graph, Input, {}, Registry, Error);
@@ -210,6 +233,14 @@ void UBatch6PetrifyAbility::ActivateAbility(const FGameplayAbilitySpecHandle Han
     if (IsActive())
     {
         EndAbility(Handle, Info, Activation, true, !bSucceeded);
+    }
+}
+
+void UBatch6PetrifyAbility::RuntimeGraphFinished(bool bCancelled)
+{
+    if (IsActive())
+    {
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bCancelled);
     }
 }
 

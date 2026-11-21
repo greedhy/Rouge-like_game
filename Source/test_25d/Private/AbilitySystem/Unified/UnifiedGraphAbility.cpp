@@ -35,8 +35,9 @@ void UUnifiedGraphAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle, co
     ActivationSource = {};
     CastContext = nullptr;
     IndependentExecution = nullptr;
-    if (!Info || !Info->AvatarActor.IsValid() || !GetWorld() || !Graph || !FMath::IsFinite(CastRange) ||
-        CastRange <= 0.f ||
+    ActivationGraph = GetRuntimeRecipeSnapshot().Graph ? GetRuntimeRecipeSnapshot().Graph.Get() : Graph.Get();
+    if (!GetRuntimeRecipeError().IsEmpty() || !Info || !Info->AvatarActor.IsValid() || !GetWorld() ||
+        !ActivationGraph || !FMath::IsFinite(CastRange) || CastRange <= 0.f ||
         (TargetMode != EUnifiedAbilityTargetMode::Enemy && TargetMode != EUnifiedAbilityTargetMode::Ground &&
          TargetMode != EUnifiedAbilityTargetMode::Self) ||
         (ExecutionLifetime != EAbilityExecutionLifetime::BoundToAbility &&
@@ -141,7 +142,7 @@ void UUnifiedGraphAbility::TargetReady(const FGameplayAbilityTargetDataHandle& D
         }
         Input.LiveTargetToken = Target;
         // Schema1保留旧样例目标位置；Schema2交付族从施法者出发，目标身份单独携带。
-        Input.Origin = Graph && Graph->SchemaVersion == 1 ? Location : SourcePosition;
+        Input.Origin = ActivationGraph && ActivationGraph->SchemaVersion == 1 ? Location : SourcePosition;
         Input.Direction = (Location - SourcePosition).GetSafeNormal();
     }
     else if (TargetMode == EUnifiedAbilityTargetMode::Ground)
@@ -173,14 +174,16 @@ void UUnifiedGraphAbility::ExecutePreparedInput(FAbilityNodeInput Input)
     FAbilityNodeRegistry Registry;
     Registry.RegisterBuiltins();
     TArray<FString> Errors;
-    if (!IsActive() || bEnding || !CurrentActorInfo || !CurrentActorInfo->IsNetAuthority() || !Graph || !CastContext ||
-        !CastContext->ValidateSourceLife() || !AbilityExecutionIdentity::ResolveSource(ActivationSource, Avatar))
+    if (!IsActive() || bEnding || !CurrentActorInfo || !CurrentActorInfo->IsNetAuthority() || !ActivationGraph ||
+        !CastContext || !CastContext->ValidateSourceLife() ||
+        !AbilityExecutionIdentity::ResolveSource(ActivationSource, Avatar))
     {
         AbortCast();
         return;
     }
     // 费用回调可能同步触发其它业务；先冻结并校验图，运行时不读修改后的共享资产。
-    const TStrongObjectPtr<UAbilityGraphDefinition> Prepared(DuplicateObject<UAbilityGraphDefinition>(Graph, this));
+    const TStrongObjectPtr<UAbilityGraphDefinition> Prepared(
+        DuplicateObject<UAbilityGraphDefinition>(ActivationGraph, this));
     if (!Prepared->Validate(Registry, Errors))
     {
         AbortCast();
@@ -211,6 +214,7 @@ void UUnifiedGraphAbility::ExecutePreparedInput(FAbilityNodeInput Input)
     Options.CompatibilityProfile = Prepared->CompatibilityProfile;
     Options.BudgetPolicy = Prepared->BudgetPolicy;
     Options.Lifetime = ExecutionLifetime;
+    Options.OwnerLease = GetRuntimeExecutionOwnerLease();
     if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo) || !IsActive() || bEnding ||
         !AbilityExecutionIdentity::ResolveSource(ActivationSource, Avatar))
     {
@@ -232,12 +236,14 @@ void UUnifiedGraphAbility::ExecutePreparedInput(FAbilityNodeInput Input)
     }
     IndependentExecution = NewObject<UAbilityGraphInstance>(GetWorld());
     const TStrongObjectPtr<UAbilityGraphInstance> Execution(IndependentExecution.Get());
+    ObserveFrozenRuntimeGraph(Execution.Get(), Input.SourceToken);
     FString Error;
     if (!Execution->StartWithInput(Prepared.Get(), Input, Options, Registry, Error) || !IsActive() || bEnding ||
         (Execution->IsFinished() && Execution->GetEndReason() != EAbilityGraphEndReason::Completed &&
          Execution->GetEndReason() != EAbilityGraphEndReason::Expired) ||
         !WorldGraphs->Adopt(Execution.Get(), Error))
     {
+        ForgetFrozenRuntimeGraph(Execution.Get(), Input.SourceToken);
         Execution->Cancel();
         AbortCast();
         return;
@@ -322,6 +328,7 @@ void UUnifiedGraphAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const F
         IndependentExecution->Cancel();
     }
     IndependentExecution = nullptr;
+    ActivationGraph = nullptr;
     CastContext = nullptr;
     ActivationSource = {};
     Super::EndAbility(Handle, Info, Activation, bReplicate, bCancelled);

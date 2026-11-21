@@ -22,6 +22,23 @@ class UInstancedStaticMeshComponent;
 class UAnimSequenceTransformProviderDataInstance;
 class UNiagaraComponent;
 
+/** 一次近战血花的历史快照，随单个 Crowd 批量事件传输。 */
+USTRUCT()
+struct FPureMassBloodHit
+{
+    GENERATED_BODY()
+    UPROPERTY()
+    int32 Id = INDEX_NONE;
+    UPROPERTY()
+    FGuid AttackId;
+    UPROPERTY()
+    TObjectPtr<UPureMassMonsterType> Type;
+    UPROPERTY()
+    FVector_NetQuantize10 Location = FVector::ZeroVector;
+    UPROPERTY()
+    FVector_NetQuantizeNormal Direction = FVector::ForwardVector;
+};
+
 /** Transient cosmetic events; never replayed as replicated persistent state. */
 USTRUCT()
 struct FPureMassDeathPresentation
@@ -161,12 +178,17 @@ public:
     void NotifyKilled(const FPureMassView& View, FVector DeathImpulse = FVector::ZeroVector);
     UFUNCTION(NetMulticast, Unreliable)
     void MulticastDeaths(const TArray<FPureMassDeathPresentation>& Deaths);
+    // 共享近战动作传入扣血前快照，避免致死后再次查询已移除的 Mass 实体。
+    void NotifyBloodHit(int32 Id, FGuid AttackId, UPureMassMonsterType* Type, FVector Location, FVector Direction);
+    UFUNCTION(NetMulticast, Unreliable)
+    void MulticastBloodHits(const TArray<FPureMassBloodHit>& Hits);
 
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+    friend class FBloodMassBatchTest;
     void PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantize10 Location, float Yaw, FVector DeathImpulse);
     void PublishSnapshots(const TArray<FPureMassView>& Views);
     void ReconcileInstances(const TArray<FPureMassView>& Views);
@@ -189,6 +211,9 @@ private:
     TArray<float> DeathExpiry;
     UPROPERTY(Transient)
     TArray<FPureMassDeathPresentation> PendingDeaths;
+    UPROPERTY(Transient)
+    TArray<FPureMassBloodHit> PendingBloodHits;
+    TArray<TPair<int32, FGuid>> RecentBloodHits;
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> WarningInstances;
     static constexpr float SnapshotInterval = 1.f / 60.f;

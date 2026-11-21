@@ -16,6 +16,7 @@
 #include "Player/MyPlayerController.h"
 #include "test_25d/MyLogChannels.h"
 #include "Terrain/TerrainStatusComponent.h"
+#include "Roguelike/DungeonRunDirector.h"
 
 UMyAttributeSet::UMyAttributeSet()
 {
@@ -361,10 +362,18 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
     SetIncomingDamage(0.f);
     if (LocalIncomingDamage > 0.f)
     {
-        const float PreviousHealth = GetHealth();
-        const float NewHealth = FMath::Clamp(PreviousHealth - LocalIncomingDamage, 0.f, GetMaxHealth());
-        const float HealthRemoved = FMath::Max(0.f, PreviousHealth - NewHealth);
         auto* Enemy = Cast<AEnemyCharacter>(Props.TargetAvatarActor);
+        float EffectiveDamage = LocalIncomingDamage;
+        if (Enemy && Enemy->HasAuthority() && Enemy->bDungeonEncounter)
+        {
+            if (const auto* Director = ADungeonRunDirector::Find(Enemy->GetWorld()))
+            {
+                EffectiveDamage *= Director->GetEliteProtectionMultiplier(Enemy);
+            }
+        }
+        const float PreviousHealth = GetHealth();
+        const float NewHealth = FMath::Clamp(PreviousHealth - EffectiveDamage, 0.f, GetMaxHealth());
+        const float HealthRemoved = FMath::Max(0.f, PreviousHealth - NewHealth);
         const int32 EnemyLife = Enemy ? Enemy->GetDungeonPoolLease() : 0;
         if (auto* Context = FMyGameplayEffectContext::GetMutable(Props.EffectContextHandle); Context && !bPeriodic)
         {
@@ -411,7 +420,7 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
 
         const bool bBlock = UMyAbilitySystemLibrary::IsBlockedHit(Props.EffectContextHandle);
         const bool bCriticalHit = UMyAbilitySystemLibrary::IsCriticalHit(Props.EffectContextHandle);
-        ShowFloatingText(Props, LocalIncomingDamage, bBlock, bCriticalHit);
+        ShowFloatingText(Props, EffectiveDamage, bBlock, bCriticalHit);
         if (UMyAbilitySystemLibrary::IsSuccessfulDebuff(Props.EffectContextHandle))
         {
             Debuff(Props);

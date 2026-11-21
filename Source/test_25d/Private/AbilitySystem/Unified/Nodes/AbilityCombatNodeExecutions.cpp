@@ -4,6 +4,22 @@
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
 #include "AbilitySystem/Unified/AbilityDamageService.h"
 
+bool UAbilityResolveImpactNodeConfig::SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
+                                                                 FString& Error) const
+{
+    Error.Reset();
+    const bool bExactContract =
+        (RegisteredType == TEXT("Target.ResolveImpact") && Incoming == EAbilityPortPayload::ConfirmedImpact) ||
+        (RegisteredType == TEXT("Target.ResolveDamageTarget") && Incoming == EAbilityPortPayload::DamageResult);
+    if (!bExactContract || !Validate(Error))
+    {
+        Error =
+            TEXT("Repeated target resolution requires its exact registered historical impact or damage-result input.");
+        return false;
+    }
+    return true;
+}
+
 bool UAbilityResolveImpactNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
                                                const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput,
                                                FString& Error)
@@ -134,6 +150,13 @@ void AbilityCombatNodes::Register(FAbilityNodeRegistry& Registry)
         Resolve.ExecutionClass = UAbilityResolveImpactNodeExecution::StaticClass();
         Resolve.InputPayload = bDamage ? EAbilityPortPayload::DamageResult : EAbilityPortPayload::ConfirmedImpact;
         Resolve.bSupportsActorTargets = Resolve.bSupportsMassTargets = Resolve.bSupportsSnapshotTargets = true;
+        // 单次原生命权限转换，无资源、定时器或累计历史；仍消费所属根的事件/调用额度。
+        Resolve.bSustainedSafe = true;
+        Resolve.bRuntimeFiniteSafe = true;
+        Resolve.bRuntimePurePayload = true;
+        // 两种已审输入都只同步重验历史原生命；重复DamageResolved分支也不能重捕同Actor新生命。
+        // pure配置证明仍逐模式校验，不能把此helper标记当作任意历史输入的准入。
+        Resolve.bPrototypeCompatibilitySafe = true;
         Resolve.Ports = {{TEXT("TargetFound"), EAbilityPortPayload::LiveTarget, false},
                          {TEXT("NoTarget"), EAbilityPortPayload::Origin, false},
                          {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
@@ -149,6 +172,7 @@ void AbilityCombatNodes::Register(FAbilityNodeRegistry& Registry)
     Query.ExecutionClass = UAbilityQueryNodeExecution::StaticClass();
     Query.InputPayload = EAbilityPortPayload::Origin;
     Query.bSupportsActorTargets = Query.bSupportsMassTargets = Query.bSupportsSnapshotTargets = true;
+    Query.bRuntimeFiniteSafe = true;
     Query.Ports = {{TEXT("TargetFound"), EAbilityPortPayload::LiveTarget, false},
                    {TEXT("NoTarget"), EAbilityPortPayload::Origin, false},
                    {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
@@ -158,6 +182,7 @@ void AbilityCombatNodes::Register(FAbilityNodeRegistry& Registry)
     Damage.ExecutionClass = UAbilityDamageNodeExecution::StaticClass();
     Damage.InputPayload = EAbilityPortPayload::LiveTarget;
     Damage.bSupportsActorTargets = Damage.bSupportsMassTargets = true;
+    Damage.bRuntimeFiniteSafe = true;
     Damage.Ports = {{TEXT("DamageResolved"), EAbilityPortPayload::DamageResult, false},
                     {TEXT("Completed"), EAbilityPortPayload::DamageResult, true}};
     for (const auto& Descriptor : {Query, Damage})

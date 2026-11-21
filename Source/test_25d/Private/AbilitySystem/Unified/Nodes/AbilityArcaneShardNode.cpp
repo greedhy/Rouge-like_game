@@ -162,12 +162,14 @@ void UAbilityArcaneShardNodeExecution::SpawnNext()
         return;
     }
     const FVector Location = Prepared->Points[NextPoint++];
-    if (Settings->CueTag.IsValid())
-    {
-        FGameplayCueParameters Cue;
-        Cue.Location = Location;
-        Input.SourceToken.ASC->ExecuteGameplayCue(Settings->CueTag, Cue);
-    }
+    EmitPoint(Location, uint64(NextPoint));
+}
+
+void UAbilityArcaneShardNodeExecution::EmitPoint(FVector Location, uint64 Sequence)
+{
+    auto* Owner = GraphOwner.Get();
+    AActor* Avatar = nullptr;
+    AbilityArcaneShardNodes::ExecuteCue(Input.SourceToken, Location, *Settings);
     if (bStopped || !GraphOwner.IsValid())
     {
         return;
@@ -177,16 +179,69 @@ void UAbilityArcaneShardNodeExecution::SpawnNext()
         Owner->Cancel(EAbilityGraphEndReason::SourceInvalid);
         return;
     }
+    const auto CapturedHits = AbilityArcaneShardNodes::CaptureHits(Input.SourceToken, Location, *Settings);
+    for (const auto& Hit : CapturedHits)
+    {
+        if (bStopped || !GraphOwner.IsValid())
+        {
+            return;
+        }
+        FVector TargetLocation;
+        if (!AbilityArcaneShardNodes::ResolveHitLocation(Input.SourceToken, Hit, TargetLocation))
+        {
+            continue;
+        }
+        const auto Result = AbilityArcaneShardNodes::ApplyHit(Input.SourceToken, Hit, ResolvedDamage, Location,
+                                                              Input.DamageScale, Input.DebuffDamageScale);
+        if (bStopped || !GraphOwner.IsValid())
+        {
+            return;
+        }
+        if (Settings->bPublishDamageResults)
+        {
+            Owner->Publish(InvocationId, TEXT("DamageResolved"),
+                           AbilityArcaneShardNodes::DamagePayload(Input, Location, Hit, Result, Sequence));
+        }
+    }
+    if (!bStopped && GraphOwner.IsValid())
+    {
+        auto Payload = Input;
+        Payload.Origin = Location;
+        Owner->Publish(InvocationId, TEXT("PeriodElapsed"), Payload);
+    }
+}
+
+void AbilityArcaneShardNodes::ExecuteCue(const FAbilitySourceToken& Source, FVector Location,
+                                         const UAbilityArcaneShardNodeConfig& Settings)
+{
+    AActor* Avatar = nullptr;
+    if (Settings.CueTag.IsValid() && AbilityExecutionIdentity::ResolveSource(Source, Avatar))
+    {
+        FGameplayCueParameters Cue;
+        Cue.Location = Location;
+        Source.ASC->ExecuteGameplayCue(Settings.CueTag, Cue);
+    }
+}
+
+TArray<FAbilityArcaneShardHit> AbilityArcaneShardNodes::CaptureHits(const FAbilitySourceToken& Source, FVector Location,
+                                                                    const UAbilityArcaneShardNodeConfig& Settings)
+{
+    TArray<FAbilityArcaneShardHit> CapturedHits;
+    AActor* Avatar = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Avatar))
+    {
+        return CapturedHits;
+    }
     TArray<AActor*> Actors;
-    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Avatar, Actors, {Avatar}, Settings->Radius, Location);
+    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Avatar, Actors, {Avatar}, Settings.Radius, Location);
     TArray<FPureMassCombatTarget> Targets;
     for (AActor* Actor : Actors)
     {
         Targets.Add(FPureMassCombatTarget::FromActor(Actor));
     }
-    if (Settings->bIncludeMass)
+    if (Settings.bIncludeMass)
     {
-        for (const auto& Target : PureMassCombat::Gather(Avatar->GetWorld(), Avatar, Location, Settings->Radius))
+        for (const auto& Target : PureMassCombat::Gather(Avatar->GetWorld(), Avatar, Location, Settings.Radius))
         {
             if (!Target.IsActor())
             {
@@ -194,22 +249,15 @@ void UAbilityArcaneShardNodeExecution::SpawnNext()
             }
         }
     }
-    struct FCapturedHit
-    {
-        FAbilityTargetToken Token;
-        TOptional<FAbilitySourceToken> LegacyActorLife;
-    };
-    TArray<FCapturedHit> CapturedHits;
     // 先冻结这一片查到的每条生命，再执行伤害；前一个同步 GE 不能让后一个 Actor 的新租约被旧查询命中。
     for (const auto& Target : Targets)
     {
-        FCapturedHit Hit;
+        FAbilityArcaneShardHit Hit;
         FString Error;
-        if (Target.IsActor() && !Settings->bRequireHostileActorTargets)
+        if (Target.IsActor() && !Settings.bRequireHostileActorTargets)
         {
             FAbilitySourceToken Life;
-            if (!AbilityExecutionIdentity::CaptureSource(Target.Actor.Get(), Life, Error) ||
-                Life.World != Input.SourceToken.World)
+            if (!AbilityExecutionIdentity::CaptureSource(Target.Actor.Get(), Life, Error) || Life.World != Source.World)
             {
                 continue;
             }
@@ -220,66 +268,74 @@ void UAbilityArcaneShardNodeExecution::SpawnNext()
             Hit.Token.ActorLease = Life.EnemyLease;
             Hit.Token.DungeonRunId = Life.DungeonRunId;
         }
-        else if (!AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Target, Hit.Token, Error))
+        else if (!AbilityExecutionIdentity::CaptureTarget(Source, Target, Hit.Token, Error))
         {
             continue;
         }
         CapturedHits.Add(MoveTemp(Hit));
     }
-    for (const auto& Hit : CapturedHits)
+    return CapturedHits;
+}
+
+bool AbilityArcaneShardNodes::ResolveHitLocation(const FAbilitySourceToken& Source, const FAbilityArcaneShardHit& Hit,
+                                                 FVector& TargetLocation)
+{
+    if (Hit.LegacyActorLife.IsSet())
     {
-        if (bStopped || !GraphOwner.IsValid())
+        AActor* TargetActor = nullptr;
+        if (!AbilityExecutionIdentity::ResolveSource(Hit.LegacyActorLife.GetValue(), TargetActor))
         {
-            return;
+            return false;
         }
-        FVector TargetLocation;
-        if (Hit.LegacyActorLife.IsSet())
-        {
-            AActor* TargetActor = nullptr;
-            if (!AbilityExecutionIdentity::ResolveSource(Hit.LegacyActorLife.GetValue(), TargetActor))
-            {
-                continue;
-            }
-            TargetLocation = TargetActor->GetActorLocation();
-        }
-        else if (!AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Hit.Token, TargetLocation))
-        {
-            continue;
-        }
-        auto Params = ResolvedDamage;
-        Params.RadialDamageOrigin = Location;
-        FRotator ImpulseRotation = (TargetLocation - Location).GetSafeNormal().Rotation();
-        ImpulseRotation.Pitch = 15.f;
-        Params.KnockbackForce = ImpulseRotation.Vector() * Params.KnockbackForceMagnitude;
-        Params.DeathImpulse = ImpulseRotation.Vector() * Params.DeathImpulseMagnitude;
-        const auto Result =
-            Hit.LegacyActorLife.IsSet()
-                ? AbilityArcaneShardNodes::ApplyLegacyActor(Input.SourceToken, Hit.LegacyActorLife.GetValue(), Params)
-                : AbilityDamageService::Apply(Input.SourceToken, Hit.Token, Params);
-        if (bStopped || !GraphOwner.IsValid())
-        {
-            return;
-        }
-        FAbilityNodeInput Payload = Input;
-        Payload.Origin = Location;
-        Payload.Impact = FAbilityImpactSnapshot{Result.ImpactLocation, Input.Direction, Hit.Token, uint64(NextPoint)};
-        Payload.LiveTargetToken.Reset();
-        Payload.bHasDamageResult = true;
-        Payload.bDamageAttempted = Result.bAttempted;
-        Payload.bKilled = Result.bKilled;
-        Payload.DamageApplied = Result.Applied;
-        Payload.ActualDamage = Result.ActualDamage;
-        if (Settings->bPublishDamageResults)
-        {
-            Owner->Publish(InvocationId, TEXT("DamageResolved"), Payload);
-        }
+        TargetLocation = TargetActor->GetActorLocation();
     }
-    if (!bStopped && GraphOwner.IsValid())
+    else if (!AbilityExecutionIdentity::ResolveTarget(Source, Hit.Token, TargetLocation))
     {
-        auto Payload = Input;
-        Payload.Origin = Location;
-        Owner->Publish(InvocationId, TEXT("PeriodElapsed"), Payload);
+        return false;
     }
+    return true;
+}
+
+FAbilityDamageResult AbilityArcaneShardNodes::ApplyHit(const FAbilitySourceToken& Source,
+                                                       const FAbilityArcaneShardHit& Hit,
+                                                       const FDamageEffectParams& Parameters, FVector Location,
+                                                       float DamageScale, float DebuffDamageScale)
+{
+    FVector TargetLocation;
+    if (Location.ContainsNaN() || !FMath::IsFinite(DamageScale) || DamageScale < 0.f ||
+        !FMath::IsFinite(DebuffDamageScale) || DebuffDamageScale < 0.f ||
+        !FMath::IsFinite(Parameters.BaseDamage * DamageScale) ||
+        !FMath::IsFinite(Parameters.DebuffDamage * DebuffDamageScale) ||
+        !ResolveHitLocation(Source, Hit, TargetLocation))
+    {
+        return {};
+    }
+    auto Params = Parameters;
+    Params.BaseDamage *= DamageScale;
+    Params.DebuffDamage *= DebuffDamageScale;
+    Params.RadialDamageOrigin = Location;
+    FRotator ImpulseRotation = (TargetLocation - Location).GetSafeNormal().Rotation();
+    ImpulseRotation.Pitch = 15.f;
+    Params.KnockbackForce = ImpulseRotation.Vector() * Params.KnockbackForceMagnitude;
+    Params.DeathImpulse = ImpulseRotation.Vector() * Params.DeathImpulseMagnitude;
+    return Hit.LegacyActorLife.IsSet() ? ApplyLegacyActor(Source, Hit.LegacyActorLife.GetValue(), Params)
+                                       : AbilityDamageService::Apply(Source, Hit.Token, Params);
+}
+
+FAbilityNodeInput AbilityArcaneShardNodes::DamagePayload(const FAbilityNodeInput& Input, FVector Location,
+                                                         const FAbilityArcaneShardHit& Hit,
+                                                         const FAbilityDamageResult& Result, uint64 Sequence)
+{
+    auto Payload = Input;
+    Payload.Origin = Location;
+    Payload.Impact = FAbilityImpactSnapshot{Result.ImpactLocation, Input.Direction, Hit.Token, Sequence};
+    Payload.LiveTargetToken.Reset();
+    Payload.bHasDamageResult = true;
+    Payload.bDamageAttempted = Result.bAttempted;
+    Payload.bKilled = Result.bKilled;
+    Payload.DamageApplied = Result.Applied;
+    Payload.ActualDamage = Result.ActualDamage;
+    return Payload;
 }
 
 void UAbilityArcaneShardNodeExecution::CompleteTail()

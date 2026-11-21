@@ -89,6 +89,9 @@ public:
                             FGameplayAbilityActivationInfo Activation, bool Replicate, bool Cancelled) override;
 
 private:
+    /** 动态图沿同一 AbilityTask 收尾；默认同步图在启动帧结束，显式异步分支才延长施法，目标状态由原组件计时。 */
+    UFUNCTION()
+    void RuntimeGraphFinished(bool bCancelled);
     UPROPERTY(Transient)
     TObjectPtr<UAbilityGraphInstance> Batch6Execution;
 };

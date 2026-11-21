@@ -1,0 +1,25 @@
+[
+  {"id":"MeteorCinders","name":"陨火余烬","summary":"0.65 秒后落下陨火，随后在落点留下 3 秒余火。","mode":"GROUND","mana":28,"cooldown":8,"icon":3,
+   "nodes":[
+    {"id":"Warning","kind":"DELAY","arm_delay":0.65,"radius":360,"loop_vfx":"/Game/Art/CompositionEffects/NS_Bramble_Warning"},
+    {"id":"Meteor","kind":"BURST","damage":60,"element":"Fire","radius":360,"duration":0.1,"impact_vfx":"/Game/CompositionBatch6/NS_SolarExplosionFlame"},
+    {"id":"Cinders","kind":"FIELD","damage":9,"element":"Fire","radius":300,"duration":3,"period":0.75,"loop_vfx":"/Game/Art/CompositionEffects/NS_FireSeed_Field"}
+   ],"edges":[["Warning","OnExpire","Meteor"],["Meteor","OnExpire","Cinders"]]},
+  {"id":"RimeSigil","name":"霜冻符域","summary":"维持 4 秒的霜域每秒造成伤害并减速，消失时向外爆裂。","mode":"GROUND","mana":22,"cooldown":7,"icon":7,
+   "nodes":[
+    {"id":"FrostField","kind":"FIELD","damage":11,"radius":390,"duration":4,"period":1,"slow_multiplier":0.65,"slow_duration":1.15,"loop_vfx":"/Game/CompositionBatch6/NS_GlacialStorm"},
+    {"id":"FrostBurst","kind":"BURST","damage":28,"radius":460,"duration":0.1,"impact_vfx":"/Game/Art/CompositionEffects/NS_Frost_Impact"}
+   ],"edges":[["FrostField","OnExpire","FrostBurst"]]},
+  {"id":"PiercingTempest","name":"穿云雷球","summary":"向目标发射雷球，至多穿过 4 个敌人，飞行结束时爆裂。","mode":"ENEMY","mana":20,"cooldown":5,"icon":11,
+   "nodes":[
+    {"id":"StormOrb","kind":"PIERCING","damage":24,"element":"Thunder","range":1300,"speed":1050,"collision_radius":46,"count":4,"damage_falloff":0.85,"duration":2,"loop_vfx":"/Game/Art/CompositionEffects/NS_StormSeal_Pulse"},
+    {"id":"StormBurst","kind":"BURST","damage":26,"element":"Thunder","radius":245,"duration":0.1,"impact_vfx":"/Game/Art/CompositionEffects/NS_StormSeal_Blast"}
+   ],"edges":[["StormOrb","OnExpire","StormBurst"]]},
+  {"id":"ArcaneSentry","name":"奥术哨塔","summary":"架设 5 秒哨塔，每 0.8 秒向附近敌人发射贯穿光束，最多 5 次。","mode":"GROUND","mana":24,"cooldown":9,"icon":8,
+   "nodes":[
+    {"id":"Sentry","kind":"EMITTER","radius":625,"duration":5,"period":0.8,"count":5,"loop_vfx":"/Game/Art/CompositionEffects/NS_HunterSentry_Core"},
+    {"id":"SentryBeam","kind":"LINE","damage":15,"range":700,"width":155,"shape_half_height":180,"duration":0.18,"loop_vfx":"/Game/PureMass/Effects/NS_DungeonElectricBeam"}
+   ],"edges":[["Sentry","OnPeriod","SentryBeam"]]},
+  {"id":"ArcaneMeditation","name":"奥术冥想","summary":"装备在被动技能槽时，法力回复 +2。","icon":2,"modifiers":{"ManaRegeneration":2}},
+  {"id":"ElementalWard","name":"元素护体","summary":"装备在被动技能槽时，火焰抗性与雷电抗性各 +12。","icon":5,"modifiers":{"FireResistance":12,"ThunderResistance":12}}
+]

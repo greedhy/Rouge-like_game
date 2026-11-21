@@ -19,6 +19,8 @@ class UDebuffNiagaraComponent;
 class UAbilitySystemComponent;
 class UAttributeSet;
 class UAnimMontage;
+class UMaterialInstance;
+class UBloodFXComponent;
 UCLASS(Abstract)
 class TEST_25D_API ABaseCharacter : public ACharacter, public IAbilitySystemInterface, public ICombatInterface
 {
@@ -119,6 +121,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Terrain")
     TObjectPtr<UTerrainStatusComponent> TerrainStatus;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Blood")
+    TObjectPtr<UBloodFXComponent> BloodFX;
 
     // 将眩晕标签计数转换为状态并重新计算移动速度。
     virtual void StunTagChanged(const FGameplayTag CallbackTag, int32 NewCount);

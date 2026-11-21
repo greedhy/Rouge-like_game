@@ -195402,6 +195402,1042 @@
         "No automatic ability grant, learning-catalog row or physical input mapping; direct service requests do not impose the GA cooldown.",
         "Full test_25d suite: 423/424 Success with one catalog configuration failure; all 25 PerfectDodge/WorldSlow tests Success. User PIE pending; network activation rejected."
       ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_GlacialLance.GA_GlacialLance",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_GlacialLance.GA_GlacialLance_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Graph.DA_GlacialLance_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Piercing",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Graph.DA_GlacialLance_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Lance.DA_GlacialLance_Lance",
+        "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Shatter.DA_GlacialLance_Shatter"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Piercing",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Lance.DA_GlacialLance_Lance",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Piercing",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GlacialLance_Shatter.DA_GlacialLance_Shatter",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Piercing",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_InfernoVortex.GA_InfernoVortex",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_InfernoVortex.GA_InfernoVortex_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Graph.DA_InfernoVortex_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Graph.DA_InfernoVortex_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Vortex.DA_InfernoVortex_Vortex",
+        "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Explosion.DA_InfernoVortex_Explosion"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Vortex.DA_InfernoVortex_Vortex",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_InfernoVortex_Explosion.DA_InfernoVortex_Explosion",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_ThunderPrison.GA_ThunderPrison",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_ThunderPrison.GA_ThunderPrison_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Graph.DA_ThunderPrison_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Graph.DA_ThunderPrison_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Seal.DA_ThunderPrison_Seal",
+        "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Release.DA_ThunderPrison_Release"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Seal.DA_ThunderPrison_Seal",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_ThunderPrison_Release.DA_ThunderPrison_Release",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_GhostCleave.GA_GhostCleave",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_GhostCleave.GA_GhostCleave_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Graph.DA_GhostCleave_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Cone",
+              "Legacy.Mixed.Delay",
+              "Legacy.Mixed.Cone"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Graph.DA_GhostCleave_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Slash.DA_GhostCleave_Slash",
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Pause.DA_GhostCleave_Pause",
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Echo.DA_GhostCleave_Echo"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Cone",
+              "Legacy.Mixed.Delay",
+              "Legacy.Mixed.Cone"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Slash.DA_GhostCleave_Slash",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Cone",
+              "Legacy.Mixed.Delay",
+              "Legacy.Mixed.Cone"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Pause.DA_GhostCleave_Pause",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Cone",
+              "Legacy.Mixed.Delay",
+              "Legacy.Mixed.Cone"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostCleave_Echo.DA_GhostCleave_Echo",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Cone",
+              "Legacy.Mixed.Delay",
+              "Legacy.Mixed.Cone"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_CrimsonEruption.GA_CrimsonEruption",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_CrimsonEruption.GA_CrimsonEruption_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Graph.DA_CrimsonEruption_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Burst",
+              "Legacy.Mixed.Field"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Graph.DA_CrimsonEruption_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Eruption.DA_CrimsonEruption_Eruption",
+        "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_BloodPool.DA_CrimsonEruption_BloodPool"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Burst",
+              "Legacy.Mixed.Field"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Eruption.DA_CrimsonEruption_Eruption",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Burst",
+              "Legacy.Mixed.Field"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_CrimsonEruption_BloodPool.DA_CrimsonEruption_BloodPool",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Burst",
+              "Legacy.Mixed.Field"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/GA_GhostMoonArray.GA_GhostMoonArray",
+      "generatedClass": "/Game/UnifiedAbilities/ArtBatch/GA_GhostMoonArray.GA_GhostMoonArray_C",
+      "parentClass": "/Script/test_25d.MageGraphAbility",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Graph.DA_GhostMoonArray_Graph"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Graph.DA_GhostMoonArray_Graph",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.AbilityGraphDefinition",
+      "family": "MixedPrototype",
+      "configPaths": [
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Array.DA_GhostMoonArray_Array",
+        "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Finish.DA_GhostMoonArray_Finish"
+      ],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Array.DA_GhostMoonArray_Array",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
+    },
+    {
+      "assetPath": "/Game/UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Finish.DA_GhostMoonArray_Finish",
+      "generatedClass": null,
+      "parentClass": "/Script/test_25d.Batch6FieldPrototype",
+      "family": "MixedPrototype",
+      "configPaths": [],
+      "targetSupport": [
+        "Actor"
+      ],
+      "lifecycle": "Independent finite world graph. Source life invalidation cancels pending actions.",
+      "compatibilityProfile": "UnifiedV2",
+      "migrationStatus": "Adapting",
+      "replacementPath": null,
+      "evidence": {
+        "manual": [
+          {
+            "kind": "ArtBatchRegistration",
+            "strategyTypeIds": [
+              "Legacy.Mixed.Field",
+              "Legacy.Mixed.Burst"
+            ],
+            "reports": [
+              "Saved/GAAuthoring/MageBatch/1659eb1a6eaf49feb17d68135a413ef6/receipt.json",
+              "Saved/Automation/ArtBatchFinal/index.json",
+              "Saved/GAAuthoring/ArtBatch/menu.json"
+            ],
+            "tests": [
+              "test_25d.UnifiedGA.ArtBatch.ActorCompositions"
+            ],
+            "pie": {
+              "multiplayerMenu": "Passed",
+              "skillVisual": "Pending"
+            }
+          }
+        ]
+      },
+      "issues": [
+        "Individual VFX timing and geometry require user PIE acceptance."
+      ]
     }
   ],
   "incrementalRegistrations": [
@@ -195430,6 +196466,12 @@
       "assetVerificationReport": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\GAAuthoring\\PerfectDodge\\verify-20261114T185738-840575dc\\verification-result.json",
       "focusedAutomationReport": "C:\\Users\\greedy\\Documents\\Unreal Projects\\test_25d\\Saved\\Automation\\UnifiedGA\\20261114T190300-eb6f9efc\\index.json",
       "remaining": "Full project suite and user PIE pending; Standalone only."
+    },
+    {
+      "date": "2026-11-19",
+      "name": "ArtBatch",
+      "addedRows": 25,
+      "scope": "Six GA frontends, six graphs and thirteen independent action configurations. Actor runtime and dual-client menu verified."
     }
   ]
 }

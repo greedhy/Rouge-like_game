@@ -16,7 +16,7 @@ class TEST_25D_API UMyUserWidget : public UUserWidget
 public:
     //蓝图调用方法，可以设置WidgetController
     UFUNCTION(BlueprintCallable)
-    void SetWidgetController(UObject* InWidgetController);
+    virtual void SetWidgetController(UObject* InWidgetController);
     //WidgetController
     UPROPERTY(BlueprintReadOnly)
     TObjectPtr<UObject> WidgetController;

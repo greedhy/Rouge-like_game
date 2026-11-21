@@ -20,6 +20,7 @@ struct FInputActionValue;
 class AMagicCircle;
 class UUserWidget;
 class IInputProcessor;
+class UAbilityRuntimeRecipeDeveloperComponent;
 
 /**
  * 
@@ -45,6 +46,10 @@ public:
     virtual void AcknowledgePossession(APawn* P) override;
     // 游戏内菜单先处理鼠标，控制器消费未被控件处理的左右键。
     virtual bool InputKey(const FInputKeyEventArgs& Params) override;
+
+    /** Development/Editor 调试快捷入口：打开或关闭人物窗口第四页，与游戏内入口共享实例。 */
+    UFUNCTION(Exec)
+    void RuntimeRecipe();
 
     void RegisterGameplayMenu(UUserWidget* Menu);
     void UnregisterGameplayMenu(UUserWidget* Menu);
@@ -120,6 +125,11 @@ private:
     void InitializeLocalInput();
     void ApplyGameplayInputMode();
     void ReleaseGameplayMouseButtons();
+    /** 仅从当前 ASC Owner 寻找开发组件，不能指定其他玩家状态。 */
+    UAbilityRuntimeRecipeDeveloperComponent* GetRecipeDeveloper() const;
+    /** 启停预览或换 Pawn 时明确转发松键，防止旧引导保持 InputPressed。 */
+    void ReleaseRecipeInput();
+    bool bDeveloperRecipeKeyHeld = false;
     void RemoveMenuKeyboardRouting();
     void ShowSelectedBackpackEquipment();
     UPROPERTY(EditAnywhere, Category = "Input")

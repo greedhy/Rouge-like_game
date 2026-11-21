@@ -51,6 +51,17 @@ void UPrototypeSpellEntry::Select()
         if (auto* Controller = Cast<USpellMenuWidgetController>(Tree->WidgetController))
             Controller->SpellGlobeSelected(AbilityTag);
 }
+
+// 支持蓝图晚于构造注入控制器，首次打开时即显示当前职业列表。
+void UPrototypeSpellTree::SetWidgetController(UObject* InWidgetController)
+{
+    Super::SetWidgetController(InWidgetController);
+    if (PrototypeGrid)
+    {
+        RefreshPrototypes();
+    }
+}
+
 void UPrototypeSpellTree::NativeConstruct()
 {
     Super::NativeConstruct();
@@ -71,6 +82,7 @@ void UPrototypeSpellTree::NativeConstruct()
     auto* PrototypeText = WidgetTree->ConstructWidget<UTextBlock>();
     OriginalText->SetText(FText::FromString(TEXT("  Skills  ")));
     PrototypeText->SetText(FText::FromString(TEXT("  Prototypes  ")));
+    PrototypeText->SetText(NSLOCTEXT("SkillTree", "ProfessionSkills", "  职业技能  "));
     for (auto* Text : {OriginalText, PrototypeText})
     {
         FSlateFontInfo Font = Text->GetFont();
@@ -94,6 +106,7 @@ void UPrototypeSpellTree::NativeConstruct()
     Tabs->AddChild(WeaponButton);
     Pages->AddChild(OriginalPage);
     auto* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>();
+    PrototypeGrid = Grid;
     Grid->SetMinDesiredSlotHeight(42.f);
     Grid->SetSlotPadding(FMargin(3.f));
     auto* Scroll = WidgetTree->ConstructWidget<UScrollBox>();
@@ -103,13 +116,37 @@ void UPrototypeSpellTree::NativeConstruct()
     Scroll->AddChild(Grid);
     PrototypePage = Bounds;
     Pages->AddChild(Bounds);
-    const auto* Catalog =
-        LoadObject<UAbilityInfo>(nullptr, TEXT("/Game/BluePrints/AbilitySystem/Data/DA_AbilityInfo.DA_AbilityInfo"));
+    RefreshPrototypes();
+    WeaponGrid = WidgetTree->ConstructWidget<UUniformGridPanel>();
+    WeaponGrid->SetMinDesiredSlotHeight(42.f);
+    WeaponGrid->SetSlotPadding(FMargin(3.f));
+    auto* WeaponScroll = WidgetTree->ConstructWidget<UScrollBox>();
+    auto* WeaponBounds = WidgetTree->ConstructWidget<USizeBox>();
+    WeaponBounds->SetHeightOverride(215.f);
+    WeaponBounds->AddChild(WeaponScroll);
+    WeaponScroll->AddChild(WeaponGrid);
+    WeaponPage = WeaponBounds;
+    Pages->AddChild(WeaponBounds);
+    RefreshWeapons();
+    ShowPrototypes();
+}
+
+// 目录由当前玩家的菜单控制器提供，过滤角色职业后创建可学习条目。
+void UPrototypeSpellTree::RefreshPrototypes()
+{
+    PrototypeGrid->ClearChildren();
+    const auto* Controller = Cast<USpellMenuWidgetController>(WidgetController);
+    const auto* Catalog = Controller ? Controller->GetAbilityCatalog() : nullptr;
+    const auto* Pawn = GetOwningPlayerPawn();
     int32 Index = 0;
     if (Catalog)
     {
         for (const auto& Row : Catalog->AbilityInformation)
         {
+            if (!Catalog->CanLearn(Row.AbilityTag, Pawn))
+            {
+                continue;
+            }
             const auto* Defaults = Row.Ability ? Row.Ability->GetDefaultObject<UGameplayAbility>() : nullptr;
             FText Label;
             if (const auto* Prototype = Cast<UPrototypeAbility>(Defaults); Prototype && Prototype->Prototype)
@@ -131,28 +168,18 @@ void UPrototypeSpellTree::NativeConstruct()
             Entry->AbilityTag = Row.AbilityTag;
             Entry->Icon = const_cast<UTexture2D*>(Row.Icon.Get());
             Entry->Initialize();
-            Grid->AddChildToUniformGrid(Entry, Index / 2, Index % 2);
+            PrototypeGrid->AddChildToUniformGrid(Entry, Index / 2, Index % 2);
             ++Index;
         }
     }
-    WeaponGrid = WidgetTree->ConstructWidget<UUniformGridPanel>();
-    WeaponGrid->SetMinDesiredSlotHeight(42.f);
-    WeaponGrid->SetSlotPadding(FMargin(3.f));
-    auto* WeaponScroll = WidgetTree->ConstructWidget<UScrollBox>();
-    auto* WeaponBounds = WidgetTree->ConstructWidget<USizeBox>();
-    WeaponBounds->SetHeightOverride(215.f);
-    WeaponBounds->AddChild(WeaponScroll);
-    WeaponScroll->AddChild(WeaponGrid);
-    WeaponPage = WeaponBounds;
-    Pages->AddChild(WeaponBounds);
-    RefreshWeapons();
-    if (ListedWeaponSet)
-        ShowWeapons();
-    else
-        ShowOriginal();
 }
 void UPrototypeSpellTree::ShowOriginal()
 {
+    if (UAbilityInfo::ResolveProfession(GetOwningPlayerPawn()) == EPlayerProfession::Stander)
+    {
+        ShowPrototypes();
+        return;
+    }
     if (auto* Controller = Cast<USpellMenuWidgetController>(WidgetController))
         Controller->GlobeDeselect();
     if (OriginalPage)
@@ -164,6 +191,11 @@ void UPrototypeSpellTree::ShowOriginal()
 }
 void UPrototypeSpellTree::ShowPrototypes()
 {
+    if (PrototypeGrid)
+    {
+        // 蓝图可能在 NativeConstruct 之后才注入控制器，切页时按当前目录刷新。
+        RefreshPrototypes();
+    }
     if (auto* Controller = Cast<USpellMenuWidgetController>(WidgetController))
         Controller->GlobeDeselect();
     if (OriginalPage)
@@ -184,7 +216,10 @@ void UPrototypeSpellTree::NativeTick(const FGeometry& MyGeometry, float InDeltaT
     const auto* Controller = Cast<USpellMenuWidgetController>(WidgetController);
     if (Controller && (ListedController != Controller ||
                        ListedWeaponSet != const_cast<USpellMenuWidgetController*>(Controller)->GetCurrentWeaponSet()))
+    {
+        RefreshPrototypes();
         RefreshWeapons();
+    }
 }
 
 void UPrototypeSpellTree::RefreshWeapons()

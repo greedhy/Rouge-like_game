@@ -13,6 +13,8 @@
 #include "AbilitySystem/Defense/GuardParryComponent.h"
 #include "Roguelike/DungeonRunDirector.h"
 #include "GameFramework/Pawn.h"
+#include "AbilitySystem/Unified/AbilityProjectileMotion.h"
+#include "Net/UnrealNetwork.h"
 
 AMyProjectile::AMyProjectile()
 {
@@ -47,6 +49,61 @@ void AMyProjectile::BeginPlay()
     SetReplicateMovement(true);
     Sphere->OnComponentBeginOverlap.AddDynamic(this, &AMyProjectile::OnSphereOverlap);
     LoopingSoundComponent = UGameplayStatics::SpawnSoundAttached(LoopingSound, GetRootComponent());
+    if (!HasAuthority() && (bGraphDeliveryManaged || GraphDeliveryCollisionRadius > 0.f))
+    {
+        OnRep_GraphDeliveryManaged();
+    }
+}
+
+void AMyProjectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(AMyProjectile, bGraphDeliveryManaged);
+    DOREPLIFETIME(AMyProjectile, GraphDeliveryCollisionRadius);
+}
+
+void AMyProjectile::OnRep_GraphDeliveryManaged()
+{
+    if (!HasAuthority())
+    {
+        ProjectileMovement->bSimulationEnabled = !bGraphDeliveryManaged;
+        ProjectileMovement->SetComponentTickEnabled(!bGraphDeliveryManaged);
+        ApplyGraphDeliveryCollisionRadius();
+    }
+}
+
+bool AMyProjectile::ApplyGraphDeliveryCollisionRadius()
+{
+    if (GraphDeliveryCollisionRadius == 0.f)
+    {
+        return true; // 未选择override的旧弹体保留自身构造半径。
+    }
+    const float Scale = Sphere ? Sphere->GetShapeScale() : 0.f;
+    if (!FMath::IsFinite(GraphDeliveryCollisionRadius) || GraphDeliveryCollisionRadius <= 0.f ||
+        GraphDeliveryCollisionRadius > 200.f || !FMath::IsFinite(Scale) || Scale <= UE_SMALL_NUMBER)
+    {
+        return false;
+    }
+    Sphere->SetSphereRadius(GraphDeliveryCollisionRadius / Scale, false);
+    return true;
+}
+
+bool AMyProjectile::SetGraphDeliveryCollisionRadius(float WorldRadius)
+{
+    if (!HasAuthority() || !bGraphDeliveryManaged || !FMath::IsFinite(WorldRadius) || WorldRadius <= 0.f ||
+        WorldRadius > 200.f)
+    {
+        return false;
+    }
+    const float Previous = GraphDeliveryCollisionRadius;
+    GraphDeliveryCollisionRadius = WorldRadius;
+    if (!ApplyGraphDeliveryCollisionRadius())
+    {
+        GraphDeliveryCollisionRadius = Previous;
+        return false;
+    }
+    ForceNetUpdate();
+    return true;
 }
 
 void AMyProjectile::OnHit()
@@ -64,6 +121,15 @@ void AMyProjectile::OnHit()
 
 void AMyProjectile::Destroyed()
 {
+    // 图实例先收到实际弹体终结；MoveTemp使同步取消/销毁不能再次通知同一步。
+    auto Retired = MoveTemp(GraphDeliveryRetired);
+    GraphDeliveryContact = {};
+    GraphDeliveryBlockingContact = {};
+    bGraphDeliveryManaged = false;
+    if (Retired)
+    {
+        Retired(false);
+    }
     if (ExecutionSource.IsSet())
     {
         if (auto* Combat = Cast<ICombatInterface>(ExecutionSource->Avatar.Get()))
@@ -87,13 +153,18 @@ void AMyProjectile::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AA
                                     UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
                                     const FHitResult& SweepResult)
 {
+    if (bGraphDeliveryManaged && !HasAuthority())
+    {
+        // 受管弹体的逐次接触由权威端确认并复制；代理重叠不得抢先设置原首击bHit终结门。
+        return;
+    }
     if (bFromSweep && InvalidatedParrySweep.IsSet() && SweepResult.TraceStart.Equals(InvalidatedParrySweep->Key) &&
         SweepResult.TraceEnd.Equals(InvalidatedParrySweep->Value))
     {
         // 引擎可能已排队本次Sweep后方的墙/目标；它们属于弹反前的旧方向，不能结算返程命中。
         return;
     }
-    if (bHit || !IsValidOverlap(OtherActor))
+    if (IsActorBeingDestroyed() || bHit || !IsValidOverlap(OtherActor))
     {
         return;
     }
@@ -120,6 +191,39 @@ void AMyProjectile::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AA
             UGuardParryComponent::NotifyProjectileParried(OtherActor, OriginalSource, OriginalAttack);
             return;
         }
+    }
+    if (HasAuthority() && bGraphDeliveryManaged)
+    {
+        const FVector Position =
+            bFromSweep && !SweepResult.Location.ContainsNaN() ? FVector(SweepResult.Location) : GetActorLocation();
+        ObserveDodgeSweep(PreviousDodgeLocation, Position);
+        if (UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OtherActor))
+        {
+            if (ExecutionSource.IsSet() &&
+                UPerfectDodgeComponent::TryDodgeActorHit(OtherActor, ExecutionSource.GetValue(), DodgeAttackId))
+            {
+                Destroy();
+                return;
+            }
+            FAbilityTargetToken Target;
+            FString Error;
+            if (ExecutionSource.IsSet() &&
+                AbilityExecutionIdentity::CaptureTarget(ExecutionSource.GetValue(),
+                                                        FPureMassCombatTarget::FromActor(OtherActor), Target, Error))
+            {
+                const FVector Direction = ProjectileMovement->Velocity.IsNearlyZero()
+                                              ? GetActorForwardVector()
+                                              : ProjectileMovement->Velocity.GetSafeNormal();
+                DispatchGraphDeliveryContact(Target, Position, Direction);
+            }
+        }
+        else if (GraphDeliveryBlockingContact)
+        {
+            // 原native在非ASC身体/墙接触同样终结；回调可同步销毁，局部副本隔离成员清理。
+            auto Blocked = GraphDeliveryBlockingContact;
+            Blocked(GetActorLocation());
+        }
+        return; // 外部策略决定Continue/Terminate，绝不回落到原内部伤害或首击销毁。
     }
     if (HasAuthority())
     {
@@ -164,6 +268,116 @@ void AMyProjectile::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AA
     else
     {
         bHit = true; //如果没有权限，设置bHit为true，等待服务器销毁
+    }
+}
+
+void AMyProjectile::SetGraphDeliveryHandlers(
+    TFunction<EAbilityProjectileContactDisposition(const FAbilityTargetToken&, FVector, FVector)> Contact,
+    TFunction<void(bool)> Retired, const TArray<FAbilityTargetToken>& IgnoredTargets)
+{
+    GraphDeliveryContact = MoveTemp(Contact);
+    GraphDeliveryRetired = MoveTemp(Retired);
+    GraphDeliveryIgnoredTargets = IgnoredTargets;
+    bGraphDeliveryManaged = true;
+    bGraphDeliveryContactClaimed = false;
+}
+
+void AMyProjectile::ClearGraphDeliveryHandlers()
+{
+    const bool bWasManaged = bGraphDeliveryManaged;
+    GraphDeliveryContact = {};
+    GraphDeliveryRetired = {};
+    GraphDeliveryBlockingContact = {};
+    SetGraphDeliveryIgnoredTargets({});
+    bGraphDeliveryManaged = false;
+    if (bWasManaged && HasAuthority())
+    {
+        // 手动分段只在受管期间禁用PM模拟；释放后原模式和反射都继续使用原移动组件。
+        ProjectileMovement->bSimulationEnabled = true;
+        ProjectileMovement->SetComponentTickEnabled(true);
+    }
+}
+
+void AMyProjectile::SetGraphDeliveryBlockingContactHandler(TFunction<void(FVector)> Handler)
+{
+    GraphDeliveryBlockingContact = MoveTemp(Handler);
+}
+
+bool AMyProjectile::SupportsGraphDelivery() const
+{
+    for (const UClass* Type = GetClass(); Type; Type = Type->GetSuperClass())
+    {
+        if (Type->HasAnyClassFlags(CLASS_Native))
+        {
+            return Type == AMyProjectile::StaticClass();
+        }
+    }
+    return false;
+}
+
+EAbilityProjectileContactDisposition AMyProjectile::DispatchGraphDeliveryContact(const FAbilityTargetToken& Target,
+                                                                                 FVector Location, FVector Direction)
+{
+    if (!HasAuthority() || IsActorBeingDestroyed() || !bGraphDeliveryManaged || bGraphDeliveryContactClaimed ||
+        !GraphDeliveryContact)
+    {
+        return EAbilityProjectileContactDisposition::Ignore;
+    }
+    bGraphDeliveryContactClaimed = true;
+    // 回调可同步取消并清空成员，使用局部副本完成已认领的唯一通知。
+    auto Contact = GraphDeliveryContact;
+    const auto Decision = Contact(Target, Location, Direction);
+    bGraphDeliveryContactClaimed = false;
+    return Decision;
+}
+
+void AMyProjectile::ShowGraphDeliveryImpact()
+{
+    if (!bHit)
+    {
+        OnHit();
+    }
+}
+
+void AMyProjectile::PlayGraphDeliveryImpactAt(FVector Location, bool bTerminal)
+{
+    if (bTerminal)
+    {
+        Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
+        ShowGraphDeliveryImpact();
+    }
+    else
+    {
+        MulticastGraphDeliveryImpact(Location);
+    }
+}
+
+void AMyProjectile::MulticastGraphDeliveryImpact_Implementation(FVector Location)
+{
+    UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, Location, FRotator::ZeroRotator);
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactEffect, Location);
+}
+
+void AMyProjectile::SetGraphDeliveryIgnoredTargets(const TArray<FAbilityTargetToken>& Targets)
+{
+    for (const auto& Previous : GraphDeliveryIgnoredTargets)
+    {
+        if (auto* Actor = Previous.Target.Actor.Get())
+        {
+            Sphere->IgnoreActorWhenMoving(Actor, false);
+        }
+    }
+    GraphDeliveryIgnoredTargets = Targets;
+    for (const auto& Target : Targets)
+    {
+        FVector Position;
+        if (auto* Actor = Target.Target.Actor.Get();
+            Actor && ExecutionSource.IsSet() &&
+            AbilityExecutionIdentity::ResolveTarget(ExecutionSource.GetValue(), Target, Position))
+        {
+            Sphere->IgnoreActorWhenMoving(Actor, true);
+        }
     }
 }
 
@@ -220,6 +434,20 @@ bool AMyProjectile::TryReflectFrom(const FAbilitySourceToken& Defender)
     // 先锁定一次转移并切断原施法回调，再改变归属；旧GA不能把返程伤害当成自己的命中。
     bParryReflected = true;
     ReflectedOriginalTarget = OriginalTarget;
+    const bool bWasManaged = bGraphDeliveryManaged;
+    auto Retired = MoveTemp(GraphDeliveryRetired);
+    GraphDeliveryContact = {};
+    bGraphDeliveryManaged = false;
+    if (Retired)
+    {
+        Retired(true);
+    }
+    if (bWasManaged)
+    {
+        // 先取消旧图，再恢复原生飞行；旧实例不得继续驱动已经转移归属的手动弹道。
+        ProjectileMovement->bSimulationEnabled = true;
+        ProjectileMovement->SetComponentTickEnabled(true);
+    }
     DamageApplied.Clear();
     OnParrySourceTransferred(PreviousSource);
     SetExecutionSourceToken(Defender);
@@ -285,16 +513,18 @@ void AMyProjectile::ObserveDodgeSweep(const FVector& Start, const FVector& End)
         return;
     }
     const float ProjectileRadius = Sphere->GetScaledSphereRadius();
-    UPerfectDodgeComponent::ObserveActorAttack(ExecutionSource.GetValue(), DodgeAttackId, Start,
+    UPerfectDodgeComponent::ObserveActorAttack(
+        ExecutionSource.GetValue(), DodgeAttackId, Start,
         [&](const FVector& Center, float Radius, float HalfHeight)
         {
             const float Axis = FMath::Max(0.f, HalfHeight - Radius);
             FVector OnShot;
             FVector OnCapsule;
-            FMath::SegmentDistToSegmentSafe(Start, End, Center - FVector(0, 0, Axis),
-                Center + FVector(0, 0, Axis), OnShot, OnCapsule);
+            FMath::SegmentDistToSegmentSafe(Start, End, Center - FVector(0, 0, Axis), Center + FVector(0, 0, Axis),
+                                            OnShot, OnCapsule);
             return FVector::DistSquared(OnShot, OnCapsule) <= FMath::Square(ProjectileRadius + Radius);
-        }, nullptr, PreviousDodgeSampleTime);
+        },
+        nullptr, PreviousDodgeSampleTime);
 }
 
 bool AMyProjectile::IsValidOverlap(AActor* OtherActor)
@@ -317,6 +547,18 @@ bool AMyProjectile::IsValidOverlap(AActor* OtherActor)
     if (SourceAvatarActor == OtherActor)
     {
         return false;
+    }
+    if (bGraphDeliveryManaged && ExecutionSource.IsSet())
+    {
+        for (const auto& Ignored : GraphDeliveryIgnoredTargets)
+        {
+            FVector Position;
+            if (Ignored.Target.Actor.Get() == OtherActor &&
+                AbilityExecutionIdentity::ResolveTarget(ExecutionSource.GetValue(), Ignored, Position))
+            {
+                return false;
+            }
+        }
     }
     if (!UMyAbilitySystemLibrary::IsNotFriend(SourceAvatarActor, OtherActor))
     {

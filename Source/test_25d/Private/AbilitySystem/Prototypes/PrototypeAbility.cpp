@@ -285,6 +285,16 @@ UAbilityGraphDefinition* UPrototypeAbility::PrepareUnifiedGraph(FName Profile, F
         Error = TEXT("The original activation source is no longer current.");
         return nullptr;
     }
+    Error = GetRuntimeRecipeError();
+    if (!Error.IsEmpty())
+    {
+        return nullptr;
+    }
+    // 已在 PreActivate 冻结，目标等待期间的新编辑只能影响下一次施法。
+    if (GetRuntimeRecipeSnapshot().Graph)
+    {
+        return GetRuntimeRecipeSnapshot().Graph;
+    }
     return UAbilityLegacyGraphCompiler::Compile(this, Prototype, Profile, Error);
 }
 
@@ -304,6 +314,12 @@ bool UPrototypeAbility::StartUnifiedGraph(UAbilityGraphDefinition* Graph, UProto
     Input.Context = Context;
     Input.Level = Context->Level;
     Input.DamageParams = Context->DamageParams;
+    if (GetRuntimeRecipeSnapshot().Graph && Prototype)
+    {
+        // 原 Driver 从 Parameters 读取伤害；独立投递节点消费输入，显式填入原等级值而非默认 0。
+        Input.DamageParams.BaseDamage = Prototype->DamageAtLevel(Context->Level);
+        Input.DamageParams.DamageType = Prototype->DamageType;
+    }
     if (Target.IsSet())
     {
         FVector Location;
@@ -314,7 +330,11 @@ bool UPrototypeAbility::StartUnifiedGraph(UAbilityGraphDefinition* Graph, UProto
         }
         Input.LiveTargetToken = *Context->FindTargetLife(Target);
     }
-    UnifiedExecution = UAbilityLegacyGraphCompiler::Execute(Graph, Context, Input, Error);
+    UnifiedExecution = GetRuntimeRecipeSnapshot().Graph
+                           ? StartFrozenRuntimeRecipe(Input, bHoldAbility ? EAbilityExecutionLifetime::BoundToAbility
+                                                                         : EAbilityExecutionLifetime::IndependentCastEffect,
+                                                      Error)
+                           : UAbilityLegacyGraphCompiler::Execute(Graph, Context, Input, Error);
     if (!UnifiedExecution)
     {
         return false;

@@ -1,6 +1,7 @@
 // 调用链：GraphInstance -> 每调用策略初始化；终止先断开图回调，再释放保活引用。
 #include "AbilitySystem/Unified/AbilityNodeExecution.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "AbilitySystem/Unified/AbilityExecutionParameters.h"
 
 bool UAbilityNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& InInvocationId,
                                   const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput, FString& Error)
@@ -10,6 +11,7 @@ bool UAbilityNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& InI
     Input = InInput;
     RetainedDamageParams = Input.DamageParams;
     RetainedContext = Input.Context.Get();
+    RetainedParameterFrame = Input.ParameterFrame.Get();
     bStopped = false;
     Error.Reset();
     return true;

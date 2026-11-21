@@ -69,9 +69,9 @@ void ABatch6ChainPresentation::Present()
         }
         if (BeamSystem)
         {
-            if (auto* V = UNiagaraFunctionLibrary::SpawnSystemAttached(
-                    BeamSystem, GetRootComponent(), NAME_None, S.Start, FRotator::ZeroRotator,
-                    EAttachLocation::KeepWorldPosition, true, false))
+            if (auto* V = UNiagaraFunctionLibrary::SpawnSystemAttached(BeamSystem, GetRootComponent(), NAME_None,
+                                                                       S.Start, FRotator::ZeroRotator,
+                                                                       EAttachLocation::KeepWorldPosition, true, false))
             {
                 // 先写入世界坐标，再激活 Niagara，避免首帧使用素材内置端点。
                 V->SetVariableVec3(TEXT("User.Start"), S.Start);
@@ -134,9 +134,8 @@ FString UBatch6ChainAbility::GetDescription(int32 Level)
     {
         return Super::GetDescription(Level);
     }
-    const FString Behavior = bSequentialChain
-        ? FString::Printf(TEXT("每 %.2f 秒传导一次"), JumpDelay)
-        : FString(TEXT("同时击中主目标及附近敌人"));
+    const FString Behavior = bSequentialChain ? FString::Printf(TEXT("每 %.2f 秒传导一次"), JumpDelay)
+                                              : FString(TEXT("同时击中主目标及附近敌人"));
     return FString::Printf(
         TEXT("<Title>%s</>\n<Small>Lv.%d | MP %.0f | CD %.1fs</>\n<Default>%.0f 伤害；%s，最多 %d 个目标。</>"),
         *Prototype->DisplayName.ToString(), Level, Prototype->ManaCost, Prototype->Cooldown,
@@ -196,30 +195,35 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
             break;
         }
     }
-    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
-    Graph->SchemaVersion = 2;
-    Graph->CompatibilityProfile = TEXT("UnifiedV2");
-    UAbilityLightningNodeConfig* Config = nullptr;
-    if (bSequentialChain)
+    auto* Graph = GetRuntimeRecipeSnapshot().Graph.Get();
+    if (!Graph)
     {
-        auto* Sequential = NewObject<UAbilitySequentialChainNodeConfig>(Graph);
-        Sequential->JumpDelay = JumpDelay;
-        Config = Sequential;
+        // 正式零修正入口保留原兼容策略；预览/动态修改必须使用激活前已冻结的同一配方。
+        Graph = NewObject<UAbilityGraphDefinition>(this);
+        Graph->SchemaVersion = 2;
+        Graph->CompatibilityProfile = TEXT("UnifiedV2");
+        UAbilityLightningNodeConfig* Config = nullptr;
+        if (bSequentialChain)
+        {
+            auto* Sequential = NewObject<UAbilitySequentialChainNodeConfig>(Graph);
+            Sequential->JumpDelay = JumpDelay;
+            Config = Sequential;
+        }
+        else
+        {
+            Config = NewObject<UAbilityForkedVolleyNodeConfig>(Graph);
+        }
+        Config->MaxTargets = MaxTargets;
+        Config->JumpRadius = JumpRadius;
+        Config->DamageFalloff = Prototype ? Prototype->DamageFalloff : 1.f;
+        Config->BeamSystem = BeamSystem;
+        FAbilityGraphNode Node;
+        Node.NodeId = FGuid::NewGuid();
+        Node.TypeId = bSequentialChain ? TEXT("Delivery.SequentialChain") : TEXT("Delivery.ForkedVolley");
+        Node.Config = Config;
+        Graph->EntryNodeId = Node.NodeId;
+        Graph->Nodes.Add(Node);
     }
-    else
-    {
-        Config = NewObject<UAbilityForkedVolleyNodeConfig>(Graph);
-    }
-    Config->MaxTargets = MaxTargets;
-    Config->JumpRadius = JumpRadius;
-    Config->DamageFalloff = Prototype ? Prototype->DamageFalloff : 1.f;
-    Config->BeamSystem = BeamSystem;
-    FAbilityGraphNode Node;
-    Node.NodeId = FGuid::NewGuid();
-    Node.TypeId = bSequentialChain ? TEXT("Delivery.SequentialChain") : TEXT("Delivery.ForkedVolley");
-    Node.Config = Config;
-    Graph->EntryNodeId = Node.NodeId;
-    Graph->Nodes.Add(Node);
     FAbilityNodeInput Input;
     Input.SourceToken = ActivationSource;
     Input.Origin = Origin;
@@ -244,7 +248,11 @@ void UBatch6ChainAbility::ReceiveTarget(const FGameplayAbilityTargetDataHandle& 
         return;
     }
     Input.LiveTargetToken = FirstToken;
-    auto* Task = UAbilityTask_RunGraph::RunAbilityGraphWithInput(this, Graph, Input, {}, bSequentialChain);
+    FAbilityExecutionOptions Options;
+    Options.CompatibilityProfile = Graph->CompatibilityProfile;
+    Options.BudgetPolicy = Graph->BudgetPolicy;
+    // 不论运行时选择哪种控制，均从本次任务启动时计时，不能把施法前整帧Delta灌入新步骤。
+    auto* Task = UAbilityTask_RunGraph::RunAbilityGraphWithInput(this, Graph, Input, Options, true);
     Task->OnFinished.AddDynamic(this, &ThisClass::GraphFinished);
     Task->ReadyForActivation();
 }

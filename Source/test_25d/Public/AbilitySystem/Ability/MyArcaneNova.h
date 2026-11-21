@@ -13,6 +13,8 @@ class TEST_25D_API UMyArcaneNova : public UMyDamageGameplayAbility
 
 public:
     UMyArcaneNova();
+    /** 导出同一新星动作的可冻结默认配置，不提交费用或执行范围伤害。 */
+    virtual UAbilityGraphDefinition* BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const override;
     virtual FString GetDescription(int32 Level) override;
     virtual FString GetNextLevelDescription(int32 Level) override;
 

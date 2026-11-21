@@ -21,9 +21,11 @@
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 #include "Animation/AnimMontage.h"
+#include "Combat/BloodFXComponent.h"
 
 AEnemyCharacter::AEnemyCharacter()
 {
+    BloodFX->Style.bGreenBlood = true;
     GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     HealthBar = CreateDefaultSubobject<UWidgetComponent>("HealthBar");
     HealthBar->SetupAttachment(GetRootComponent()); //将血条附件到根节点上
@@ -120,6 +122,9 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
         return;
     // Mark terminal state before loot/ability callbacks can reenter Die.
     bDead = true;
+    BloodFX->NotifyDeath(FMath::Abs(DungeonPoolLife), GetActorLocation(), DeathImpulse,
+                         GetLootRank() != EEnemyLootRank::Normal);
+    ClearDungeonEliteAffix();
     InvalidateEnemyAttack();
     const FGameplayTagContainer Reactions(EnemyCombatReactionTags::ReactionAbility);
     AbilitySystemComponent->CancelAbilities(&Reactions);
@@ -153,6 +158,7 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
 
 void AEnemyCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    ClearDungeonEliteAffix();
     if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
         Manager->UnregisterEnemy(this);
     Super::EndPlay(EndPlayReason);
@@ -189,11 +195,13 @@ void AEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
     DOREPLIFETIME(AEnemyCharacter, bDungeonEncounter);
     DOREPLIFETIME(AEnemyCharacter, bDungeonPoolCorpse);
     DOREPLIFETIME(AEnemyCharacter, DungeonPoolDeathImpulse);
+    DOREPLIFETIME(AEnemyCharacter, DungeonEliteAffix);
+    DOREPLIFETIME(AEnemyCharacter, bDungeonEliteEnraged);
 }
 
 void AEnemyCharacter::EnableDungeonPooling(float CorpseSeconds)
 {
-    if (!HasAuthority() || DungeonPoolLife != 0)
+    if (!HasAuthority() || DungeonPoolLife != 0 || DungeonEliteAffix != EDungeonEliteAffix::None)
         return;
     Tags.AddUnique(TEXT("DungeonPoolManaged"));
     PoolCorpseSeconds = FMath::Clamp(CorpseSeconds, 0.f, 10.f);
@@ -227,6 +235,14 @@ void AEnemyCharacter::OnRep_DungeonPoolLife()
     }
     const bool Sleeping = DungeonPoolLife < 0;
     bDead = Sleeping;
+    if (Sleeping)
+    {
+        BloodFX->StopForDeath();
+    }
+    else
+    {
+        BloodFX->ResetForLife(DungeonPoolLife);
+    }
     if (Sleeping)
         InvalidateEnemyAttack();
     const bool Corpse = Sleeping && bDungeonPoolCorpse;
@@ -587,6 +603,7 @@ bool AEnemyCharacter::CanFinishPoolReturn() const
 void AEnemyCharacter::MulticastHandleDeath_Implementation(const FVector& DeathImpulse)
 {
     Super::MulticastHandleDeath_Implementation(DeathImpulse);
+    ClearDungeonEliteAffix();
     InvalidateEnemyAttack();
     SetActorTickEnabled(false);
     GetCharacterMovement()->StopMovementImmediately();

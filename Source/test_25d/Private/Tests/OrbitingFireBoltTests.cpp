@@ -36,6 +36,14 @@
 #include "TimerManager.h"
 #include "UObject/Script.h"
 #include "UObject/UnrealType.h"
+#include "DungeonPlayerRunTestTypes.h"
+#include "AbilityArcaneShardTestTypes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityOrbitFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityOrbitNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityBasicNodeExecutions.h"
+#include "AbilitySystem/Unified/AbilityGraphInstance.h"
+#include "AbilitySystem/Unified/AbilityRuntimeRecipe.h"
+#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 namespace OrbitingFireBoltTests
@@ -43,11 +51,11 @@ namespace OrbitingFireBoltTests
     struct FWorld
     {
         UWorld* World;
-        AEnemyCharacter* Player;
+        ABaseCharacter* Player;
         UMyAbilitySystemComponent* ASC;
         FGameplayAbilitySpecHandle Handle;
         FEditorScriptExecutionGuard Guard;
-        FWorld()
+        explicit FWorld(bool bUseRealPlayerInterface = false)
         {
             World = UWorld::CreateWorld(
                 EWorldType::Game, false,
@@ -62,7 +70,27 @@ namespace OrbitingFireBoltTests
                 nullptr, TEXT("/Game/BluePrints/AbilitySystem/Data/DA_CharacterClassInfo.DA_CharacterClassInfo"));
             Mode->AbilityInfo = LoadObject<UAbilityInfo>(
                 nullptr, TEXT("/Game/BluePrints/AbilitySystem/Data/DA_AbilityInfo.DA_AbilityInfo"));
-            Player = Spawn(FVector::ZeroVector, TEXT("Player"));
+            if (bUseRealPlayerInterface)
+            {
+                // 学习/装备服务器入口现要求真实玩家接口和可用技能点，不能用 Enemy 夹具绕过权限。
+                auto* State = World->SpawnActor<AMyPlayerState>();
+                State->Profession = EPlayerProfession::Mage;
+                State->SetSpellPoints(20);
+                auto* Pawn = World->SpawnActor<ADungeonPlayerRunTestPawn>();
+                Pawn->AttachState(State);
+                Player = Pawn;
+                Player->Tags.AddUnique(TEXT("Player"));
+                auto* Component = Player->GetAbilitySystemComponent();
+                Component->AddAttributeSetSubobject(CastChecked<UMyAttributeSet>(State->GetAttributeSet()));
+                Component->SetNumericAttributeBase(UMyAttributeSet::GetMaxHealthAttribute(), 1000.f);
+                Component->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(), 1000.f);
+                Component->SetNumericAttributeBase(UMyAttributeSet::GetMaxManaAttribute(), 100.f);
+                Component->SetNumericAttributeBase(UMyAttributeSet::GetManaAttribute(), 100.f);
+            }
+            else
+            {
+                Player = Spawn(FVector::ZeroVector, TEXT("Player"));
+            }
             ASC = CastChecked<UMyAbilitySystemComponent>(Player->GetAbilitySystemComponent());
             // Supply the source pawn expected by the project's damage-number pipeline,
             // without invoking the enemy class's AI-only PossessedBy implementation.
@@ -390,7 +418,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOrbitEquipFlow, "test_25d.Abilities.OrbitingFi
 bool FOrbitEquipFlow::RunTest(const FString&)
 {
     using namespace OrbitingFireBoltTests;
-    FWorld F;
+    FWorld F(true);
     const auto& Tags = FMyGameplayTags::Get();
     F.ASC->UpdateAbilityStatuses(2);
     auto* Spec = F.ASC->GetSpecFromAbilityTag(Tags.Abilities_Passive_OrbitingFireBolt);
@@ -434,7 +462,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOrbitMetadataReplication,
 bool FOrbitMetadataReplication::RunTest(const FString&)
 {
     using namespace OrbitingFireBoltTests;
-    FWorld F;
+    FWorld F(true);
     const auto& Tags = FMyGameplayTags::Get();
     F.ASC->UpdateAbilityStatuses(2);
     auto* Spec = F.ASC->GetSpecFromAbilityTag(Tags.Abilities_Passive_OrbitingFireBolt);
@@ -558,5 +586,194 @@ bool FOrbitActiveSave::RunTest(const FString&)
     F.ASC->AbilityInputTagPressed(Tags.InputTag_2);
     TestTrue(TEXT("Loaded slot press activates"), Spec->IsActive());
     return true;
+}
+namespace OrbitingFireBoltFragmentTests
+{
+    /** 原GA只作真实配置/启动费对照；随后两条图以同样输入独立检查库存、维持与物理接触。 */
+    UAbilityGraphDefinition* Definition(OrbitingFireBoltTests::FWorld& F, const UOrbitingFireBoltConfig& Settings,
+                                        bool bFine)
+    {
+        if (bFine)
+        {
+            return AbilityOrbitFragments::Build(F.World, Settings);
+        }
+        auto* Graph = NewObject<UAbilityGraphDefinition>(F.World);
+        Graph->SchemaVersion = 2;
+        Graph->CompatibilityProfile = TEXT("LegacyActor.Channel.v1");
+        Graph->BudgetPolicy = EAbilityGraphBudgetPolicy::LegacyStreaming;
+        FAbilityGraphNode Node;
+        Node.NodeId = FGuid::NewGuid();
+        Node.TypeId = TEXT("Channel.OrbitingFireBolts");
+        auto* Config = NewObject<UAbilityOrbitNodeConfig>(Graph);
+        Config->OrbitSettings = DuplicateObject<UOrbitingFireBoltConfig>(&Settings, Config);
+        Node.Config = Config;
+        Graph->EntryNodeId = Node.NodeId;
+        Graph->Nodes.Add(Node);
+        return Graph;
+    }
+
+    /** 真实计时器和Actor运动；每帧只排空同一图，不以手工Overlap冒充真实命中。 */
+    void Step(OrbitingFireBoltTests::FWorld& F, UAbilityGraphInstance& Run, float Seconds)
+    {
+        for (float Elapsed = 0.f; Elapsed < Seconds; Elapsed += .05f)
+        {
+            F.Advance(FMath::Min(.05f, Seconds - Elapsed), true);
+            Run.Advance(0.f);
+        }
+    }
+
+    bool Exercise(FAutomationTestBase& Test, bool bFine, bool bReplacePayload)
+    {
+        OrbitingFireBoltTests::FWorld F;
+        auto* Ability = F.Start();
+        if (!Test.TestNotNull(TEXT("Actual catalog Orbit frontend activates through ASC"), Ability))
+        {
+            return false;
+        }
+        auto Params = Ability->MakeDamageEffectParamsFromClassDefaults();
+        auto* Settings = DuplicateObject<UOrbitingFireBoltConfig>(Ability->Config, F.World);
+        Test.TestEqual(TEXT("Real frontend preserves its one startup payment"),
+                       F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()), 90.f);
+        F.ASC->CancelAbilityHandle(F.Handle);
+        Test.TestEqual(TEXT("Cancelling configuration probe leaves no old inventory"), F.Balls().Num(), 0);
+        auto* Graph = Definition(F, *Settings, bFine);
+        if (!Test.TestNotNull(TEXT("Fine or original inventory definition exists"), Graph))
+        {
+            return false;
+        }
+        if (bFine)
+        {
+            Test.TestFalse(TEXT("Fine default contains no whole Orbit channel macro"),
+                           Graph->Nodes.ContainsByPredicate(
+                               [](const auto& Node)
+                               {
+                                   return Node.TypeId == TEXT("Channel.OrbitingFireBolts");
+                               }));
+            Test.TestTrue(TEXT("Inventory, actual delivery and effect are independently addressable"),
+                          Graph->Nodes.Num() >= 3);
+        }
+        if (bReplacePayload)
+        {
+            FAbilityRuntimeRecipeContribution Rune;
+            Rune.SourceId = TEXT("Rune.OrbitPetrifyPayload");
+            FAbilityRuntimeRecipePatch Patch;
+            Patch.TargetTypeId = TEXT("Effect.InputDamage");
+            Patch.Operation = EAbilityRecipePatchOperation::ReplaceNode;
+            Patch.ReplacementTypeId = TEXT("Status.Petrify");
+            auto* Status = NewObject<UAbilityPetrifyNodeConfig>(F.World);
+            Status->DurationSeconds = 2.f;
+            Patch.ReplacementConfig = Status;
+            Rune.Patches.Add(Patch);
+            UAbilityGraphDefinition* Compiled = nullptr;
+            FString Error;
+            if (!Test.TestTrue(TEXT("Runtime recipe replaces only the native contact payload: ") + Error,
+                               AbilityRuntimeRecipes::Compile(F.World, Graph, {Rune}, Compiled, Error)))
+            {
+                Test.AddInfo(Error);
+                return false;
+            }
+            Graph = Compiled;
+        }
+        auto* Binding = NewObject<UAbilityOrbitContext>(F.World);
+        Binding->SourceAbility = Ability;
+        Binding->AbilityTags = Ability->GetAssetTags();
+        FAbilityNodeInput Input;
+        FString Error;
+        if (!AbilityExecutionIdentity::CaptureSource(F.Player, Input.SourceToken, Error))
+        {
+            Test.AddError(Error);
+            return false;
+        }
+        Input.Origin = F.Player->GetActorLocation();
+        Input.Context = Binding;
+        Input.DamageParams = Params;
+        Input.DamageParams.DamageGameplayEffectClass = UArcaneShardTestDamageEffect::StaticClass();
+        Input.DamageParams.DebuffChance = 0.f;
+        auto* Run = NewObject<UAbilityGraphInstance>(F.World);
+        FAbilityExecutionOptions Options;
+        Options.BudgetPolicy = Graph->BudgetPolicy;
+        Options.CompatibilityProfile = Graph->CompatibilityProfile;
+        if (!Test.TestTrue(TEXT("Original or fine inventory starts through registered strategies"),
+                           Run->StartWithInput(Graph, Input, Options, Error)))
+        {
+            Test.AddInfo(Error);
+            return false;
+        }
+        auto* Enemy = F.Spawn(FVector(300, 0, 0), TEXT("Enemy"));
+        Enemy->AutoPossessAI = EAutoPossessAI::Disabled;
+        if (!Enemy->IsActorInitialized())
+        {
+            Enemy->PostInitializeComponents();
+        }
+        Enemy->GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        Enemy->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Projectile, ECR_Overlap);
+        Enemy->GetCapsuleComponent()->SetGenerateOverlapEvents(true);
+        auto* TargetASC = Enemy->GetAbilitySystemComponent();
+        Step(F, *Run, 9.2f);
+        Test.TestEqual(TEXT("Real inventory replenishes to the authored capacity"), F.Balls().Num(),
+                       Settings->MaxFireBolts);
+        Test.TestEqual(TEXT("Upkeep is independent of the effect and preserves nine actual Mana payments"),
+                       F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()), 81.f);
+        int32 Contacts = 0;
+        const auto Hook = TargetASC->OnGameplayEffectAppliedDelegateToSelf.AddLambda(
+            [&](UAbilitySystemComponent*, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle)
+            {
+                Contacts += Spec.Def && Spec.Def->IsA<UArcaneShardTestDamageEffect>() ? 1 : 0;
+            });
+        F.World->SetBegunPlay(true);
+        ON_SCOPE_EXIT
+        {
+            F.World->SetBegunPlay(false);
+        };
+        F.Attack(Enemy);
+        const float Before = TargetASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute());
+        // 首箭发射后立即停止本次攻击信号以外的时间，观察真正物理命中而不伪造回执。
+        for (int32 Frame = 0; Frame < 7 && Contacts == 0 && !Enemy->GetMesh()->bPauseAnims; ++Frame)
+        {
+            Step(F, *Run, .05f);
+        }
+        if (bReplacePayload)
+        {
+            Test.TestTrue(TEXT("Actual native flight applies replacement petrify on real contact"),
+                          Enemy->GetMesh()->bPauseAnims);
+            Test.TestEqual(TEXT("Replacing the sink removes all hidden native damage"),
+                           TargetASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()), Before);
+            Test.TestEqual(TEXT("Removed damage sink never invokes the original GE"), Contacts, 0);
+        }
+        else
+        {
+            Test.TestEqual(TEXT("One genuine native collision applies one actual GE"), Contacts, 1);
+            Test.TestEqual(TEXT("Actual Health decreases once"),
+                           TargetASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute()), Before - 10.f);
+        }
+        TargetASC->OnGameplayEffectAppliedDelegateToSelf.Remove(Hook);
+        Run->Cancel();
+        Test.TestEqual(TEXT("Cancellation destroys this inventory and every in-flight original Actor"), F.Balls().Num(),
+                       0);
+        const float Mana = F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute());
+        Step(F, *Run, 3.2f);
+        Test.TestEqual(TEXT("Cancelled inventory leaves no timer resource cost"),
+                       F.ASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()), Mana);
+        Test.TestEqual(TEXT("Cancelled inventory does not replenish later"), F.Balls().Num(), 0);
+        return true;
+    }
+} // namespace OrbitingFireBoltFragmentTests
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNativeOrbitFineDefault,
+                                 "test_25d.DynamicMage.NativeOrbit.FineDefaultPreservesInventoryUpkeepAndActualFlight",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FNativeOrbitFineDefault::RunTest(const FString&)
+{
+    const bool bControl = OrbitingFireBoltFragmentTests::Exercise(*this, false, false);
+    const bool bFine = OrbitingFireBoltFragmentTests::Exercise(*this, true, false);
+    return bControl && bFine;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNativeOrbitAlternatePayload,
+                                 "test_25d.DynamicMage.NativeOrbit.RealAttackCanReplaceDamageWithStatus",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FNativeOrbitAlternatePayload::RunTest(const FString&)
+{
+    return OrbitingFireBoltFragmentTests::Exercise(*this, true, true);
 }
 #endif

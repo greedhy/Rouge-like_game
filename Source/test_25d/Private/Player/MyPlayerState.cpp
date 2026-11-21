@@ -18,6 +18,7 @@
 
 #include "AbilitySystem/MyAttributeSet.h"
 #include "Game/LoadScreenSaveGame.h"
+#include "AbilitySystem/Unified/AbilityRuntimeRecipeDeveloperComponent.h"
 // 创建可复制能力系统、属性集、背包与装备组件。
 AMyPlayerState::AMyPlayerState()
 {
@@ -31,6 +32,8 @@ AMyPlayerState::AMyPlayerState()
     AttributeSet = CreateDefaultSubobject<UMyAttributeSet>("AttributeSet");
     BackpackComponent = CreateDefaultSubobject<UBackpackComponent>("BackpackComponent");
     EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>("EquipmentComponent");
+    // 配方配置与 ASC 一样属于 PlayerState；每次施法另取快照，不随一次弹体或 Pawn 临时创建。
+    RuntimeRecipeComponent = CreateDefaultSubobject<UAbilityRuntimeRecipeDeveloperComponent>("RuntimeRecipeComponent");
 }
 
 // 设置物品目录，服务器初始化背包。
@@ -61,6 +64,7 @@ void AMyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
     DOREPLIFETIME(AMyPlayerState, XP);
     DOREPLIFETIME(AMyPlayerState, AttributePoints);
     DOREPLIFETIME(AMyPlayerState, SpellPoints);
+    DOREPLIFETIME(AMyPlayerState, Profession);
     DOREPLIFETIME(AMyPlayerState, TravelPlayerSlot);
 }
 

@@ -2,6 +2,8 @@
 
 #include "AbilitySystem/Ability/MyFireBolt.h"
 #include "AbilitySystem/Unified/Nodes/AbilityTraditionalNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityNativeProjectileParameterNodes.h"
+#include "AbilitySystem/Unified/AbilityGraphDefinition.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "MyGameplayTags.h"
@@ -10,6 +12,22 @@
 
 #include "Actor/MyProjectile.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+
+UAbilityGraphDefinition* UMyFireBolt::BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const
+{
+    Error.Reset();
+    FAbilityActorProjectileSettings Settings;
+    Settings.EquipmentAbilityTag = FMyGameplayTags::Get().Abilities_Fire_FireBolt;
+    Settings.ProjectileClass = ProjectileClass;
+    Settings.Count = NumProjectiles;
+    Settings.bLimitCountToLevel = true;
+    Settings.Spread = ProjectileSpread;
+    Settings.bConfigureHoming = true;
+    Settings.bLaunchHoming = bLaunchHomingProjectiles;
+    Settings.HomingAccelerationMin = HomingAccelerationMin;
+    Settings.HomingAccelerationMax = HomingAccelerationMax;
+    return AbilityNativeProjectileParameters::Build(Outer, Settings);
+}
 
 FString UMyFireBolt::GetDescription(int32 Level)
 {
@@ -96,18 +114,58 @@ FString UMyFireBolt::GetNextLevelDescription(int32 Level)
 void UMyFireBolt::SpawnProjectiles(const FVector& ProjectileTargetLocation, const FGameplayTag& SocketTag,
                                    bool bOverridePitch, float PitchOverride, AActor* HomingTarget)
 {
+    if (!GetRuntimeRecipeError().IsEmpty() || (GetRuntimeRecipeSnapshot().Graph && HasStartedRuntimeRecipe()))
+    {
+        return;
+    }
     FAbilitySourceToken Source;
     if (!CaptureProjectileSource(Source) || !Source.Avatar->Implements<UCombatInterface>())
     {
         return;
     }
     const auto Session = GetExecutionSession();
+    if (GetRuntimeRecipeSnapshot().Graph &&
+        (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo) ||
+         GetExecutionSession() != Session || !CaptureProjectileSource(Source)))
+    {
+        // 原蓝图可能已经 Commit；公共会话返回同一结果。失败不能通过忽略返回值启动动态图。
+        return;
+    }
     ReportOffensiveAttack(HomingTarget);
     if (GetExecutionSession() != Session || !CaptureProjectileSource(Source))
     {
         return;
     }
     const FVector Origin = ICombatInterface::Execute_GetCombatSocketLocation(Source.Avatar.Get(), SocketTag);
+    if (GetRuntimeRecipeSnapshot().Graph)
+    {
+        FAbilityNodeInput Input;
+        Input.SourceToken = Source;
+        Input.Origin = Origin;
+        Input.EventCenter = ProjectileTargetLocation;
+        FRotator Aim = (ProjectileTargetLocation - Origin).Rotation();
+        if (bOverridePitch)
+        {
+            Aim.Pitch = PitchOverride;
+        }
+        Input.Direction = Aim.Vector();
+        Input.Level = GetAbilityLevel();
+        Input.DamageParams = MakeDamageEffectParamsFromClassDefaults();
+        auto* Call = NewObject<UAbilityActorProjectileContext>(this);
+        Call->bOverridePitch = bOverridePitch;
+        Call->PitchOverride = PitchOverride;
+        Input.Context = Call;
+        FString Error;
+        FAbilityTargetToken Target;
+        if (IsValid(HomingTarget) && AbilityExecutionIdentity::CaptureTarget(
+                                         Source, FPureMassCombatTarget::FromActor(HomingTarget), Target, Error))
+        {
+            Input.LiveTargetToken = Target;
+        }
+        // 原 FireBolt 前端可正常结束，真实飞行/延迟图继续归世界；显式取消仍关闭本次图。
+        StartFrozenRuntimeRecipe(Input, EAbilityExecutionLifetime::IndependentCastEffect, Error);
+        return;
+    }
     FAbilityActorProjectileSettings Settings;
     Settings.EquipmentAbilityTag = FMyGameplayTags::Get().Abilities_Fire_FireBolt;
     Settings.ProjectileClass = ProjectileClass;

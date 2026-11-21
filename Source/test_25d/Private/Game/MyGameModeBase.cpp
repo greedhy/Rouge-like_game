@@ -343,11 +343,13 @@ void AMyGameModeBase::ReleaseBackpackSession(const FString& PlayerId)
 // Create a slot once. An existing slot retains its original profession.
 bool AMyGameModeBase::SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex, EPlayerProfession Profession)
 {
-    if (UGameplayStatics::DoesSaveGameExist(LoadSlot->GetLoadSlotName(), SlotIndex))
+    if (!LoadSlot || UGameplayStatics::DoesSaveGameExist(LoadSlot->GetLoadSlotName(), SlotIndex))
     {
         return false;
     }
-    USaveGame* SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
+    const auto SaveClass =
+        LoadScreenSaveGameClass ? LoadScreenSaveGameClass.Get() : ULoadScreenSaveGame::StaticClass();
+    USaveGame* SaveGameObject = UGameplayStatics::CreateSaveGameObject(SaveClass);
     ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
     if (!LoadScreenSaveGame)
     {
@@ -372,7 +374,9 @@ ULoadScreenSaveGame* AMyGameModeBase::GetSaveSlotData(const FString& SlotName, i
     }
     else
     {
-        SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
+        const auto SaveClass =
+            LoadScreenSaveGameClass ? LoadScreenSaveGameClass.Get() : ULoadScreenSaveGame::StaticClass();
+        SaveGameObject = UGameplayStatics::CreateSaveGameObject(SaveClass);
     }
     ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
     return LoadScreenSaveGame;

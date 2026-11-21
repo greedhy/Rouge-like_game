@@ -7,6 +7,7 @@
 #include "AbilityNodeExecution.generated.h"
 
 class UAbilityGraphInstance;
+class UAbilityExecutionParameters;
 
 /** 每次调用独占一个策略对象；Stop 后弱图引用失效，异步回调不能继续发布。 */
 UCLASS(Abstract, Transient)
@@ -30,4 +31,7 @@ private:
     FDamageEffectParams RetainedDamageParams;
     UPROPERTY(Transient)
     TObjectPtr<UObject> RetainedContext;
+    /** 只读值帧随执行对象回收；Stop关闭业务门，派生清理期间仍可读取本次参数。 */
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityExecutionParameters> RetainedParameterFrame;
 };

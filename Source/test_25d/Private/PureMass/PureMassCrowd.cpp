@@ -6,6 +6,7 @@
  * 生命周期：此Actor拥有本地渲染组件和死亡表现资源；世界EndPlay清理表现与客户端快照。不要把客户端渲染组件当作权威怪物Actor，也不要在子系统退出后继续使用旧快照。
  */
 #include "PureMass/PureMassCrowd.h"
+#include "Combat/BloodFXSubsystem.h"
 #include "PureMassMovement.h"
 #include "Performance/MonsterPerf.h"
 #include "PureMass/PureMassSubsystem.h"
@@ -118,6 +119,12 @@ void APureMassCrowd::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
     if (HasAuthority())
     {
+        if (!PendingBloodHits.IsEmpty())
+        {
+            const TArray<FPureMassBloodHit> Hits = MoveTemp(PendingBloodHits);
+            PendingBloodHits.Reset();
+            MulticastBloodHits(Hits);
+        }
         // One bounded RPC per frame, emitted during normal world ticking even when
         // the lethal damage originated from an editor/Python callback.
         if (!PendingDeaths.IsEmpty())
@@ -531,6 +538,8 @@ void APureMassCrowd::EndPlay(const EEndPlayReason::Type EndPlayReason)
         if (UPureMassSubsystem* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>())
             Mass->SetClientSnapshots({});
     PendingDeaths.Reset();
+    PendingBloodHits.Reset();
+    RecentBloodHits.Reset();
     NetEntities.Owner.Reset();
     Super::EndPlay(EndPlayReason);
 }
@@ -602,9 +611,60 @@ void APureMassCrowd::MulticastDeaths_Implementation(const TArray<FPureMassDeathP
         PresentDeath(Deaths[Index].Type, Deaths[Index].Location, Deaths[Index].Yaw, Deaths[Index].DeathImpulse);
 }
 
+// 每次攻击/实体对只进入一次队列，避免旧近战额外伤害叠出两份血花。
+void APureMassCrowd::NotifyBloodHit(
+    int32 Id, FGuid AttackId, UPureMassMonsterType* Type, FVector Location, FVector Direction)
+{
+    const TPair<int32, FGuid> Key(Id, AttackId);
+    if (!HasAuthority() || !Type || !Type->BloodFX.bEnabled || Id == INDEX_NONE || !AttackId.IsValid() ||
+        Location.ContainsNaN() || Direction.ContainsNaN() || RecentBloodHits.Contains(Key) ||
+        PendingBloodHits.Num() >= 64)
+    {
+        return;
+    }
+    if (RecentBloodHits.Num() >= 128)
+    {
+        RecentBloodHits.RemoveAt(0);
+    }
+    RecentBloodHits.Add(Key);
+    FPureMassBloodHit& Hit = PendingBloodHits.AddDefaulted_GetRef();
+    Hit.Id = Id;
+    Hit.AttackId = AttackId;
+    Hit.Type = Type;
+    Hit.Location = Location;
+    Hit.Direction = Direction.GetSafeNormal();
+}
+
+// 客户端只显示一批血花，不重新解析已死亡的实体，也不执行伤害。
+void APureMassCrowd::MulticastBloodHits_Implementation(const TArray<FPureMassBloodHit>& Hits)
+{
+    if (GetNetMode() == NM_DedicatedServer)
+    {
+        return;
+    }
+    if (auto* FX = GetWorld()->GetSubsystem<UBloodFXSubsystem>())
+    {
+        for (int32 Index = 0; Index < FMath::Min(Hits.Num(), 64); ++Index)
+        {
+            const FPureMassBloodHit& Hit = Hits[Index];
+            if (Hit.Type)
+            {
+                FX->ShowHit(Hit.Type->BloodFX, Hit.Location, Hit.Direction, Hit.Type->Radius, false);
+            }
+        }
+    }
+}
+
 void APureMassCrowd::PresentDeath(UPureMassMonsterType* Type, FVector_NetQuantize10 Location, float Yaw,
                                   FVector DeathImpulse)
 {
+    if (Type && GetNetMode() != NM_DedicatedServer)
+    {
+        if (auto* FX = GetWorld()->GetSubsystem<UBloodFXSubsystem>())
+        {
+            FX->ShowDeath(Type->BloodFX, Location, DeathImpulse, Type->Radius, false);
+        }
+    }
     if (GetNetMode() == NM_DedicatedServer || !Type || !Type->Mesh || !Type->Mesh->GetPhysicsAsset())
         return;
     int32 Slot = DeathExpiry.IndexOfByKey(0.f);

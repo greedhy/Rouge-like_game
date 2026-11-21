@@ -16,6 +16,15 @@ enum class EAbilityQueryGeometry : uint8
     WaveFront
 };
 
+/** Generic 保留既有 Query.Shape；兼容 profile 明确选择旧三维/平方/横向精度合同。 */
+UENUM(BlueprintType)
+enum class EAbilityShapeQueryProfile : uint8
+{
+    Generic,
+    LegacyActor,
+    LegacyMixed
+};
+
 /** 几何与可见性是显式配置；旧行为不得依靠默认值改变自己的 LOS 规则。 */
 USTRUCT(BlueprintType)
 struct TEST_25D_API FAbilityQueryRequest
@@ -50,9 +59,13 @@ struct TEST_25D_API FAbilityQueryRequest
     bool bIncludeActors = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bIncludeMass = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EAbilityShapeQueryProfile Profile = EAbilityShapeQueryProfile::Generic;
 
     /** 严格检查有限参数，防止无界查询和不受支持的几何；不修正设计师配置。 */
     bool Validate(FString& Error) const;
+    /** 批查询使用同一真实 MaxTargets 作为完整集合硬上限 1..65536，超限失败而非取前缀。 */
+    bool ValidateForBatch(FString& Error) const;
 };
 
 struct TEST_25D_API FAbilitySweepRequest
@@ -74,9 +87,16 @@ struct TEST_25D_API FAbilityQueryHit
 
 namespace AbilityTargetQueryService
 {
+    /** 同步解析本次候选；实现可选择新查询捕获，或 GraphInstance 持有的同根原生命账本。 */
+    using FAbilityQueryLifeResolver =
+        TFunctionRef<bool(const FPureMassCombatTarget&, FAbilityTargetToken&, FVector&, FString&)>;
     /** 成功可返回空列表；源失效/配置错误返回 false。逐结果捕获池租约/Mass 真实句柄。 */
     TEST_25D_API bool Gather(const FAbilitySourceToken& Source, const FAbilityQueryRequest& Request,
                              TArray<FAbilityTargetToken>& Out, FString& Error);
+    /** 完整范围查询；兼容 profile 在几何/LOS 前观察原生命，任何超限均清空 Out 并失败。 */
+    TEST_25D_API bool GatherBatch(const FAbilitySourceToken& Source, const FAbilityQueryRequest& Request,
+                                  FAbilityQueryLifeResolver ResolveLife, TArray<FAbilityTargetToken>& Out,
+                                  FString& Error);
     /** 共用现有混合扫掠的墙优先规则；命中点是位置快照，不是后续伤害权限。 */
     TEST_25D_API bool Sweep(const FAbilitySourceToken& Source, const FAbilitySweepRequest& Request,
                             FAbilityQueryHit& Out, FString& Error);

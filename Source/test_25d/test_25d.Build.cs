@@ -12,7 +12,7 @@ public class test_25d : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "CoreOnline", "Engine", "InputCore", "EnhancedInput", "GameplayAbilities", "ModelViewViewModel", "NetCore", "OnlineSubsystem", "SlateCore" });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { "GameplayTags", "GameplayTasks", "NavigationSystem", "Niagara", "AIModule", "UMG", "Slate", "OnlineSubsystemUtils" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "GameplayTags", "GameplayTasks", "NavigationSystem", "Niagara", "AIModule", "UMG", "Slate", "OnlineSubsystemUtils", "AssetRegistry" });
         DynamicallyLoadedModuleNames.Add("OnlineSubsystemNull");
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("ProceduralMeshComponent");
@@ -21,7 +21,7 @@ public class test_25d : ModuleRules
         PublicDependencyModuleNames.Add("MassCore");
         PrivateDependencyModuleNames.Add("MassSimulation");
         if (Target.bBuildEditor)
-            PrivateDependencyModuleNames.AddRange(new string[] { "MeshDescription", "StaticMeshDescription", "SkeletalMeshDescription", "AnimationCore", "AssetRegistry" });
+            PrivateDependencyModuleNames.AddRange(new string[] { "MeshDescription", "StaticMeshDescription", "SkeletalMeshDescription", "AnimationCore" });
         // Uncomment if you are using Slate UI
         // PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 

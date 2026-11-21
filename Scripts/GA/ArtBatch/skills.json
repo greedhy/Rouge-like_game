@@ -1,0 +1,281 @@
+[
+  {
+    "id": "GlacialLance",
+    "name": "冰棱裂爆",
+    "summary": "冰棱穿透至多 5 个敌人，末端爆裂并短暂减速。",
+    "mode": "ENEMY",
+    "mana": 20,
+    "cooldown": 5,
+    "icon": 7,
+    "nodes": [
+      {
+        "id": "Lance",
+        "kind": "PIERCING",
+        "damage": 22,
+        "range": 1100,
+        "speed": 850,
+        "collision_radius": 38,
+        "count": 5,
+        "damage_falloff": 0.9,
+        "duration": 2,
+        "loop_vfx": "/Game/Art/CompositionEffects/NS_FrostFan_Projectile"
+      },
+      {
+        "id": "Shatter",
+        "kind": "BURST",
+        "damage": 30,
+        "radius": 300,
+        "duration": 0.1,
+        "slow_multiplier": 0.6,
+        "slow_duration": 1.5,
+        "impact_vfx": "/Game/Art/CompositionEffects/NS_Frost_Impact"
+      }
+    ],
+    "edges": [
+      [
+        "Lance",
+        "OnExpire",
+        "Shatter"
+      ]
+    ],
+    "icon_path": "/Game/resources/Skill_Icons/Textures/128x128/T_Skill_Icons__07",
+    "profession": "MAGE"
+  },
+  {
+    "id": "InfernoVortex",
+    "name": "烈焰风暴",
+    "summary": "落点火旋风持续 4 秒，每半秒灼击周围敌人，结束时爆燃。",
+    "mode": "GROUND",
+    "mana": 30,
+    "cooldown": 9,
+    "icon": 3,
+    "nodes": [
+      {
+        "id": "Vortex",
+        "kind": "FIELD",
+        "damage": 8,
+        "element": "Fire",
+        "radius": 330,
+        "duration": 4,
+        "period": 0.5,
+        "loop_vfx": "/Game/Assets/Effects/Firenado/NS_Tornado",
+        "loop_vfx_scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      {
+        "id": "Explosion",
+        "kind": "BURST",
+        "damage": 32,
+        "element": "Fire",
+        "radius": 360,
+        "duration": 0.1,
+        "impact_vfx": "/Game/CompositionBatch6/NS_SolarExplosionFlame",
+        "impact_vfx_scale": [
+          0.65,
+          0.65,
+          0.65
+        ]
+      }
+    ],
+    "edges": [
+      [
+        "Vortex",
+        "OnExpire",
+        "Explosion"
+      ]
+    ],
+    "icon_path": "/Game/resources/Skill_Icons/Textures/128x128/T_Skill_Icons__03",
+    "profession": "MAGE"
+  },
+  {
+    "id": "ThunderPrison",
+    "name": "雷狱结界",
+    "summary": "雷域持续 3 秒，每秒打击并减速，终结时扩大爆发。",
+    "mode": "GROUND",
+    "mana": 25,
+    "cooldown": 8,
+    "icon": 11,
+    "nodes": [
+      {
+        "id": "Seal",
+        "kind": "FIELD",
+        "damage": 15,
+        "element": "Thunder",
+        "radius": 360,
+        "duration": 3,
+        "period": 1,
+        "slow_multiplier": 0.7,
+        "slow_duration": 1.1,
+        "loop_vfx": "/Game/Art/CompositionEffects/NS_StormSeal_Field"
+      },
+      {
+        "id": "Release",
+        "kind": "BURST",
+        "damage": 35,
+        "element": "Thunder",
+        "radius": 430,
+        "duration": 0.1,
+        "impact_vfx": "/Game/Art/CompositionEffects/NS_StormSeal_Blast"
+      }
+    ],
+    "edges": [
+      [
+        "Seal",
+        "OnExpire",
+        "Release"
+      ]
+    ],
+    "icon_path": "/Game/resources/Skill_Icons/Textures/128x128/T_Skill_Icons__11",
+    "profession": "MAGE"
+  },
+  {
+    "id": "GhostCleave",
+    "name": "鬼斩·残月",
+    "summary": "向面朝方向释放近距离剑气，0.3 秒后追加一次残月斩。",
+    "mode": "SELF",
+    "mana": 12,
+    "cooldown": 4,
+    "icon": 18,
+    "nodes": [
+      {
+        "id": "Slash",
+        "kind": "CONE",
+        "damage": 30,
+        "element": "Physics",
+        "range": 360,
+        "spread_degrees": 100,
+        "duration": 0.1,
+        "impact_vfx": "/Game/resources/Knife_light/VFX/NE_attack01",
+        "impact_vfx_scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "Pause",
+        "kind": "DELAY",
+        "arm_delay": 0.3,
+        "radius": 100
+      },
+      {
+        "id": "Echo",
+        "kind": "CONE",
+        "damage": 22,
+        "element": "Magic",
+        "range": 410,
+        "spread_degrees": 100,
+        "duration": 0.1,
+        "impact_vfx": "/Game/resources/Knife_light/VFX/NE_attack03",
+        "impact_vfx_scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    ],
+    "edges": [
+      [
+        "Slash",
+        "OnExpire",
+        "Pause"
+      ],
+      [
+        "Pause",
+        "OnExpire",
+        "Echo"
+      ]
+    ],
+    "icon_path": "/Game/resources/KiroshoSkIconsPk0/Textures/T_CursedCut",
+    "profession": "STANDER"
+  },
+  {
+    "id": "CrimsonEruption",
+    "name": "血气爆发",
+    "summary": "在自身位置爆发血气，随后留下 2 秒血池，周期打击近身敌人。",
+    "mode": "SELF",
+    "mana": 18,
+    "cooldown": 6,
+    "icon": 22,
+    "nodes": [
+      {
+        "id": "Eruption",
+        "kind": "BURST",
+        "damage": 38,
+        "element": "Physics",
+        "radius": 300,
+        "duration": 0.1,
+        "impact_vfx": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash",
+        "impact_vfx_scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      {
+        "id": "BloodPool",
+        "kind": "FIELD",
+        "damage": 8,
+        "element": "Physics",
+        "radius": 280,
+        "duration": 2,
+        "period": 0.5,
+        "loop_vfx": "/Game/Art/BloodFX/Systems/NS_Blood_Pool_Large"
+      }
+    ],
+    "edges": [
+      [
+        "Eruption",
+        "OnExpire",
+        "BloodPool"
+      ]
+    ],
+    "icon_path": "/Game/resources/KiroshoSkIconsPk0/Textures/T_BloodyGrip",
+    "profession": "STANDER"
+  },
+  {
+    "id": "GhostMoonArray",
+    "name": "暗月剑阵",
+    "summary": "在自身位置布下 3 秒灵魂剑阵，每半秒打击近身敌人，最后向外爆发。",
+    "mode": "SELF",
+    "mana": 24,
+    "cooldown": 8,
+    "icon": 26,
+    "nodes": [
+      {
+        "id": "Array",
+        "kind": "FIELD",
+        "damage": 9,
+        "radius": 350,
+        "duration": 3,
+        "period": 0.5,
+        "loop_vfx": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Soul"
+      },
+      {
+        "id": "Finish",
+        "kind": "BURST",
+        "damage": 32,
+        "radius": 420,
+        "duration": 0.1,
+        "impact_vfx": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Shockwave",
+        "impact_vfx_scale": [
+          0.65,
+          0.65,
+          0.65
+        ]
+      }
+    ],
+    "edges": [
+      [
+        "Array",
+        "OnExpire",
+        "Finish"
+      ]
+    ],
+    "icon_path": "/Game/resources/KiroshoSkIconsPk0/Textures/T_VindictiveFury",
+    "profession": "STANDER"
+  }
+]

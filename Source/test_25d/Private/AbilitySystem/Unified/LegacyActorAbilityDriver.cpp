@@ -1,5 +1,10 @@
 /** Extracted authority behavior. Host BeginPlay or graph Start -> Start; graph/host Tick -> Advance. */
 #include "AbilitySystem/Unified/LegacyActorAbilityDriver.h"
+#include "AbilitySystem/Unified/AbilityBehaviorPrimitives.h"
+#include "AbilitySystem/Unified/AbilityPrototypeSurfaceService.h"
+#include "AbilitySystem/Unified/AbilityProjectileMotion.h"
+#include "AbilitySystem/Unified/AbilityPrototypeTargetServices.h"
+#include "AbilitySystem/Unified/AbilityPrototypeFlightQueries.h"
 #include "AbilitySystem/Prototypes/PrototypeRuntime.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
@@ -58,13 +63,9 @@ bool FActorAbilityDriver::HasLineOfSight(AActor* Target) const
 
     if (!IsValid(Target) || !IsValid(Host->GetOwner()))
         return false;
-    FHitResult HitResult;
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(PrototypeLOS), false, Host->GetOwner());
-    Query.AddIgnoredActor(Host);
-    return !Host->GetWorld()->LineTraceSingleByChannel(HitResult,
-                                                       Host->GetOwner()->GetActorLocation() + FVector(0, 0, 30),
-                                                       Target->GetActorLocation(), ECC_Visibility, Query) ||
-           HitResult.GetActor() == Target;
+    return AbilityPrototypeTargetServices::ActorLineOfSight(Host->GetWorld(), Host->GetOwner(), Target,
+                                                            Host->GetOwner()->GetActorLocation() + FVector(0, 0, 30),
+                                                            true, Host);
 }
 
 void FActorAbilityDriver::Hit(AActor* Target, float Scale)
@@ -123,86 +124,104 @@ void FActorAbilityDriver::TickProjectile(float Delta)
     }
 
     const bool bReturnKind = Host->ExecutionPrototype->Kind == EAbilityPrototypeKind::Returning;
-    float Remaining = FMath::Max(0.f, Host->ExecutionPrototype->Range - Distance);
-    if (bReturnKind && Host->bReturning)
-    {
-        const FVector ToCaster = Host->GetOwner()->GetActorLocation() - Host->GetActorLocation();
-        Remaining = ToCaster.Size();
-        if (Remaining <= Host->ExecutionPrototype->CollisionRadius)
-        {
-            Finish(false);
-            return;
-        }
-        Direction = ToCaster.GetSafeNormal();
-        Host->SetActorRotation(Direction.Rotation());
-    }
-    if (Host->ExecutionPrototype->Kind == EAbilityPrototypeKind::Homing)
+    const bool bHoming = Host->ExecutionPrototype->Kind == EAbilityPrototypeKind::Homing;
+    TOptional<FVector> Aim;
+    if (bHoming)
     {
         if (!IsLiveTarget(AttackTarget.Get()))
         {
             Finish(false);
             return;
         }
-        Direction = FMath::VInterpNormalRotationTo(
-            Direction, (AttackTarget->GetActorLocation() - Host->GetActorLocation()).GetSafeNormal(), Delta,
-            Host->ExecutionPrototype->HomingTurnRate);
+        Aim = AttackTarget->GetActorLocation();
+    }
+    FAbilityProjectileMotionConfig Motion;
+    Motion.Motion = bReturnKind ? EAbilityProjectileMotion::Returning
+                    : bHoming   ? EAbilityProjectileMotion::LegacyTurnHoming
+                                : EAbilityProjectileMotion::Linear;
+    Motion.Speed = Host->ExecutionPrototype->Speed;
+    Motion.Range = Host->ExecutionPrototype->Range;
+    Motion.CollisionRadius = Host->ExecutionPrototype->CollisionRadius;
+    Motion.HomingTurnRate = Host->ExecutionPrototype->HomingTurnRate;
+    FAbilityProjectileMotionState State;
+    State.Position = Host->GetActorLocation();
+    State.Direction = Direction;
+    State.OutboundDistance = Distance;
+    State.Phase = Host->bReturning ? EAbilityProjectilePhase::Returning : EAbilityProjectilePhase::Outbound;
+    FAbilityFlightSegment Segment;
+    if (!AbilityProjectileMotion::ComputeFlightSegment(Motion, State, Delta, Host->GetOwner()->GetActorLocation(), Aim,
+                                                       Segment))
+    {
+        Finish(false);
+        return;
+    }
+    // 浮点出程余量可能产生小于Equals容差的有效返航微步；只有明确到达来源才可结束。
+    if (bReturnKind && Host->bReturning && Segment.bReachesPhaseEnd && Segment.Start.Equals(Segment.End))
+    {
+        Finish(false);
+        return;
+    }
+    Direction = Segment.Direction;
+    if (bHoming || (bReturnKind && Host->bReturning))
+    {
         Host->SetActorRotation(Direction.Rotation());
     }
-    const float Step = FMath::Min(Host->ExecutionPrototype->Speed * Delta, Remaining);
-    const FVector Start = Host->GetActorLocation(), End = Start + Direction * Step;
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(PrototypeProjectile), false, Host->GetOwner());
-    Query.AddIgnoredActor(Host);
+    const FVector Start = Segment.Start;
+    const FVector End = Segment.End;
+    const float Step = FVector::Distance(Start, End);
+    const auto Policy = bReturnKind ? EAbilityProjectileImpactPolicy::ReturnPerPhase
+                        : Host->ExecutionPrototype->Kind == EAbilityPrototypeKind::Piercing
+                            ? EAbilityProjectileImpactPolicy::Pierce
+                            : EAbilityProjectileImpactPolicy::StopFirst;
+    TSet<FPureMassCombatTarget> Ignored;
     for (const auto& Previous : HitTargets)
-        if (Previous.IsValid())
-            Query.AddIgnoredActor(Previous.Get());
-    // A multi-channel sweep stops at the first blocking hit. Ignore friends before
-    // querying so their blocking capsules cannot hide enemies farther along the segment.
-    for (TActorIterator<ABaseCharacter> It(Host->GetWorld()); It; ++It)
-        if (!IsLiveTarget(*It))
-            Query.AddIgnoredActor(*It);
-    TArray<FHitResult> Hits;
-    FCollisionObjectQueryParams Objects;
-    Objects.AddObjectTypesToQuery(ECC_Pawn);
-    Objects.AddObjectTypesToQuery(ECC_WorldStatic);
-    Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
-    // Object queries include the character capsule even when its Visibility response
-    // ignores traces (the project's small goblin meshes do not cover the capsule centre).
-    Host->GetWorld()->SweepMultiByObjectType(Hits, Start, End, FQuat::Identity, Objects,
-                                             FCollisionShape::MakeSphere(Host->ExecutionPrototype->CollisionRadius),
-                                             Query);
-    Hits.Sort(
-        [](const FHitResult& A, const FHitResult& B)
-        {
-            return A.Time < B.Time;
-        });
-    for (const FHitResult& Result : Hits)
     {
-        AActor* Target = Result.GetActor();
-        if (Target == Host->GetOwner() || Target == Host || Cast<APrototypeRuntime>(Target))
-            continue;
-        if (IsValid(Target) && Target->Implements<UCombatInterface>() && !IsLiveTarget(Target))
-            continue;
-        // Overlap-only trigger volumes (portals, pickups, encounter areas) are not walls.
-        if (!IsLiveTarget(Target) && (!Result.GetComponent() || Result.GetComponent()->GetCollisionResponseToChannel(
-                                                                    ECC_Visibility) != ECR_Block))
-            continue;
-        Host->SetActorLocation(Result.Location);
-        if (IsLiveTarget(Target))
+        FPureMassCombatTarget Identity;
+        Identity.Actor = Previous;
+        Ignored.Add(Identity);
+    }
+    auto Resolve =
+        [&](const FPureMassCombatTarget& Candidate, FAbilityTargetToken& Token, FVector& Location, FString& Error)
+    {
+        const bool bLive = Host->Context->ResolveTargetLife(Candidate, Location);
+        if (const auto* Life = Host->Context->FindTargetLife(Candidate))
         {
-            if (HitTargets.Contains(Target))
-                continue;
-            if (bReturnKind && HitTargets.Num() >= Host->ExecutionPrototype->Count)
-                continue;
-            Hit(Target, bReturnKind ? (Host->bReturning ? Host->ExecutionPrototype->DamageFalloff : 1.f)
-                                    : FMath::Pow(Host->ExecutionPrototype->DamageFalloff, HitTargets.Num()));
-            HitTargets.Add(Target);
-            if (bReturnKind)
+            Token = *Life;
+        }
+        return bLive;
+    };
+    TArray<FAbilityPrototypeFlightQueryHit> Hits;
+    FString Error;
+    if (!AbilityPrototypeFlightQueries::GatherActorSegment(Host->Context->GetSourceLife(), Start, End,
+                                                           Host->ExecutionPrototype->CollisionRadius, Ignored, Resolve,
+                                                           Hits, Error, Host))
+    {
+        Finish(true);
+        return;
+    }
+    for (const auto& Raw : Hits)
+    {
+        FAbilityPrototypeFlightQueryHit Contact;
+        if (!AbilityPrototypeFlightQueries::ClassifyActorContact(Host->Context->GetSourceLife(), Raw.Hit, Resolve,
+                                                                 Contact, Host))
+        {
+            continue;
+        }
+        const FHitResult& Result = Contact.Hit;
+        AActor* Target = Result.GetActor();
+        Host->SetActorLocation(Result.Location);
+        if (Contact.Candidate.IsSet())
+        {
+            const auto Admission = AbilityProjectileMotion::AdmitImpact(
+                Policy, State.Phase, HitTargets.Num(), HitTargets.Contains(Target), Host->ExecutionPrototype->Count,
+                Host->ExecutionPrototype->DamageFalloff);
+            if (!Admission.bAccepted)
             {
-                Host->MulticastImpact(Result.Location);
                 continue;
             }
-            if (Host->ExecutionPrototype->Kind == EAbilityPrototypeKind::Piercing &&
-                HitTargets.Num() < Host->ExecutionPrototype->Count)
+            Hit(Target, Admission.DamageScale);
+            HitTargets.Add(Target);
+            if (!Admission.bTerminateAfterImpact)
             {
                 Host->MulticastImpact(Result.Location);
                 continue;
@@ -216,7 +235,7 @@ void FActorAbilityDriver::TickProjectile(float Delta)
     Distance += Step;
     if (bReturnKind)
     {
-        if (Host->bReturning && Step >= Remaining)
+        if (Host->bReturning && Segment.bReachesPhaseEnd)
         {
             Finish(false);
             return;
@@ -227,7 +246,7 @@ void FActorAbilityDriver::TickProjectile(float Delta)
             HitTargets.Reset();
             Host->ForceNetUpdate();
             // The outbound endpoint can occur partway through this frame.
-            const float ReturnDelta = FMath::Max(0.f, Delta - Step / Host->ExecutionPrototype->Speed);
+            const float ReturnDelta = Segment.RemainingSeconds;
             if (ReturnDelta > SMALL_NUMBER)
                 TickProjectile(ReturnDelta);
         }
@@ -244,10 +263,18 @@ void FActorAbilityDriver::TickChain(float Delta)
         return;
     }
 
-    PeriodClock += Delta;
-    if (!HitTargets.IsEmpty() && PeriodClock < Host->ExecutionPrototype->Period)
+    bool bReady = false;
+    AbilityPrototypeTargetServices::AdvanceChainClock(PeriodClock, Delta, Host->ExecutionPrototype->Period,
+                                                      HitTargets.IsEmpty(), EAbilityPrototypeTargetProfile::Actor,
+                                                      [&]()
+                                                      {
+                                                          bReady = true;
+                                                          return true;
+                                                      });
+    if (!bReady)
+    {
         return;
-    PeriodClock = 0.f;
+    }
     AActor* Target = AttackTarget.Get();
     const float Reach = HitTargets.IsEmpty() ? Host->ExecutionPrototype->Range : Host->ExecutionPrototype->Radius;
     if (HitTargets.Num() >= Host->ExecutionPrototype->Count || !IsLiveTarget(Target) || HitTargets.Contains(Target) ||
@@ -264,20 +291,36 @@ void FActorAbilityDriver::TickChain(float Delta)
     LastChainTarget = Target;
     ChainOrigin = Host->BeamEnd;
     AttackTarget = nullptr;
-    float BestDistance = FMath::Square(Host->ExecutionPrototype->Radius);
-    TArray<AActor*> Candidates;
-    UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Host, Candidates, {Host->GetOwner()},
-                                                        Host->ExecutionPrototype->Radius, ChainOrigin);
-    for (auto* Candidate : Candidates)
+    TArray<FPureMassCombatTarget> Visited;
+    for (const auto& Previous : HitTargets)
     {
-        const float DistanceSquared = FVector::DistSquared(ChainOrigin, Candidate->GetActorLocation());
-        if (IsLiveTarget(Candidate) && !HitTargets.Contains(Candidate) && DistanceSquared <= BestDistance &&
-            VisibleFrom(ChainOrigin, Candidate))
-        {
-            BestDistance = DistanceSquared;
-            AttackTarget = Candidate;
-        }
+        FPureMassCombatTarget Identity;
+        Identity.Actor = Previous;
+        Visited.Add(Identity);
     }
+    auto Resolve =
+        [&](const FPureMassCombatTarget& Candidate, FAbilityTargetToken& Life, FVector& Location, FString& Error)
+    {
+        if (!IsLiveTarget(Candidate.Actor.Get()))
+        {
+            return false;
+        }
+        const auto* Captured = Host->Context->FindTargetLife(Candidate);
+        if (!Captured)
+        {
+            return false;
+        }
+        Life = *Captured;
+        Location = Candidate.Actor->GetActorLocation();
+        return true;
+    };
+    FAbilityTargetToken Next;
+    FVector NextPoint;
+    FString Error;
+    AbilityPrototypeTargetServices::SelectChainNext(
+        Host->Context->GetSourceLife(), ChainOrigin, Host->ExecutionPrototype->Radius,
+        EAbilityPrototypeTargetProfile::Actor, Visited, Resolve, Next, NextPoint, Error);
+    AttackTarget = Next.Target.Actor;
     Host->ForceNetUpdate();
 }
 
@@ -291,13 +334,15 @@ void FActorAbilityDriver::ConePulse()
 
     TArray<AActor*> Targets;
     GatherTargets(Targets);
-    const float CosHalf = FMath::Cos(FMath::DegreesToRadians(Host->ExecutionPrototype->SpreadDegrees * .5f));
-    const FVector Facing = Direction.GetSafeNormal2D(SMALL_NUMBER, FVector::ForwardVector);
+    FAbilityShapeFilter Shape;
+    Shape.Kind = EAbilityBehaviorShape::Cone;
+    Shape.Radius = Host->ExecutionPrototype->Radius;
+    Shape.SpreadDegrees = Host->ExecutionPrototype->SpreadDegrees;
+    Shape.AngleTolerance = KINDA_SMALL_NUMBER;
     for (auto* Target : Targets)
     {
-        const FVector Offset = Target->GetActorLocation() - Host->GetActorLocation();
-        if ((Offset.IsNearlyZero() ||
-             FVector::DotProduct(Facing, Offset.GetSafeNormal2D()) + KINDA_SMALL_NUMBER >= CosHalf) &&
+        if (AbilityBehaviorPrimitives::ContainsPoint(Shape, Host->GetActorLocation(), Direction,
+                                                     Target->GetActorLocation()) &&
             VisibleFrom(Host->GetActorLocation(), Target))
             Hit(Target);
     }
@@ -319,21 +364,21 @@ void FActorAbilityDriver::ShapePulse()
     TArray<AActor*> Targets;
     UMyAbilitySystemLibrary::GetLivePlayersWithinRadius(Host, Targets, {Host->Context->Caster.Get()}, Bounds,
                                                         Host->GetActorLocation());
-    const FVector Forward = Direction.GetSafeNormal2D(SMALL_NUMBER, FVector::ForwardVector);
-    const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward);
+    FAbilityShapeFilter Shape;
+    Shape.Kind = bLine ? EAbilityBehaviorShape::Line : EAbilityBehaviorShape::Ring;
+    Shape.Radius = Host->ExecutionPrototype->Radius;
+    Shape.InnerRadius = Host->ExecutionPrototype->InnerRadius;
+    Shape.Range = Host->ExecutionPrototype->Range;
+    Shape.Width = Host->ExecutionPrototype->Width;
+    Shape.HalfHeight = Host->ExecutionPrototype->ShapeHalfHeight;
+    Shape.bUse3DDistance = false;
+    Shape.bRejectOutsideHeight = true;
     for (auto* Target : Targets)
     {
         if (!IsLiveTarget(Target))
             continue;
-        const FVector Offset = Target->GetActorLocation() - Host->GetActorLocation();
-        if (FMath::Abs(Offset.Z) > Host->ExecutionPrototype->ShapeHalfHeight)
-            continue;
-        const float Along = FVector::DotProduct(Offset, Forward);
-        const bool bInside =
-            bLine ? Along >= 0.f && Along <= Host->ExecutionPrototype->Range &&
-                        FMath::Abs(FVector::DotProduct(Offset, Right)) <= Host->ExecutionPrototype->Width * .5f
-                  : Offset.SizeSquared2D() >= FMath::Square(Host->ExecutionPrototype->InnerRadius) &&
-                        Offset.SizeSquared2D() <= FMath::Square(Host->ExecutionPrototype->Radius);
+        const bool bInside = AbilityBehaviorPrimitives::ContainsPoint(Shape, Host->GetActorLocation(), Direction,
+                                                                      Target->GetActorLocation());
         if (bInside && VisibleFrom(Host->GetActorLocation(), Target))
             Hit(Target);
     }
@@ -354,9 +399,10 @@ void FActorAbilityDriver::TickWave(float Delta)
     GatherTargets(Targets);
     for (auto* Target : Targets)
     {
-        const float DistanceToTarget = FVector::Distance(Host->GetActorLocation(), Target->GetActorLocation());
-        if (!HitTargets.Contains(Target) && DistanceToTarget <= Host->WaveRadius &&
-            (Previous == 0.f || DistanceToTarget > Previous) && VisibleFrom(Host->GetActorLocation(), Target))
+        if (!HitTargets.Contains(Target) &&
+            AbilityBehaviorPrimitives::ContainsWavePoint(Host->GetActorLocation(), Target->GetActorLocation(), Previous,
+                                                         Host->WaveRadius, EAbilityWaveCoverage::SweptShell3D) &&
+            VisibleFrom(Host->GetActorLocation(), Target))
         {
             HitTargets.Add(Target);
             Hit(Target);
@@ -374,42 +420,54 @@ void FActorAbilityDriver::TickEmitter(float Delta)
     {
         return;
     }
-
-    PeriodClock += Delta;
-    while (!Host->bFinished && PeriodClock + SMALL_NUMBER >= Host->ExecutionPrototype->Period)
+    if (Host->bFinished)
     {
-        PeriodClock = FMath::Max(0.f, PeriodClock - Host->ExecutionPrototype->Period);
-        AActor* Best = nullptr;
-        float BestDistance = FMath::Square(Host->ExecutionPrototype->Radius);
-        TArray<AActor*> Targets;
-        GatherTargets(Targets);
-        for (auto* Target : Targets)
-        {
-            const float CandidateDistance = FVector::DistSquared(Host->GetActorLocation(), Target->GetActorLocation());
-            if (CandidateDistance <= BestDistance && VisibleFrom(Host->GetActorLocation(), Target))
-            {
-                Best = Target;
-                BestDistance = CandidateDistance;
-            }
-        }
-        if (Best)
-        {
-            AttackTarget = Best;
-            Direction = (Best->GetActorLocation() - Host->GetActorLocation())
-                            .GetSafeNormal(SMALL_NUMBER, FVector::ForwardVector);
-            Host->BeamEnd = Best->GetActorLocation();
-            if (Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Best, Host->GetActorLocation()))
-            {
-                if (++Emissions >= Host->ExecutionPrototype->Count)
-                    Finish(false);
-                continue;
-            }
-        }
-        // Idle or rejected shots consume time, not the successful-emission budget.
-        // Drop missed idle periods so acquiring a target does not release a backlog.
-        PeriodClock = FMath::Fmod(PeriodClock, Host->ExecutionPrototype->Period);
+        // 保留旧辅助入口的累计时钟合同；迟到调用不能在正常结束后消费周期或重新投递。
+        PeriodClock += Delta;
         return;
     }
+
+    AbilityBehaviorPrimitives::AdvanceCadence(
+        PeriodClock, Delta, Host->ExecutionPrototype->Period, MAX_int32, EAbilityCadenceRemainder::Preserve,
+        [&]()
+        {
+            TArray<AActor*> Targets;
+            GatherTargets(Targets);
+            TArray<FAbilityTargetCandidate> Eligible;
+            for (auto* Target : Targets)
+            {
+                if (VisibleFrom(Host->GetActorLocation(), Target))
+                {
+                    if (const auto* Life = Host->Context->FindTargetLife(FPureMassCombatTarget::FromActor(Target)))
+                    {
+                        Eligible.Add({*Life, Target->GetActorLocation()});
+                    }
+                }
+            }
+            const auto Selected = AbilityBehaviorPrimitives::SelectNearest(Eligible, Host->GetActorLocation(),
+                                                                           Host->ExecutionPrototype->Radius, {},
+                                                                           EAbilityCandidateTieBreak::Last);
+            AActor* Best = Selected.IsSet() ? Selected->Target.Target.Actor.Get() : nullptr;
+            if (Best)
+            {
+                AttackTarget = Best;
+                Direction = (Best->GetActorLocation() - Host->GetActorLocation())
+                                .GetSafeNormal(SMALL_NUMBER, FVector::ForwardVector);
+                Host->BeamEnd = Best->GetActorLocation();
+                if (Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, Best, Host->GetActorLocation()))
+                {
+                    if (++Emissions >= Host->ExecutionPrototype->Count)
+                    {
+                        Finish(false);
+                    }
+                    return !Host->bFinished;
+                }
+            }
+            // Idle/rejected shots consume time, never successful-emission count or a future burst backlog.
+            PeriodClock = FMath::Fmod(PeriodClock, Host->ExecutionPrototype->Period);
+            return false;
+        },
+        SMALL_NUMBER, true);
 }
 
 bool FActorAbilityDriver::VisibleFrom(const FVector& Origin, AActor* Target) const
@@ -422,15 +480,8 @@ bool FActorAbilityDriver::VisibleFrom(const FVector& Origin, AActor* Target) con
 
     if (!IsValid(Target))
         return false;
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(PrototypeChainLOS), false, Host->GetOwner());
-    Query.AddIgnoredActor(Host);
-    for (TActorIterator<ABaseCharacter> It(Host->GetWorld()); It; ++It)
-        if (*It != Target)
-            Query.AddIgnoredActor(*It);
-    FHitResult Obstruction;
-    return !Host->GetWorld()->LineTraceSingleByChannel(Obstruction, Origin, Target->GetActorLocation(), ECC_Visibility,
-                                                       Query) ||
-           Obstruction.GetActor() == Target;
+    return AbilityPrototypeTargetServices::ActorLineOfSight(Host->GetWorld(), Host->GetOwner(), Target, Origin, false,
+                                                            Host);
 }
 
 bool FActorAbilityDriver::Emit(FName Event, UAbilityPrototype* Child, AActor* Target, FVector Position)
@@ -656,19 +707,13 @@ void FActorAbilityDriver::Start()
         break;
     case K::Surface:
     {
-        FTransform Transform(FRotator::ZeroRotator, Host->GetActorLocation());
-        Host->Surface = Host->GetWorld()->SpawnActorDeferred<ATerrainSurface>(
-            Host->ExecutionPrototype->SurfaceClass, Transform, Host->GetOwner(), Cast<APawn>(Host->GetOwner()),
-            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-        if (Host->Surface)
+        Host->Surface =
+            AbilityPrototypeSurfaceService::Spawn(*Host->GetOwner(), *Host->ExecutionPrototype,
+                                                  Host->GetActorLocation(), EAbilityPrototypeSurfaceProfile::Actor);
+        if (!Host->Surface)
         {
-            Host->Surface->bOnlyAffectCasterEnemies = true;
-            Host->Surface->SurfaceSize = FVector2D(Host->ExecutionPrototype->Radius * 2.f);
-            Host->Surface->FinishSpawning(Transform);
-            Host->Surface->Ground->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        }
-        else
             Finish(true);
+        }
         break;
     }
     case K::Orbit:
@@ -704,16 +749,20 @@ void FActorAbilityDriver::Advance(float Delta)
             Finish(false);
         return;
     }
-    ManaClock += Delta;
-    if (ManaClock >= 1.f && (Host->ExecutionPrototype->Kind == K::Beam || Host->ExecutionPrototype->Kind == K::Orbit))
+    if (Host->ExecutionPrototype->Kind == K::Beam || Host->ExecutionPrototype->Kind == K::Orbit)
     {
-        const int32 Seconds = FMath::FloorToInt(ManaClock);
-        ManaClock -= Seconds;
-        if (!Host->SpendMana(Caster, Host->ExecutionPrototype->ManaPerSecond * Seconds))
+        const bool bChargeThisFrame = ManaClock + Delta >= 1.f;
+        const float Cost = AbilityPrototypeTargetServices::ManaDue(
+            ManaClock, Delta, Host->ExecutionPrototype->ManaPerSecond, EAbilityPrototypeTargetProfile::Actor);
+        if (bChargeThisFrame && !Host->SpendMana(Caster, Cost))
         {
             Finish(true);
             return;
         }
+    }
+    else
+    {
+        ManaClock += Delta;
     }
     if (Host->ExecutionPrototype->Kind == K::Wave || Host->ExecutionPrototype->Kind == K::Returning ||
         Host->ExecutionPrototype->Kind == K::Emitter)
@@ -736,12 +785,18 @@ void FActorAbilityDriver::Advance(float Delta)
     if (Host->ExecutionPrototype->Kind == K::Field)
     {
         PeriodClock += FMath::Min(Delta, FMath::Max(0.f, Host->ExecutionPrototype->Duration - (Age - Delta)));
-        while (PeriodClock + KINDA_SMALL_NUMBER >= Host->ExecutionPrototype->Period && !Host->bFinished &&
-               !Host->Context->bCancelled)
+        if (!Host->bFinished && !Host->Context->bCancelled)
         {
-            PeriodClock -= Host->ExecutionPrototype->Period;
-            Pulse();
-            Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, AttackTarget.Get(), Host->GetActorLocation());
+            AbilityBehaviorPrimitives::AdvanceCadence(
+                PeriodClock, 0.f, Host->ExecutionPrototype->Period, MAX_int32, EAbilityCadenceRemainder::Preserve,
+                [&]()
+                {
+                    Pulse();
+                    Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, AttackTarget.Get(),
+                         Host->GetActorLocation());
+                    return !Host->bFinished && !Host->Context->bCancelled;
+                },
+                KINDA_SMALL_NUMBER);
         }
         if (Age >= Host->ExecutionPrototype->Duration)
             Finish(false);
@@ -785,6 +840,16 @@ void FActorAbilityDriver::Advance(float Delta)
         }
         Host->SetActorLocation(Caster->GetActorLocation() + FVector(0, 0, 30));
         Host->BeamEnd = Target->GetActorLocation();
+        AbilityPrototypeTargetServices::AdvanceBeamClock(PeriodClock, Delta, Host->ExecutionPrototype->Period,
+                                                         EAbilityPrototypeTargetProfile::Actor,
+                                                         [&]()
+                                                         {
+                                                             Hit(AttackTarget.Get());
+                                                             Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod,
+                                                                  AttackTarget.Get(), Host->GetActorLocation());
+                                                             return !Host->bFinished;
+                                                         });
+        return;
     }
     if (Host->ExecutionPrototype->Kind == K::Trap)
     {
@@ -799,14 +864,24 @@ void FActorAbilityDriver::Advance(float Delta)
         }
         return;
     }
+    if (Host->ExecutionPrototype->Kind == K::Surface)
+    {
+        AbilityPrototypeSurfaceService::AdvanceClock(PeriodClock, Delta, Host->ExecutionPrototype->Period,
+                                                     EAbilityPrototypeSurfaceProfile::Actor,
+                                                     [&]()
+                                                     {
+                                                         Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod,
+                                                              AttackTarget.Get(), Host->GetActorLocation());
+                                                         return !Host->bFinished;
+                                                     });
+        return;
+    }
     PeriodClock += Delta;
     if (PeriodClock >= Host->ExecutionPrototype->Period)
     {
         PeriodClock = FMath::Fmod(PeriodClock, Host->ExecutionPrototype->Period);
         if (Host->ExecutionPrototype->Kind == K::Field)
             Pulse();
-        if (Host->ExecutionPrototype->Kind == K::Beam)
-            Hit(AttackTarget.Get());
         if (Host->ExecutionPrototype->Kind != K::Burst)
             Emit(TEXT("OnPeriod"), Host->ExecutionPrototype->OnPeriod, AttackTarget.Get(), Host->GetActorLocation());
     }

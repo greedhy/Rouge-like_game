@@ -1,5 +1,7 @@
 /** Extracted authority behavior. Host BeginPlay or graph Start -> Start; graph/host Tick -> Advance. */
 #include "AbilitySystem/Unified/LegacyExtensionAbilityDriver.h"
+#include "AbilitySystem/Unified/AbilityBehaviorPrimitives.h"
+#include "AbilitySystem/Unified/Nodes/AbilityExtensionFlowNodes.h"
 #include "AbilitySystem/PrototypeExtensions/ExtensionRuntime.h"
 #include "AbilitySystem/PrototypeExtensions/ExtensionWorldSubsystem.h"
 #include "PureMass/PureMassSubsystem.h"
@@ -245,22 +247,13 @@ void FExtensionAbilityDriver::Start()
     }
     else if (Host->ExecutionNode->Behavior == K::Surface)
     {
-        FTransform Transform(FRotator::ZeroRotator, Host->GetActorLocation());
-        Host->Surface = Host->GetWorld()->SpawnActorDeferred<ATerrainSurface>(
-            Host->ExecutionNode->SurfaceClass, Transform, Host->GetOwner(), Cast<APawn>(Host->GetOwner()),
-            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+        Host->Surface =
+            AbilityExtensionFlowNodes::SpawnSurface(*Host->GetOwner(), *Host->ExecutionNode, Host->GetActorLocation());
         if (!Host->Surface)
         {
             Finish(true);
             return;
         }
-        Host->Surface->bOnlyAffectCasterEnemies = true;
-        Host->Surface->bAffectPlayers = false;
-        Host->Surface->bAffectEnemies = true;
-        Host->Surface->SurfaceSize = FVector2D(Host->ExecutionNode->Radius * 2);
-        Host->Surface->FinishSpawning(Transform);
-        if (Host->Surface->Ground)
-            Host->Surface->Ground->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 }
 
@@ -294,21 +287,31 @@ void FExtensionAbilityDriver::Advance(float Delta)
         if (!Host->Context->ResolveTargetLife(Target, P))
         {
             FPureMassCombatTarget Next;
-            float Best = FMath::Square(Host->ExecutionNode->TransferRadius);
+            TArray<FAbilityTargetCandidate> Eligible;
             if (Transfers < Host->ExecutionNode->MaxTransfers)
+            {
                 for (auto T : PureMassCombat::Gather(Host->GetWorld(), Host->GetOwner(), LastPosition,
                                                      Host->ExecutionNode->TransferRadius))
                 {
                     FVector Q;
                     if (HitTargets.Contains(T) || !Host->Context->ResolveTargetLife(T, Q))
                         continue;
-                    float D = FVector::DistSquared(LastPosition, Q);
-                    if (D < Best && PureMassCombat::Visible(Host->GetWorld(), Host->GetOwner(), LastPosition, T, Host))
+                    if (PureMassCombat::Visible(Host->GetWorld(), Host->GetOwner(), LastPosition, T, Host))
                     {
-                        Best = D;
-                        Next = T;
+                        if (const auto* Life = Host->Context->FindTargetLife(T))
+                        {
+                            Eligible.Add({*Life, Q});
+                        }
                     }
                 }
+                const auto Selected = AbilityBehaviorPrimitives::SelectNearest(Eligible, LastPosition,
+                                                                               Host->ExecutionNode->TransferRadius, {},
+                                                                               EAbilityCandidateTieBreak::First, false);
+                if (Selected.IsSet())
+                {
+                    Next = Selected->Target.Target;
+                }
+            }
             if (!Next.IsSet())
             {
                 Finish(true);
@@ -373,16 +376,29 @@ void FExtensionAbilityDriver::Advance(float Delta)
         return;
     }
     Clock += ActiveDelta;
-    for (int32 I = 0; Clock + KINDA_SMALL_NUMBER >= Host->ExecutionNode->Period && I < 16 && !Host->bFinished; ++I)
+    if (!Host->bFinished)
     {
-        Clock -= Host->ExecutionNode->Period;
-        if (Host->ExecutionNode->Behavior == K::Chain)
-            ChainStep();
-        else if (PureMassCombat::Visible(Host->GetWorld(), Host->GetOwner(), Host->GetOwner()->GetActorLocation(),
-                                         Target, Host))
-            Emit(TEXT("OnPeriod"), Host->ExecutionNode->PeriodChild, LastPosition, Target, LastPosition);
+        AbilityBehaviorPrimitives::AdvanceCadence(
+            Clock, 0.f, Host->ExecutionNode->Period, 16, EAbilityCadenceRemainder::ClampToPeriod,
+            [&]()
+            {
+                if (Host->ExecutionNode->Behavior == K::Chain)
+                {
+                    ChainStep();
+                }
+                else if (PureMassCombat::Visible(Host->GetWorld(), Host->GetOwner(),
+                                                 Host->GetOwner()->GetActorLocation(), Target, Host))
+                {
+                    Emit(TEXT("OnPeriod"), Host->ExecutionNode->PeriodChild, LastPosition, Target, LastPosition);
+                }
+                return !Host->bFinished;
+            },
+            KINDA_SMALL_NUMBER);
     }
-    Clock = FMath::Min(Clock, Host->ExecutionNode->Period);
+    else
+    {
+        Clock = FMath::Min(Clock, Host->ExecutionNode->Period);
+    }
     if (bExpired)
         Finish();
 }

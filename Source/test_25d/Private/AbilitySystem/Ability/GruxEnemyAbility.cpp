@@ -273,7 +273,9 @@ void UGruxEnemyAbility::ResolveHit()
             return;
         }
         bCharging = true;
-        Golem->ShowActiveFootprint(Serial);
+        // 同一阶段同步冲锋危险区与冲锋表现起点，避免两次状态更新被折叠。
+        const FVector* PresentationOrigin = Snapshot.ImpactPresentationPreset.IsNone() ? nullptr : &Center;
+        Golem->ShowActiveFootprint(Serial, PresentationOrigin);
         return;
     }
     Super::ResolveHit();

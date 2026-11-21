@@ -16,6 +16,8 @@ class TEST_25D_API UMyOrbitingFireBoltAbility : public UMyProjectileSpell
     GENERATED_BODY()
 public:
     UMyOrbitingFireBoltAbility();
+    /** 复制本角色配置到瞬态图，环绕资源仍归本次策略生命周期所有。 */
+    virtual UAbilityGraphDefinition* BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const override;
     virtual bool IsInputToggleAbility() const override
     {
         return true;

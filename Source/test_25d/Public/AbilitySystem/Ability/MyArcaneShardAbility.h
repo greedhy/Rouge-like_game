@@ -1,4 +1,4 @@
-// 调用链：GAS -> 第二次按键/鼠标位置 -> 蒙太奇 Notify -> Shape.ArcaneShards -> 费用/冷却及资源收尾。
+// 调用链：GAS -> 第二次按键/鼠标位置 -> Notify -> ShardPoints/Cue/Query/批伤害 -> 费用/冷却与资源收尾。
 #pragma once
 #include "CoreMinimal.h"
 #include "AbilitySystem/Ability/MyDamageGameplayAbility.h"
@@ -9,6 +9,7 @@ class UAnimMontage;
 class UAbilityGraphInstance;
 class UAbilityArcaneShardContext;
 class UAbilityArcaneShardNodeConfig;
+enum class EAbilityGraphEndReason : uint8;
 
 /** 原蓝图仍保留身份、费用GE、伤害曲线及图供审查；本原生激活入口不重复调用旧事件图。 */
 UCLASS()
@@ -17,6 +18,8 @@ class TEST_25D_API UMyArcaneShardAbility : public UMyDamageGameplayAbility
     GENERATED_BODY()
 public:
     UMyArcaneShardAbility();
+    /** 导出碎片顺序/范围配置；选点、Notify 和分阶段费用继续由原前端管理。 */
+    virtual UAbilityGraphDefinition* BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const override;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arcane Shards")
     TSubclassOf<APointCollection> ShardPointCollectionClass;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arcane Shards")
@@ -47,6 +50,8 @@ private:
     void OnMontageFinished();
     /** 清理仅归属本施法的魔法圈和点集合，不撤销已施加的目标状态。 */
     void HideCircle();
+    /** 先保留同步完成结果，待原“首片之后费用”阶段执行后再提交尾段冷却/结束。 */
+    void OnShardGraphFinished(EAbilityGraphEndReason Reason);
     UAbilityArcaneShardNodeConfig* MakeShardConfig(UObject* Outer) const;
     UPROPERTY()
     TObjectPtr<UAbilityArcaneShardContext> PreparedPoints;
@@ -56,4 +61,6 @@ private:
     FDelegateHandle GraphFinishedHandle;
     bool bConfirmedTarget = false;
     bool bShardStarted = false;
+    bool bShardCostStageFinished = false;
+    TOptional<EAbilityGraphEndReason> PendingShardEnd;
 };

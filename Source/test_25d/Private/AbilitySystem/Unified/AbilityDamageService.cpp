@@ -7,6 +7,56 @@
 #include "PureMass/PureMassSubsystem.h"
 #include "Engine/World.h"
 
+bool AbilityDamageService::PrepareContactDamage(const FDamageEffectParams& Original, FVector Direction,
+                                                float DamageScale, float DebuffDamageScale,
+                                                FDamageEffectParams& OutPrepared, EAbilityContactDamageProfile Profile)
+{
+    OutPrepared = Original;
+    if (Profile != EAbilityContactDamageProfile::Unified &&
+        Profile != EAbilityContactDamageProfile::NativeActorProjectile &&
+        Profile != EAbilityContactDamageProfile::NativeMassProjectile &&
+        Profile != EAbilityContactDamageProfile::ConfiguredForces)
+    {
+        return false;
+    }
+    if (Direction.ContainsNaN() || !FMath::IsFinite(DamageScale) || DamageScale < 0.f ||
+        !FMath::IsFinite(DebuffDamageScale) || DebuffDamageScale < 0.f || !FMath::IsFinite(Original.BaseDamage) ||
+        Original.BaseDamage < 0.f || !FMath::IsFinite(Original.DebuffDamage) || Original.DebuffDamage < 0.f ||
+        !FMath::IsFinite(Original.BaseDamage * DamageScale) ||
+        !FMath::IsFinite(Original.DebuffDamage * DebuffDamageScale) ||
+        !FMath::IsFinite(Original.DeathImpulseMagnitude) || !FMath::IsFinite(Original.KnockbackForceMagnitude) ||
+        !FMath::IsFinite(Original.KnockbackChance))
+    {
+        return false;
+    }
+    // 只缩放局部结算副本；后继仍传原Params与累计scales，不能把这个副本写回配方输入。
+    OutPrepared.BaseDamage *= DamageScale;
+    OutPrepared.DebuffDamage *= DebuffDamageScale;
+    if (Profile == EAbilityContactDamageProfile::ConfiguredForces)
+    {
+        // 原Mixed Actor Hit直接消费配置向量；只缩放局部数值，不派生力，也不消耗击退随机数。
+        return true;
+    }
+    if (Profile == EAbilityContactDamageProfile::NativeMassProjectile)
+    {
+        // 原UPureMassLegacyProjectile只填数值/状态，不传preset死亡力也不掷Actor击退随机数。
+        // 实际Apply仍使用同一Mass伤害入口；这里只冻结旧接触合同，不能在纯投递时调用。
+        OutPrepared.DeathImpulse = FVector::ZeroVector;
+        OutPrepared.KnockbackForce = FVector::ZeroVector;
+        return true;
+    }
+    const FVector ContactDirection = Direction.GetSafeNormal();
+    OutPrepared.DeathImpulse = ContactDirection * Original.DeathImpulseMagnitude;
+    // 保留原投射物的整数单次判定与45度抬升；只有实际伤害owner调用，纯接触不消耗RNG。
+    if (FMath::RandRange(0, 100) < Original.KnockbackChance)
+    {
+        auto Rotation = ContactDirection.Rotation();
+        Rotation.Pitch = 45.f;
+        OutPrepared.KnockbackForce = Rotation.Vector() * Original.KnockbackForceMagnitude;
+    }
+    return true;
+}
+
 FAbilityDamageResult AbilityDamageService::Apply(const FAbilitySourceToken& Source, const FAbilityTargetToken& Target,
                                                  const FDamageEffectParams& Parameters, float Scale,
                                                  bool bCaptureLocationAfterDamage)

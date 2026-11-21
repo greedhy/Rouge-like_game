@@ -15,6 +15,7 @@
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/Passive/PassiveNiagaraComponent.h"
 #include "Terrain/TerrainStatusComponent.h"
+#include "Combat/BloodFXComponent.h"
 
 // Sets default values
 // 初始化碰撞、武器挂点、地形与状态特效组件。
@@ -22,6 +23,7 @@ ABaseCharacter::ABaseCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     TerrainStatus = CreateDefaultSubobject<UTerrainStatusComponent>(TEXT("TerrainStatus"));
+    BloodFX = CreateDefaultSubobject<UBloodFXComponent>(TEXT("BloodFX"));
     const FMyGameplayTags& GameplayTags = FMyGameplayTags::Get();
 
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
@@ -138,6 +140,7 @@ FOnDeathSignature& ABaseCharacter::GetOnDeathDelegate()
 // 清理地形效果并按策略分离武器，随后广播死亡表现。
 void ABaseCharacter::Die(const FVector& DeathImpulse)
 {
+    BloodFX->SetBleeding(false);
     TerrainStatus->ClearTerrainEffects();
     if (DetachWeaponOnDeath())
         Weapon->DetachFromComponent(FDetachmentTransformRules(EDetachmentRule::KeepWorld, true));
@@ -147,6 +150,7 @@ void ABaseCharacter::Die(const FVector& DeathImpulse)
 // 同步死亡音效、布娃娃与溶解表现，最后广播死亡。
 void ABaseCharacter::MulticastHandleDeath_Implementation(const FVector& DeathImpulse)
 {
+    BloodFX->StopForDeath();
     UGameplayStatics::PlaySoundAtLocation(this, DeathSound, GetActorLocation(), GetActorRotation());
 
     if (DetachWeaponOnDeath())
@@ -190,8 +194,9 @@ void ABaseCharacter::RefreshMovementSpeed()
     const bool bRooted = TerrainStatus && TerrainStatus->IsTerrainStatusActive(ETerrainSurfaceType::Vines);
     const float Multiplier = FMath::Min(TerrainStatus ? TerrainStatus->GetTerrainMovementMultiplier() : 1.f,
                                         UBatch6SlowComponent::GetMultiplier(this));
+    const float EliteMultiplier = Enemy ? Enemy->GetDungeonEliteMovementMultiplier() : 1.f;
     GetCharacterMovement()->MaxWalkSpeed =
-        (bDead || bIsStunned || bHitReact || bRooted) ? 0.f : BaseWalkSpeed * Multiplier;
+        (bDead || bIsStunned || bHitReact || bRooted) ? 0.f : BaseWalkSpeed * Multiplier * EliteMultiplier;
     if (bRooted)
         GetCharacterMovement()->StopMovementImmediately();
 }

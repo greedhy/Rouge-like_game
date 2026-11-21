@@ -4,6 +4,7 @@
 #include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystem/MyAttributeSet.h"
 #include "AbilitySystem/Unified/Nodes/AbilityOrbitNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityOrbitFragments.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityGraphWorldSubsystem.h"
 #include "Engine/World.h"
@@ -58,6 +59,18 @@ bool UMyOrbitingFireBoltAbility::SpendMana(float Amount) const
                                                  GetAvatarActorFromActorInfo(), GetAbilityLevel(), Amount);
 }
 
+UAbilityGraphDefinition* UMyOrbitingFireBoltAbility::BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const
+{
+    Error.Reset();
+    if (!Config)
+    {
+        Error = TEXT("Orbit frontend has no configured inventory parameters.");
+        return nullptr;
+    }
+    // 正式零修正激活仍在下方使用原兼容入口；只有配方/开发默认复原采用细图。
+    return AbilityOrbitFragments::Build(Outer, *Config);
+}
+
 void UMyOrbitingFireBoltAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle,
                                                  const FGameplayAbilityActorInfo* ActorInfo,
                                                  FGameplayAbilityActivationInfo ActivationInfo,
@@ -65,8 +78,8 @@ void UMyOrbitingFireBoltAbility::ActivateAbility(FGameplayAbilitySpecHandle Hand
 {
     const auto Session = GetExecutionSession();
     if (!ActorInfo || !ActorInfo->IsNetAuthority() || !Session || !Session->IsSourceCurrent() ||
-        !CanActivateAbility(Handle, ActorInfo) || !CommitAbility(Handle, ActorInfo, ActivationInfo) || !IsActive() ||
-        !Session->IsSourceCurrent())
+        !GetRuntimeRecipeError().IsEmpty() || !CanActivateAbility(Handle, ActorInfo) ||
+        !CommitAbility(Handle, ActorInfo, ActivationInfo) || !IsActive() || !Session->IsSourceCurrent())
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
@@ -90,6 +103,10 @@ void UMyOrbitingFireBoltAbility::ActivateAbility(FGameplayAbilitySpecHandle Hand
     Node.Config = NodeConfig;
     Graph->Nodes.Add(Node);
     Graph->EntryNodeId = Node.NodeId;
+    if (GetRuntimeRecipeSnapshot().Graph)
+    {
+        Graph = GetRuntimeRecipeSnapshot().Graph;
+    }
     OrbitContext = NewObject<UAbilityOrbitContext>(this);
     OrbitContext->SourceAbility = this;
     OrbitContext->AbilityTags = GetAssetTags();
@@ -109,12 +126,16 @@ void UMyOrbitingFireBoltAbility::ActivateAbility(FGameplayAbilitySpecHandle Hand
             }
         });
     FAbilityExecutionOptions Options;
-    Options.BudgetPolicy = EAbilityGraphBudgetPolicy::LegacyStreaming;
+    Options.BudgetPolicy = Graph->BudgetPolicy;
+    Options.OwnerLease = GetRuntimeExecutionOwnerLease();
+    Options.CompatibilityProfile = Graph->CompatibilityProfile;
     const TStrongObjectPtr<UAbilityGraphInstance> Starting(OrbitGraph.Get());
+    ObserveFrozenRuntimeGraph(Starting.Get(), Input.SourceToken);
     auto* WorldOwner = GetWorld()->GetSubsystem<UAbilityGraphWorldSubsystem>();
     if (!Starting->StartWithInput(Graph, Input, Options, Error) || !WorldOwner ||
         !WorldOwner->Adopt(Starting.Get(), Error))
     {
+        ForgetFrozenRuntimeGraph(Starting.Get(), Input.SourceToken);
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
     }
 }

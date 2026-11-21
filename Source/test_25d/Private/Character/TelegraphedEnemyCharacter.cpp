@@ -1,4 +1,4 @@
-// 生成时先准备身体网格，再注册挂接组件；构造和 BeginPlay 应用完整战斗配置。
+// 生成及 BeginPlay 应用战斗配置；攻击阶段复制 → 本地预警、命中特效与寿命清理。
 #include "Character/TelegraphedEnemyCharacter.h"
 #include "AbilitySystem/Ability/TelegraphedEnemyAbility.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
@@ -208,6 +208,7 @@ void ATelegraphedEnemyCharacter::StunTagChanged(FGameplayTag Tag, int32 Count)
 void ATelegraphedEnemyCharacter::ClearImpact()
 {
     GetWorldTimerManager().ClearTimer(ImpactExpiry);
+    StopAttackPresentation();
     if (ImpactComponent)
     {
         ImpactComponent->DestroyComponent();
@@ -228,11 +229,21 @@ void ATelegraphedEnemyCharacter::OnRep_Presentation()
         Footprint->ClearAllMeshSections();
     if (!Valid || Presentation.Phase == 0)
         ClearImpact();
+    else if (Warning && Presentation.Serial != LastImpact)
+    {
+        // 远端可能只收到下一段预警，没有收到前一段的 Phase 0。
+        StopAttackPresentation();
+    }
     if (Valid && (Presentation.Phase == 2 || Presentation.Phase == 4) && LastImpact != Presentation.Serial)
     {
         LastImpact = Presentation.Serial;
         ClearImpact();
-        if (Presentation.Tuning.ImpactEffect)
+        if (PlayAttackPresentation(Presentation))
+        {
+            GetWorldTimerManager().SetTimer(ImpactExpiry, this, &ThisClass::ClearImpact,
+                                            Presentation.Tuning.ImpactLifetime, false);
+        }
+        else if (Presentation.Tuning.ImpactEffect)
         {
             ImpactComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
                 this, Presentation.Tuning.ImpactEffect, Presentation.Impact, FRotator::ZeroRotator,

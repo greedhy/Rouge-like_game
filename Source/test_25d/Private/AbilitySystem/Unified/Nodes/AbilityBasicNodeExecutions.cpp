@@ -1,4 +1,5 @@
 // 调用链：图调用注册策略 -> Delay 推进/Petrify 服务 -> Completed 入队；共享配置保持只读。
+// 配方编译器在私有配置副本设置石化时长，执行时将同一字段交给状态服务。
 #include "AbilitySystem/Unified/Nodes/AbilityBasicNodeExecutions.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityStatusService.h"
@@ -21,6 +22,49 @@ bool UAbilityPetrifyNodeConfig::Validate(FString& Error) const
         Error = TEXT("DurationSeconds must be finite and positive.");
     }
     return Error.IsEmpty();
+}
+
+bool UAbilityPetrifyNodeConfig::TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier)
+{
+    if (Parameter != EAbilityConfigScalar::Duration || !FMath::IsFinite(Multiplier) || Multiplier <= 0.f)
+    {
+        return false;
+    }
+    const float ScaledDuration = DurationSeconds * Multiplier;
+    if (!FMath::IsFinite(ScaledDuration) || ScaledDuration <= 0.f)
+    {
+        return false;
+    }
+    DurationSeconds = ScaledDuration;
+    return true;
+}
+
+bool UAbilityPetrifyNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error)
+{
+    if (Parameter != EAbilityConfigParameter::Duration)
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    Error.Reset();
+    if (!FMath::IsFinite(Value) || Value < .01f || Value > 60.f)
+    {
+        Error = TEXT("Petrify duration edit requires a finite value from 0.01 to 60 seconds.");
+        return false;
+    }
+    DurationSeconds = Value;
+    return true;
+}
+
+bool UAbilityPetrifyNodeConfig::SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
+                                                           FString& Error) const
+{
+    if (RegisteredType != TEXT("Status.Petrify") || Incoming != EAbilityPortPayload::LiveTarget || !Validate(Error) ||
+        DurationSeconds > 60.f)
+    {
+        Error = TEXT("Repeated petrify requires its registered LiveTarget input and duration <= 60 seconds.");
+        return false;
+    }
+    return true;
 }
 
 bool UAbilityDelayNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id, const UAbilityNodeConfig& Config,

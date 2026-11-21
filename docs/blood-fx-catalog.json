@@ -1,0 +1,169 @@
+{
+  "generated_at": "2026-11-19",
+  "engine": "UE 5.8.1-56057345",
+  "generated_by": "SOMOLMCP (asset_duplicate_v2 / niagara_set_user_parameter_default / niagara_compile_system / asset_save / niagara_list_user_parameters)",
+  "root": "/Game/Art/BloodFX",
+  "source_pack": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "scope": "art_assets_only",
+  "not_included": [
+    "no GA",
+    "no GE",
+    "no GameplayCue",
+    "no C++ changes",
+    "no blueprint changes",
+    "no new gameplay tags"
+  ],
+  "summary": "8 个独立 Niagara 系统（近战命中血斑 / 重击 / 死亡炸血 / 地面血泊 / 流血滴落 loop），全部 ready_to_run=true，用户参数默认值已按用途预设。血包原资产仅提供贴面血斑形态，无空中飞溅液滴。",
+  "shared_traits": {
+    "emitter_count": 1,
+    "emitter_name": "Splat",
+    "sim_target": "gpu",
+    "local_space": true,
+    "material": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Materials/MI_VFX_Fake_Blood_01_Lit",
+    "parent_material": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Materials/M_VFX_Free_Blood_Lit_01",
+    "material_note": "折射型半透明 Lit，无颜色参数；最终颜色 = 主材质 + 粒子 Color A/B；编辑器视口偏白不可信"
+  },
+  "systems": [
+    {
+      "name": "NS_Blood_Hit_Splash",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash",
+      "use": "普通近战命中血斑（红血 / 玩家）",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Once",
+      "params": {"Scale": 1.2, "Lifetime Multiply": 0.7, "Spawn Burst Min": 1, "Spawn Burst Max": 2, "Loop Duration": 2.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1], "meaning": "白 = 原始血红色"},
+      "spawn": "SpawnSystemAtLocation(命中点, 命中面法线朝向, bAutoDestroy=true)",
+      "trigger_hook": "ABaseCharacter::BloodEffect (BP_Player) → GC_MeleeImpact 自动播放",
+      "lifetime_hint": "一次性，约 0.7s 淡出"
+    },
+    {
+      "name": "NS_Blood_Hit_Splash_Green",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash_Green",
+      "use": "普通近战命中血斑（绿血敌人）",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Once",
+      "params": {"Scale": 1.2, "Lifetime Multiply": 0.7, "Spawn Burst Min": 1, "Spawn Burst Max": 2, "Loop Duration": 2.0},
+      "color": {"Color A": [0.0, 1.0, 0.46, 1.0], "Color B": [0.0, 1.0, 0.46, 1.0]},
+      "spawn": "SpawnSystemAtLocation(命中点, 命中面法线朝向, bAutoDestroy=true)",
+      "trigger_hook": "ABaseCharacter::BloodEffect (BP_EnemyBase) → GC_MeleeImpact 自动播放",
+      "lifetime_hint": "一次性，约 0.7s 淡出"
+    },
+    {
+      "name": "NS_Blood_Hit_Heavy",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Heavy",
+      "use": "重击 / 暴击 / 处决命中",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Extra_Once",
+      "params": {"Scale": 1.5, "Lifetime Multiply": 1.0, "Spawn Burst Min": 2, "Spawn Burst Max": 3, "Loop Duration": 4.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1]},
+      "spawn": "SpawnSystemAtLocation(命中点, 命中面法线朝向, bAutoDestroy=true)",
+      "trigger_hook": "GC_MeleeImpact 内按伤害/MontageTag 分支（可选改造）",
+      "lifetime_hint": "一次性，约 1s"
+    },
+    {
+      "name": "NS_Blood_Death_Burst",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Death_Burst",
+      "use": "敌人死亡炸血（红）",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Bunch_Once",
+      "params": {"Scale": 2.2, "Lifetime Multiply": 1.2, "Spawn Burst Min": 4, "Spawn Burst Max": 7, "Loop Duration": 2.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1]},
+      "spawn": "SpawnSystemAtLocation(角色中心(胶囊中心/骨盆), 随机 Yaw, bAutoDestroy=true)",
+      "trigger_hook": "BP 订阅 OnDeath（ICombatInterface::GetOnDeathDelegate）；MulticastHandleDeath 目前无粒子",
+      "lifetime_hint": "一次性，约 1.2s"
+    },
+    {
+      "name": "NS_Blood_Death_Burst_Green",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Death_Burst_Green",
+      "use": "敌人死亡炸血（绿）",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Bunch_Once",
+      "params": {"Scale": 2.2, "Lifetime Multiply": 1.2, "Spawn Burst Min": 4, "Spawn Burst Max": 7, "Loop Duration": 2.0},
+      "color": {"Color A": [0.0, 1.0, 0.46, 1.0], "Color B": [0.0, 1.0, 0.46, 1.0]},
+      "spawn": "SpawnSystemAtLocation(角色中心, 随机 Yaw, bAutoDestroy=true)",
+      "trigger_hook": "BP 订阅 OnDeath",
+      "lifetime_hint": "一次性，约 1.2s"
+    },
+    {
+      "name": "NS_Blood_Pool_Small",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Pool_Small",
+      "use": "普通尸体残留血泊",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_Once",
+      "params": {"Scale": 0.9, "Lifetime Multiply": 40.0, "Spawn Burst Min": 1, "Spawn Burst Max": 1, "Loop Duration": 2.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1]},
+      "spawn": "SpawnSystemAtLocation(脚下地面射线命中点, Pitch=-90 贴地, bAutoDestroy=true) + 组件 SetLifeSpan(60)",
+      "trigger_hook": "死亡时 spawn（必须独立生成，不要 Attach 到会被对象池回收的尸体）",
+      "lifetime_hint": "Lifetime Multiply 40 ≈ 20s 量级留存，实际消失时间由 SetLifeSpan 控制"
+    },
+    {
+      "name": "NS_Blood_Pool_Large",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Pool_Large",
+      "use": "精英 / Boss 血泊",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_02_Floor_Rot_Once",
+      "params": {"Scale": 1.8, "Lifetime Multiply": 40.0, "Spawn Burst Min": 1, "Spawn Burst Max": 2, "Loop Duration": 2.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1]},
+      "spawn": "同 Pool_Small，建议 lifespan 60s",
+      "trigger_hook": "精英/Boss 死亡时 spawn",
+      "lifetime_hint": "同上"
+    },
+    {
+      "name": "NS_Blood_Drip_Loop",
+      "path": "/Game/Art/BloodFX/Systems/NS_Blood_Drip_Loop",
+      "use": "持续流血 DoT 表现（循环滴落）",
+      "source": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot",
+      "params": {"Scale": 0.6, "Lifetime Multiply": 0.8, "Spawn Burst Min": 1, "Spawn Burst Max": 1, "Loop Duration": 1.0},
+      "color": {"Color A": [1, 1, 1, 1], "Color B": [1, 1, 1, 1]},
+      "spawn": "UDebuffNiagaraComponent（DebuffTag 驱动），SetupAttachment(GetRootComponent())",
+      "trigger_hook": "GE_Bleed 的 AssetTags 带上流血标签 → UDebuffNiagaraComponent::DebuffTagChanged",
+      "lifetime_hint": "循环，标签移除/死亡自动 Deactivate"
+    }
+  ],
+  "usage_recipes": [
+    {
+      "id": "melee_hit",
+      "goal": "近战命中流血",
+      "code_change": "none",
+      "steps": [
+        "BP_EnemyBase.BloodEffect = /Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash_Green",
+        "BP_Player.BloodEffect = /Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash",
+        "GC_MeleeImpact 与 MyMeleeAttack.cpp:111 保持不动"
+      ]
+    },
+    {
+      "id": "enemy_death",
+      "goal": "敌人死亡特效",
+      "code_change": "bp_only (bind OnDeath) or cpp optional",
+      "steps": [
+        "BP 订阅 ICombatInterface::GetOnDeathDelegate",
+        "SpawnSystemAtLocation(NS_Blood_Death_Burst_Green, 角色中心, 随机 Yaw)",
+        "地面 LineTrace(ECC_WorldStatic) 取脚下点 → SpawnSystemAtLocation(NS_Blood_Pool_Large, 点, Pitch=-90) + SetLifeSpan(60)"
+      ]
+    },
+    {
+      "id": "bleed_dot",
+      "goal": "持续流血",
+      "code_change": "cpp_light (照抄 BurnDebuffComponent) + GE_Bleed",
+      "steps": [
+        "BaseCharacter 增加 BleedDebuffComponent，DebuffTag = 流血标签",
+        "新增 tag Effects.Debuff.Bleed 或复用 Debuff_Physical",
+        "GE_Bleed: Duration 5s / Period 0.5s / Damage.Physical，AssetTags 带流血标签",
+        "组件 SetAsset(NS_Blood_Drip_Loop)"
+      ]
+    }
+  ],
+  "orientation_rules": {
+    "default": "面片默认竖直（法线朝 ±Y），Pitch=0 时不是贴地",
+    "ground": "Pitch=-90（+随机 Yaw）",
+    "surface_decal": "用命中面法线构造：Rotation = (-ImpactNormal).Rotation()",
+    "verified": "在 LVL_Free_Blood_Overview 中实测：Pitch=0 时血斑为竖直面片"
+  },
+  "limits": [
+    "血包只有贴面血斑，没有空中飞溅液滴发射器（无法做喷溅雾）",
+    "材质为折射型半透明 Lit（RefractionDepthBias），编辑器视口偏白，颜色以 PIE 为准",
+    "niagara_set_renderer_properties 的 OverrideMaterials 在 5.8 写入成功但渲染不生效，换色只能用 Color A/B 或复制 MI 后人工指定",
+    "本轮未做 PIE 内视觉验收，只验证 ready_to_run + 参数回读 + 关卡内生成"
+  ],
+  "rollback": {
+    "level_files": {
+      "/Game/RoguelikeGeneration/Maps/L_RoguelikeRun": "md5 e050712e56d83f34ec3b80afea9ae918 (未改动)",
+      "/Game/resources/Vefects/VFX_Free_Blood/Maps/LVL_Free_Blood_Overview": "md5 d21cc58ba5c768da94db3c6967ad6604 (已逐字节还原)"
+    },
+    "shared_materials_modified": "none",
+    "new_folders": ["/Game/Art/BloodFX", "/Game/Art/BloodFX/Systems"]
+  }
+}

@@ -11,11 +11,14 @@
 #include "UI/WidgetController/OverlayWidgetController.h"
 #include "Equipment/SharedLootSubsystem.h"
 #include "AbilitySystem/Ability/EnemyCombatReactionAbilities.h"
+#include "Roguelike/DungeonEliteAffix.h"
+#include "Engine/TimerHandle.h"
 
 #include "EnemyCharacter.generated.h"
 
 class UBehaviorTree;
 class AMyAIController;
+struct FOnAttributeChangeData;
 /**
  * 
  */
@@ -80,6 +83,15 @@ public:
     /** 所有模式按共享类表和本次生命覆盖值解析掉落身份。 */
     UFUNCTION(BlueprintPure, Category = "Loot")
     EEnemyLootRank GetLootRank() const;
+
+    // 导演在 GAS 默认属性初始化后，为这次非池化生命设置出生血量和词缀。
+    bool ApplyDungeonEliteAffix(EDungeonEliteAffix Affix, float SpawnHealth);
+    UFUNCTION(BlueprintPure, Category = "Dungeon|Elite")
+    EDungeonEliteAffix GetDungeonEliteAffix() const;
+    UFUNCTION(BlueprintPure, Category = "Dungeon|Elite")
+    FText GetDungeonEliteAffixDescription() const;
+    float GetDungeonEliteMovementMultiplier() const;
+
     UPROPERTY(BlueprintReadOnly, Category = "Combat")
     bool bHitReacting = false;
 
@@ -155,6 +167,20 @@ protected:
     }
 
 private:
+    // 清理词缀专属计时和委托，死亡复制与 EndPlay 都可以安全调用。
+    void ClearDungeonEliteAffix();
+    void OnDungeonEliteHealthChanged(const FOnAttributeChangeData& Data);
+    void RestoreDungeonEliteHealth();
+    UFUNCTION()
+    void OnRep_DungeonEliteAffix();
+    UPROPERTY(ReplicatedUsing = OnRep_DungeonEliteAffix)
+    EDungeonEliteAffix DungeonEliteAffix = EDungeonEliteAffix::None;
+    UPROPERTY(ReplicatedUsing = OnRep_DungeonEliteAffix)
+    bool bDungeonEliteEnraged = false;
+    bool bHasDungeonEliteHealthBar = false;
+    FDelegateHandle DungeonEliteHealthDelegate;
+    FTimerHandle DungeonEliteRegenTimer;
+
     void OnCombatReactionTagChanged(FGameplayTag Tag, int32 Count);
     void StopCombatReactionPresentation();
     FGameplayAbilitySpecHandle HitstunSpec;

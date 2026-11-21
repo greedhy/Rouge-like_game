@@ -4,6 +4,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "MassEntityTypes.h"
+#include "Combat/BloodFXSubsystem.h"
 #include "PureMassTypes.generated.h"
 
 class USkeletalMesh;
@@ -16,6 +17,8 @@ class TEST_25D_API UPureMassMonsterType : public UDataAsset
 {
     GENERATED_BODY()
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering|Blood")
+    FBloodFXStyle BloodFX;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")
     TObjectPtr<USkeletalMesh> Mesh;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rendering")

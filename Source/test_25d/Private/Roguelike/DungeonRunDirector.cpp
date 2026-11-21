@@ -71,6 +71,24 @@ ADungeonRunDirector* ADungeonRunDirector::Find(const UWorld* World)
             return *It;
     return nullptr;
 }
+
+// 距离和成员身份以本次伤害为准，留在场上的尸体不会继续提供减伤。
+float ADungeonRunDirector::GetEliteProtectionMultiplier(AEnemyCharacter* Target) const
+{
+    constexpr float Radius = 600.f;
+    constexpr float DamageMultiplier = 0.75f;
+    const auto* Elite = ProtectiveElite.Get();
+    if (!Elite || !IsValid(Target) || Elite == Target || !HasAuthority() || Phase != EDungeonRunPhase::Encounter ||
+        bCleaningUp || Elite->IsDead_Implementation() || Elite->GetDungeonEliteAffix() != EDungeonEliteAffix::Protective ||
+        Target->IsDead_Implementation() || Target->IsDungeonPoolSleeping() || !ActorTargets.Contains(Target) ||
+        Elite->MonsterRoomId.IsNone() || Elite->MonsterRoomId != Target->MonsterRoomId)
+    {
+        return 1.f;
+    }
+    return FVector::DistSquared(Elite->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(Radius)
+               ? DamageMultiplier
+               : 1.f;
+}
 // 优先返回缓存的生成宿主，否则遍历当前世界查找。
 ADungeonGenerationRuntime* ADungeonRunDirector::GetGeneration() const
 {
@@ -235,6 +253,12 @@ bool ADungeonRunDirector::InitializeRun()
         Profile->ReviveFraction > 1)
     {
         FailRun(TEXT("InvalidGameplayProfile"));
+        return false;
+    }
+    FString EliteError;
+    if (!Profile->ValidateEliteAffixes(EliteError))
+    {
+        FailRun(EliteError);
         return false;
     }
     for (const auto& Item : Profile->ChestItems)
@@ -464,20 +488,38 @@ void ADungeonRunDirector::StartEncounter(int32 Room)
 bool ADungeonRunDirector::SpawnWave()
 {
     if (!Model.Encounter.BeginWave())
+    {
         return false;
+    }
     const auto RoomRole = Model.Rooms[Model.ActiveRoom].Role;
+    const int32 Wave = Model.Encounter.Wave;
+    // 地图可复用同一个楼层种子，局号让词缀仍在每次进入时重新抽取。
+    const int32 EliteSeed = static_cast<int32>(HashCombineFast(uint32(Generation->Seed), GetTypeHash(RunId)));
+    const auto Affix = Profile->RollEliteAffix(EliteSeed, Model.ActiveRoom, RoomRole, Wave);
     bool Success = false;
     if (RoomRole == EDungeonRoomRole::Combat)
-        Success = SpawnActorGroup(
-            Model.Encounter.Wave == 1 ? TotalNormalCount / 2 : TotalNormalCount - TotalNormalCount / 2, true);
+    {
+        const bool bSpawnElite = Affix != EDungeonEliteAffix::None;
+        const int32 ActorCount = Wave == 1 ? TotalNormalCount / 2 : TotalNormalCount - TotalNormalCount / 2;
+        // 保持每波既有预算，精英占用一个普通 Actor 的名额。
+        Success = (!bSpawnElite ||
+                   QueueActorTarget(Profile->EliteClass.Get(), Profile->CombatEliteHealth, true, false, false, Affix)) &&
+                  SpawnActorGroup(ActorCount - int32(bSpawnElite), true);
+    }
     else if (RoomRole == EDungeonRoomRole::Elite)
-        Success = QueueActorTarget(Profile->EliteClass.Get(), Profile->EliteHealth, true) && SpawnActorGroup(4, true);
+    {
+        Success = QueueActorTarget(Profile->EliteClass.Get(), Profile->EliteHealth, true, false, false, Affix) &&
+                  SpawnActorGroup(4, true);
+    }
     else if (RoomRole == EDungeonRoomRole::Boss)
+    {
         Success = QueueActorTarget(Profile->BossClass.Get(), Profile->BossHealth, true, true) &&
                   SpawnActorGroup(2, true) && SpawnActorGroup(2, false);
+    }
     if (Success)
-        Success =
-            SpawnMassGroup(Profile->MassCountForWave(RoomRole == EDungeonRoomRole::Combat, Model.Encounter.Wave), true);
+    {
+        Success = SpawnMassGroup(Profile->MassCountForWave(RoomRole == EDungeonRoomRole::Combat, Wave), true);
+    }
     return Model.Encounter.EndWave(Success);
 }
 // 预登记实体目标再放入待生成队列，使等待生成的目标也参与清场判断。
@@ -524,14 +566,14 @@ bool ADungeonRunDirector::SpawnActorGroup(int32 Count, bool bRequired)
 }
 // 检查容量并预留目标编号，保存本局与房间身份以防旧请求生效。
 bool ADungeonRunDirector::QueueActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired,
-                                           bool bIsBoss, bool bPoolEligible)
+                                          bool bIsBoss, bool bPoolEligible, EDungeonEliteAffix EliteAffix)
 {
     if (!Class || ActorTargets.Num() + MassTargets.Num() + SpawnQueue.Num() >= Profile->EncounterCapacity())
         return false;
     const FName Id(*FString::Printf(TEXT("A%d"), ++ActorSequence));
     if (!Model.Encounter.RegisterTarget(Id, bRequired))
         return false;
-    SpawnQueue.Add({Class, Health, bRequired, bIsBoss, Id, RunId, Model.ActiveRoom, bPoolEligible});
+    SpawnQueue.Add({Class, Health, bRequired, bIsBoss, Id, RunId, Model.ActiveRoom, bPoolEligible, false, EliteAffix});
     return true;
 }
 // 按数量及耗时预算生成目标，拒绝旧局请求并跳过首领死亡后的可选目标。
@@ -572,7 +614,10 @@ void ADungeonRunDirector::PumpSpawnQueue()
             }
         }
         else
-            Spawned = SpawnActorTarget(Job.Class, Job.Health, Job.Required, Job.IsBoss, Job.Id, Job.PoolEligible);
+        {
+            Spawned = SpawnActorTarget(Job.Class, Job.Health, Job.Required, Job.IsBoss, Job.Id, Job.PoolEligible,
+                                       Job.EliteAffix);
+        }
         if (!Spawned)
         {
             FailRun(TEXT("EnemySpawnFailed"));
@@ -586,15 +631,18 @@ void ADungeonRunDirector::PumpSpawnQueue()
 }
 // 查找出生点后借用跨房间闲置对象或延迟生成新对象，绑定结算并设置生命属性。
 bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired,
-                                           bool bIsBoss, FName ReservedId, bool bPoolEligible)
+                                          bool bIsBoss, FName ReservedId, bool bPoolEligible,
+                                          EDungeonEliteAffix EliteAffix)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(DungeonEnemyPool_AcquireOrCreate);
     if (!Class || ActorTargets.Num() + MassTargets.Num() >= Profile->EncounterCapacity())
         return false;
     const auto* CDO = Class->GetDefaultObject<AEnemyCharacter>();
     const auto* LootRules = GetDefault<USharedLootSettings>();
-    const EEnemyLootRank Rank = LootRules->ResolveRank(Class, bIsBoss ? EEnemyLootRank::Boss :
-        Class.Get() == Profile->EliteClass.Get() ? EEnemyLootRank::Elite : CDO->LootRank);
+    const bool bHasEliteAffix = EliteAffix != EDungeonEliteAffix::None;
+    const bool bElite = bHasEliteAffix || Class.Get() == Profile->EliteClass.Get();
+    const auto RequestedRank = bIsBoss ? EEnemyLootRank::Boss : (bElite ? EEnemyLootRank::Elite : CDO->LootRank);
+    const EEnemyLootRank Rank = LootRules->ResolveRank(Class, RequestedRank);
     const int32 EnemyLevel = LootRules->MonsterLevel(Model.Rooms[Model.ActiveRoom].RoomLevel, Rank);
     FVector P;
     if (!FindSpawnPosition(CDO->GetCapsuleComponent()->GetScaledCapsuleRadius(),
@@ -603,7 +651,7 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
     const FTransform Transform(FRotator::ZeroRotator, P);
     const double Started = FPlatformTime::Seconds();
     const FName RoomId = Model.Rooms[Model.ActiveRoom].RoomId;
-    const bool PoolEnabled = bPoolEligible && !bIsBoss && Profile->NormalPoolCapacity > 0;
+    const bool PoolEnabled = bPoolEligible && !bIsBoss && !bHasEliteAffix && Profile->NormalPoolCapacity > 0;
     auto* Enemy = PoolEnabled ? EnemyPool.Acquire(Class, RoomId) : nullptr;
     const bool Reused = Enemy != nullptr;
     if (PoolEnabled)
@@ -659,8 +707,23 @@ bool ADungeonRunDirector::SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, f
     auto* ASC = Enemy->GetAbilitySystemComponent();
     if (!ASC || !ASC->GetSet<UMyAttributeSet>())
         return false;
-    ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxHealthAttribute(), Health);
-    ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(), Health);
+    // 默认 GAS 属性在 FinishSpawning 或池唤醒中建立，词缀必须在此之后应用。
+    if (bHasEliteAffix)
+    {
+        if (!Enemy->ApplyDungeonEliteAffix(EliteAffix, Health))
+        {
+            return false;
+        }
+        if (EliteAffix == EDungeonEliteAffix::Protective)
+        {
+            ProtectiveElite = Enemy;
+        }
+    }
+    else
+    {
+        ASC->SetNumericAttributeBase(UMyAttributeSet::GetMaxHealthAttribute(), Health);
+        ASC->SetNumericAttributeBase(UMyAttributeSet::GetHealthAttribute(), Health);
+    }
     (Reused ? ReuseTiming : CreateTiming).Add((FPlatformTime::Seconds() - Started) * 1000.0);
     LastSafeLocations.Add(Enemy, Enemy->GetActorLocation());
     if (bIsBoss)
@@ -904,6 +967,7 @@ void ADungeonRunDirector::CompleteEncounter()
 // 清空待生成请求并抑制清理回调结算，回收敌人及销毁旧遭遇效果。
 void ADungeonRunDirector::CleanupEncounter()
 {
+    ProtectiveElite.Reset();
     SpawnQueue.Reset();
     TGuardValue<bool> Guard(bCleaningUp, true);
     TArray<int32> Ids;

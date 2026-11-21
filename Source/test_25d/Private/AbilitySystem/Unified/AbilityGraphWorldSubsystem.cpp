@@ -8,7 +8,7 @@ bool UAbilityGraphWorldSubsystem::Adopt(UAbilityGraphInstance* Instance, FString
     Error.Reset();
     UWorld* World = GetWorld();
     if (bClosing || !IsValid(Instance) || !World || World->bIsTearingDown || World->GetNetMode() == NM_Client ||
-        Instance->GetTypedOuter<UWorld>() != World)
+        Instance->GetTypedOuter<UWorld>() != World || LeasesBeingCancelled.Contains(Instance->GetOptions().OwnerLease))
     {
         Error = TEXT("Only a live graph created in this authoritative world may be adopted.");
         return false;
@@ -51,6 +51,29 @@ void UAbilityGraphWorldSubsystem::Tick(float DeltaSeconds)
         {
             return !IsValid(Instance) || Instance->IsFinished();
         });
+}
+
+void UAbilityGraphWorldSubsystem::CancelOwnerLease(FGuid OwnerLease, EAbilityGraphEndReason Reason)
+{
+    if (!OwnerLease.IsValid() || LeasesBeingCancelled.Contains(OwnerLease))
+    {
+        return;
+    }
+    LeasesBeingCancelled.Add(OwnerLease);
+    const auto Owned = Executions;
+    for (UAbilityGraphInstance* Instance : Owned)
+    {
+        if (IsValid(Instance) && Instance->GetOptions().OwnerLease == OwnerLease)
+        {
+            Instance->Cancel(Reason);
+        }
+    }
+    Executions.RemoveAll(
+        [OwnerLease](const auto& Instance)
+        {
+            return Instance && Instance->GetOptions().OwnerLease == OwnerLease && Instance->IsFinished();
+        });
+    LeasesBeingCancelled.Remove(OwnerLease);
 }
 
 void UAbilityGraphWorldSubsystem::Deinitialize()

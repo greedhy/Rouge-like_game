@@ -152,6 +152,72 @@
       "melee": {"DamageMultiplier": 1.5, "BodyEffectDuration": 0.8},
       "damage_type": "Damage.Fire",
       "body_effect": "/Game/CompositionBatch6/NS_StarFlameHalo"
+    },
+    {
+      "id": "UniqueNeedleflamePrism",
+      "label": "针焰晶瓶",
+      "icon": "44778_1",
+      "slots": ["MagicStone"],
+      "stats": {"MaxMana": 0.70},
+      "description": "火球保留原弹数、散射与追踪，直击和燃烧的基础伤害提高。最大法力降低。",
+      "projectile_ability_tag": "Abilities.Fire.FireBolt",
+      "projectile": {"ExtraProjectiles": 0, "DamageMultiplier": 1.65, "MinimumSpread": 0, "SetDamageMultiplier": 1.0},
+      "disable_homing": false
+    },
+    {
+      "id": "UniqueStormLens",
+      "label": "束雷导管",
+      "icon": "41490_1",
+      "slots": ["MagicStone"],
+      "stats": {"MaxMana": 0.82},
+      "description": "提高闪电引导对各目标的基础伤害，缩短二次索敌距离并降低最大法力。",
+      "tag": "Equipment.Unique.StormLens",
+      "set_description": "束雷回路：同时穿戴束雷导管和蓄雷法衣时，进一步提高导管的闪电引导伤害倍率。",
+      "spell_family_tag": "Equipment.AbilityFamily.LightningChain",
+      "spell": {"DamageMultiplier": 1.28, "RadiusMultiplier": 0.82, "ExtraChainTargets": 0, "SetDamageMultiplier": 1.65},
+      "required_set_tags": ["Equipment.Unique.StormLens", "Equipment.Unique.StormweaverMantle"]
+    },
+    {
+      "id": "UniqueStormweaverMantle",
+      "label": "蓄雷法衣",
+      "icon": "42069_1",
+      "slots": ["Chest"],
+      "stats": {"ManaRegeneration": 1.75, "Armor": 0.65},
+      "description": "法力恢复加快，护甲降低。与束雷导管同穿时强化闪电引导。",
+      "tag": "Equipment.Unique.StormweaverMantle",
+      "set_description": "束雷回路：同时穿戴束雷导管和蓄雷法衣时，进一步提高导管的闪电引导伤害倍率。"
+    },
+    {
+      "id": "UniqueFaultlineTreads",
+      "label": "断层战靴",
+      "icon": "51613_1",
+      "slots": ["Boots"],
+      "stats": {"Armor": 0.70},
+      "description": "重锤环击的物理接触伤害提高，挥击时脚下出现震波。护甲降低。",
+      "melee_ability_tag": "Abilities.StanderWeapons.Hammer.Skill7_Around",
+      "melee": {"DamageMultiplier": 1.75, "BodyEffectDuration": 0.55},
+      "damage_type": "Damage.Physics",
+      "body_effect": "/Game/CompositionBatch6/NS_EarthShockwave"
+    },
+    {
+      "id": "UniqueRimefangHelm",
+      "label": "霜牙战盔",
+      "icon": "54873_1",
+      "slots": ["Helmet"],
+      "stats": {"MaxHealth": 0.82},
+      "description": "双刃突进的接触伤害转为水系并提高，霜雾随身片刻。最大生命降低。",
+      "melee_ability_tag": "Abilities.StanderWeapons.DualBlades.Skill6_Move",
+      "melee": {"DamageMultiplier": 1.45, "BodyEffectDuration": 0.75},
+      "damage_type": "Damage.Water",
+      "body_effect": "/Game/CompositionBatch6/NS_GlacialStorm"
+    },
+    {
+      "id": "UniqueEmberheartElement",
+      "label": "赤脉符印",
+      "icon": "55316_1",
+      "slots": ["Element.1"],
+      "stats": {"Strength": 1.55, "HealthRegeneration": 1.80, "MaxMana": 0.65},
+      "description": "提高力量与生命恢复，缩小法力储备。"
     }
   ]
 }

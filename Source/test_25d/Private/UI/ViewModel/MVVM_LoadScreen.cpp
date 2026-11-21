@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：存档界面操作 → ViewModel → GameMode 存档或 RoomSubsystem 模式选择。
 
 #include "UI/ViewModel/MVVM_LoadScreen.h"
 #include "UI/ViewModel/MVVM_LoadSlot.h"
@@ -111,15 +111,19 @@ void UMVVM_LoadScreen::DeleteButtonPressed()
     if (IsValid(SelectedSlot))
     {
         AMyGameModeBase::DeleteSlot(SelectedSlot->GetLoadSlotName(), SelectedSlot->SlotIndex);
-        SelectedSlot->SlotStatus = Vacant;
-        SelectedSlot->InitializeSlot();
-        SelectedSlot->EnableSelectSlotButton.Broadcast(true);
+        if (!UGameplayStatics::DoesSaveGameExist(SelectedSlot->GetLoadSlotName(), SelectedSlot->SlotIndex))
+        {
+            SelectedSlot->bUnreadable = false;
+            SelectedSlot->SlotStatus = Vacant;
+            SelectedSlot->InitializeSlot();
+            SelectedSlot->EnableSelectSlotButton.Broadcast(true);
+        }
     }
 }
 
 void UMVVM_LoadScreen::PlayButtonPressed()
 {
-    if (!IsValid(SelectedSlot) || SelectedSlot->SlotStatus != Taken ||
+    if (!IsValid(SelectedSlot) || SelectedSlot->SlotStatus != Taken || SelectedSlot->bUnreadable ||
         !UGameplayStatics::DoesSaveGameExist(SelectedSlot->GetLoadSlotName(), SelectedSlot->SlotIndex))
         return;
     AMyGameModeBase* MyGameMode = Cast<AMyGameModeBase>(UGameplayStatics::GetGameMode(this));
@@ -151,15 +155,6 @@ void UMVVM_LoadScreen::LoadData()
     {
         ULoadScreenSaveGame* SaveObject = MyGameMode->GetSaveSlotData(LoadSlot.Value->GetLoadSlotName(), LoadSlot.Key);
 
-        const FString PlayerName = SaveObject->PlayerName;
-        TEnumAsByte<ESaveSlotStatus> SaveSlotStatus = SaveObject->SaveSlotStatus;
-
-        LoadSlot.Value->SlotStatus = SaveSlotStatus;
-        LoadSlot.Value->SetPlayerName(PlayerName);
-        LoadSlot.Value->InitializeSlot();
-
-        LoadSlot.Value->SetMapName(SaveObject->MapName);
-        LoadSlot.Value->PlayerStartTag = SaveObject->PlayerStartTag;
-        LoadSlot.Value->SetPlayerLevel(SaveObject->PlayerLevel);
+        LoadSlot.Value->ApplySaveData(SaveObject);
     }
 }

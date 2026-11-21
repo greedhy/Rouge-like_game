@@ -3,6 +3,8 @@
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityDamageService.h"
 #include "AbilitySystem/Unified/AbilityStatusService.h"
+#include "AbilitySystem/Unified/AbilityForkedPropagationService.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPetrifyFragments.h"
 #include "AbilitySystem/Batch6/Batch6ChainAbility.h"
 #include "Character/EnemyCharacter.h"
 #include "Engine/World.h"
@@ -14,43 +16,60 @@ namespace
                              const FAbilityTargetToken& Target, FVector From, FVector Position,
                              const FAbilityDamageResult& Result)
     {
-        FAbilityNodeInput Payload = Input;
-        FAbilityImpactSnapshot Impact;
-        Impact.Location = Position;
-        Impact.Direction = (Position - From).GetSafeNormal();
-        Impact.ConfirmedTarget = Target;
-        Payload.Impact = Impact;
-        Payload.Origin = Position;
-        Payload.LiveTargetToken.Reset();
-        Payload.bHasDamageResult = true;
-        Payload.bDamageAttempted = Result.bAttempted;
-        Payload.bKilled = Result.bKilled;
-        Payload.DamageApplied = Result.Applied;
-        Payload.ActualDamage = Result.ActualDamage;
-        return Owner.Publish(Id, TEXT("DamageResolved"), Payload);
-    }
-
-    /** 将同一时刻产生的线段一次复制，逐跳时每次只发送该段。 */
-    void PresentLightning(AActor& Caster, FVector Origin, UNiagaraSystem* Beam,
-                          TArray<FBatch6ChainSegment>&& Segments, float Lifetime = 1.5f)
-    {
-        if (Segments.IsEmpty())
-        {
-            return;
-        }
-        FActorSpawnParameters Spawn;
-        Spawn.Owner = &Caster;
-        if (auto* Visual = Caster.GetWorld()->SpawnActor<ABatch6ChainPresentation>(
-                Origin, FRotator::ZeroRotator, Spawn))
-        {
-            Visual->Segments = MoveTemp(Segments);
-            Visual->BeamSystem = Beam;
-            Visual->SetLifeSpan(Lifetime);
-            Visual->Present();
-            Visual->ForceNetUpdate();
-        }
+        return Owner.Publish(Id, TEXT("DamageResolved"),
+                             AbilityLightningActions::DamagePayload(Input, Target, From, Position, Result));
     }
 } // namespace
+
+FAbilityNodeInput AbilityLightningActions::DamagePayload(const FAbilityNodeInput& Input,
+                                                         const FAbilityTargetToken& Target, FVector From,
+                                                         FVector Position, const FAbilityDamageResult& Result)
+{
+    FAbilityNodeInput Payload = Input;
+    FAbilityImpactSnapshot Impact;
+    Impact.Location = Position;
+    Impact.Direction = (Position - From).GetSafeNormal();
+    Impact.ConfirmedTarget = Target;
+    Payload.Impact = Impact;
+    Payload.Origin = Position;
+    Payload.LiveTargetToken.Reset();
+    Payload.bHasDamageResult = true;
+    Payload.bDamageAttempted = Result.bAttempted;
+    Payload.bKilled = Result.bKilled;
+    Payload.DamageApplied = Result.Applied;
+    Payload.ActualDamage = Result.ActualDamage;
+    return Payload;
+}
+
+FAbilityDamageResult AbilityLightningActions::ApplyHit(const FAbilitySourceToken& Source,
+                                                       const FAbilityTargetToken& Target,
+                                                       const FDamageEffectParams& Parameters, float Scale)
+{
+    auto Params = Parameters;
+    Params.DebuffChance = 0.f;
+    Params.bIsRadialDamage = false;
+    return AbilityDamageService::Apply(Source, Target, Params, Scale);
+}
+
+/** 将同一时刻产生的线段一次复制，逐跳时每次只发送该段；客户端仍由原Actor的RepNotify表现。 */
+void AbilityLightningActions::Present(AActor& Caster, FVector Origin, UNiagaraSystem* Beam,
+                                      TArray<FBatch6ChainSegment>&& Segments, float Lifetime)
+{
+    if (Segments.IsEmpty())
+    {
+        return;
+    }
+    FActorSpawnParameters Spawn;
+    Spawn.Owner = &Caster;
+    if (auto* Visual = Caster.GetWorld()->SpawnActor<ABatch6ChainPresentation>(Origin, FRotator::ZeroRotator, Spawn))
+    {
+        Visual->Segments = MoveTemp(Segments);
+        Visual->BeamSystem = Beam;
+        Visual->SetLifeSpan(Lifetime);
+        Visual->Present();
+        Visual->ForceNetUpdate();
+    }
+}
 
 bool UAbilityForkedChainNodeConfig::Validate(FString& Error) const
 {
@@ -98,7 +117,11 @@ bool UAbilityForkedChainNodeExecution::Start(UAbilityGraphInstance& Owner, const
     TSet<FPureMassCombatTarget> Visited;
     Visited.Add(Input.LiveTargetToken->Target);
     TArray<FBatch6ChainSegment> Segments;
-    const float Radius = FMath::Clamp(Settings.JumpRadius, 1.f, 2000.f);
+    FAbilityForkedSelectionSettings Selection;
+    Selection.MaxTargets = Settings.MaxTargets;
+    Selection.MaxDepth = Settings.MaxDepth;
+    Selection.BranchesPerTarget = Settings.BranchesPerTarget;
+    Selection.Radius = Settings.JumpRadius;
     for (int32 Index = 0; Index < Queue.Num() && Index < 128; ++Index)
     {
         if (bStopped || Owner.IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
@@ -115,11 +138,8 @@ bool UAbilityForkedChainNodeExecution::Start(UAbilityGraphInstance& Owner, const
         Segment.Start = Entry.From;
         Segment.End = Position;
         Segments.Add(Segment);
-        auto Params = Input.DamageParams;
-        Params.DebuffChance = 0.f;
-        Params.bIsRadialDamage = false;
-        const auto Result = AbilityDamageService::Apply(Input.SourceToken, Entry.Target, Params,
-                                                        FMath::Pow(Settings.DamageFalloff, Entry.Depth));
+        const auto Result = AbilityLightningActions::ApplyHit(Input.SourceToken, Entry.Target, Input.DamageParams,
+                                                              FMath::Pow(Settings.DamageFalloff, Entry.Depth));
         if (bStopped || Owner.IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
         {
             return true;
@@ -129,36 +149,27 @@ bool UAbilityForkedChainNodeExecution::Start(UAbilityGraphInstance& Owner, const
             return true;
         }
         // 保持原查询顺序与先伤害后扩展的BFS语义；致死位置仍可继续分叉，但不得复活原目标令牌。
-        const auto Next = PureMassCombat::Gather(Input.SourceToken.World.Get(), Caster, Position, Radius);
-        int32 Siblings = 0;
+        const auto Next = AbilityForkedPropagationService::SelectChildren(
+            Input.SourceToken, Position, Entry.Depth + 1, Visited.Num(), Selection,
+            [&](const auto& Candidate)
+            {
+                return Visited.Contains(Candidate);
+            },
+            [](const auto&)
+            {
+                return false;
+            });
         for (const auto& Candidate : Next)
         {
-            if (!FBatch6ChainBudget::Allows(Visited.Num(), Entry.Depth + 1, Siblings, Settings.MaxTargets,
-                                            Settings.MaxDepth, Settings.BranchesPerTarget))
-            {
-                break;
-            }
-            FVector Location;
-            FAbilityTargetToken Token;
-            FString CaptureError;
-            if (Visited.Contains(Candidate) ||
-                !PureMassCombat::Resolve(Input.SourceToken.World.Get(), Caster, Candidate, Location) ||
-                FVector::DistSquared(Position, Location) > FMath::Square(Radius) ||
-                !PureMassCombat::Visible(Input.SourceToken.World.Get(), Caster, Position, Candidate) ||
-                !AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Candidate, Token, CaptureError))
-            {
-                continue;
-            }
-            Visited.Add(Candidate);
-            Queue.Add({Token, Position, Entry.Depth + 1});
-            ++Siblings;
+            Visited.Add(Candidate.Target.Target);
+            Queue.Add({Candidate.Target, Position, Entry.Depth + 1});
         }
     }
     if (bStopped || Owner.IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
     {
         return true;
     }
-    PresentLightning(*Caster, Input.Origin, Settings.BeamSystem, MoveTemp(Segments));
+    AbilityLightningActions::Present(*Caster, Input.Origin, Settings.BeamSystem, MoveTemp(Segments));
     return Owner.Publish(Id, TEXT("Completed"), Input);
 }
 /** 校验目标预算、查询半径和伤害倍率，避免无界分支或非有限数值。 */
@@ -189,19 +200,32 @@ bool UAbilitySequentialChainNodeConfig::Validate(FString& Error) const
 
 /** 先按中心距离排序，再捕获符合光束起点遮挡规则的原生命。 */
 TArray<FAbilityTargetToken> UAbilityLightningNodeExecution::FindTargets(AActor& Caster, FVector Center, FVector From,
-                                                                       int32 Limit) const
+                                                                        int32 Limit) const
+{
+    return AbilityLightningActions::FindTargets(Input.SourceToken, Center, From, Settings->JumpRadius, Visited, Limit);
+}
+
+TArray<FAbilityTargetToken> AbilityLightningActions::FindTargets(const FAbilitySourceToken& Source, FVector Center,
+                                                                 FVector From, float Radius,
+                                                                 const TSet<FPureMassCombatTarget>& Visited,
+                                                                 int32 Limit)
 {
     struct FCandidate
     {
         FPureMassCombatTarget Target;
         double DistanceSquared = 0.;
     };
-    UWorld* World = Caster.GetWorld();
+    AActor* Caster = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Caster))
+    {
+        return {};
+    }
+    UWorld* World = Source.World.Get();
     TArray<FCandidate> Candidates;
-    for (const auto& Target : PureMassCombat::Gather(World, &Caster, Center, Settings->JumpRadius))
+    for (const auto& Target : PureMassCombat::Gather(World, Caster, Center, Radius))
     {
         FVector Position;
-        if (!Visited.Contains(Target) && PureMassCombat::Resolve(World, &Caster, Target, Position))
+        if (!Visited.Contains(Target) && PureMassCombat::Resolve(World, Caster, Target, Position))
         {
             Candidates.Add({Target, FVector::DistSquared(Center, Position)});
         }
@@ -220,8 +244,8 @@ TArray<FAbilityTargetToken> UAbilityLightningNodeExecution::FindTargets(AActor& 
         }
         FAbilityTargetToken Token;
         FString Error;
-        if (PureMassCombat::Visible(World, &Caster, From, Candidate.Target) &&
-            AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Candidate.Target, Token, Error))
+        if (PureMassCombat::Visible(World, Caster, From, Candidate.Target) &&
+            AbilityExecutionIdentity::CaptureTarget(Source, Candidate.Target, Token, Error))
         {
             Targets.Add(Token);
         }
@@ -231,7 +255,7 @@ TArray<FAbilityTargetToken> UAbilityLightningNodeExecution::FindTargets(AActor& 
 
 /** 重验已捕获的目标；伤害可同步结束施法，之后必须重新检查执行状态。 */
 bool UAbilityLightningNodeExecution::Hit(const FAbilityTargetToken& Target, FVector From, float Scale,
-                                        TArray<FBatch6ChainSegment>& Segments)
+                                         TArray<FBatch6ChainSegment>& Segments)
 {
     auto* Owner = GraphOwner.Get();
     FVector Position;
@@ -246,10 +270,7 @@ bool UAbilityLightningNodeExecution::Hit(const FAbilityTargetToken& Target, FVec
     }
     Visited.Add(Target.Target);
     LastImpact = Position;
-    auto Params = Input.DamageParams;
-    Params.DebuffChance = 0.f;
-    Params.bIsRadialDamage = false;
-    const auto Result = AbilityDamageService::Apply(Input.SourceToken, Target, Params, Scale);
+    const auto Result = AbilityLightningActions::ApplyHit(Input.SourceToken, Target, Input.DamageParams, Scale);
     AActor* Caster = nullptr;
     if (bStopped || Owner->IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Caster))
     {
@@ -260,8 +281,8 @@ bool UAbilityLightningNodeExecution::Hit(const FAbilityTargetToken& Target, FVec
 }
 
 bool UAbilityLightningNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
-                                          const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput,
-                                          FString& Error)
+                                           const UAbilityNodeConfig& Config, const FAbilityNodeInput& InInput,
+                                           FString& Error)
 {
     if (!Super::Start(Owner, Id, Config, InInput, Error))
     {
@@ -299,7 +320,8 @@ bool UAbilityLightningNodeExecution::Start(UAbilityGraphInstance& Owner, const F
             return true;
         }
     }
-    PresentLightning(*Caster, From, Settings->BeamSystem, MoveTemp(Segments), Sequential ? 0.35f : 1.5f);
+    AbilityLightningActions::Present(*Caster, From, Settings->BeamSystem, MoveTemp(Segments),
+                                     Sequential ? 0.35f : 1.5f);
     if (Sequential && Visited.Num() < Settings->MaxTargets)
     {
         TimeUntilJump = Sequential->JumpDelay;
@@ -339,7 +361,7 @@ void UAbilityLightningNodeExecution::Advance(float DeltaSeconds)
     {
         return;
     }
-    PresentLightning(*Caster, From, Settings->BeamSystem, MoveTemp(Segments), 0.35f);
+    AbilityLightningActions::Present(*Caster, From, Settings->BeamSystem, MoveTemp(Segments), 0.35f);
     if (Visited.Num() >= Settings->MaxTargets)
     {
         Owner->Publish(InvocationId, TEXT("Completed"), Input);
@@ -358,40 +380,18 @@ bool UAbilityAreaPetrifyNodeExecution::Start(UAbilityGraphInstance& Owner, const
         return false;
     }
     const auto& Settings = *CastChecked<UAbilityAreaPetrifyNodeConfig>(&Config);
-    AActor* Source = nullptr;
-    if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Source))
+    TArray<FAbilityTargetToken> CapturedTargets;
+    if (!AbilityPetrifyFragments::Gather(Input.SourceToken, Input.Origin, Settings.Radius, CapturedTargets, Error))
     {
-        Error = TEXT("Area petrify source is invalid.");
         return false;
     }
-    const auto Targets = PureMassCombat::Gather(Input.SourceToken.World.Get(), Source, Input.Origin, Settings.Radius);
-    TArray<FAbilityTargetToken> CapturedTargets;
-    for (const auto& Target : Targets)
+    if (!AbilityPetrifyFragments::Apply(Input.SourceToken, CapturedTargets, Settings.Duration, Settings.StoneMaterial,
+                                        [&]()
+                                        {
+                                            return !bStopped && !Owner.IsFinished();
+                                        }))
     {
-        if ((Target.IsActor() && !Cast<AEnemyCharacter>(Target.Actor.Get())) ||
-            !PureMassCombat::Visible(Input.SourceToken.World.Get(), Source, Input.Origin, Target))
-        {
-            continue;
-        }
-        FAbilityTargetToken Token;
-        FString CaptureError;
-        if (AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Target, Token, CaptureError))
-        {
-            CapturedTargets.Add(Token);
-        }
-    }
-    // 首个状态可同步取消其它GA或触发生命变化；先固定整次查询的身份，逐目标重验后才施加。
-    for (const auto& Target : CapturedTargets)
-    {
-        if (bStopped || Owner.IsFinished() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Source))
-        {
-            return true;
-        }
-        FVector Location;
-        if (AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Target, Location))
-        {
-            AbilityStatusService::ApplyPetrify(Source, Target.Target, Settings.Duration, Settings.StoneMaterial);
-        }
+        return true;
     }
     return Owner.Publish(Id, TEXT("Completed"), Input);
 }
@@ -412,6 +412,8 @@ void AbilityBatch6Nodes::Register(FAbilityNodeRegistry& Registry)
     FAbilityNodeDescriptor Sequential = Volley;
     Sequential.TypeId = TEXT("Delivery.SequentialChain");
     Sequential.ConfigClass = UAbilitySequentialChainNodeConfig::StaticClass();
+    // 首击可致死；该策略持有历史落点，并在每跳独立重验新目标，不能由首目标的后续存活控制整链。
+    Sequential.bOwnsTargetTracking = true;
     FAbilityNodeDescriptor Petrify;
     Petrify.TypeId = TEXT("Status.PetrifyArea");
     Petrify.ConfigClass = UAbilityAreaPetrifyNodeConfig::StaticClass();

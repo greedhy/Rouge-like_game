@@ -17,20 +17,25 @@
 #include "EngineUtils.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Unified/AbilityBehaviorPrimitives.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace
 {
-    /** Compare captured identities without requiring a live target: a lethal threshold hit still belongs to its old life. */
-    bool SameCapturedTargetLife(const UPrototypeCastContext& Previous, const UPrototypeCastContext& Current,
-                                const FPureMassCombatTarget& Target)
+    /** 已移出 UPROPERTY 数组的记录仍须经得起后继/释放回调中的 GC；两类对象各自保活至全部回调结束。 */
+    struct FRetiredStack
     {
-        const auto* PreviousLife = Previous.FindTargetLife(Target);
-        const auto* CurrentLife = Current.FindTargetLife(Target);
-        return PreviousLife && CurrentLife && PreviousLife->World == CurrentLife->World &&
-               PreviousLife->Target == CurrentLife->Target && PreviousLife->ActorLease == CurrentLife->ActorLease &&
-               PreviousLife->MassEntity == CurrentLife->MassEntity &&
-               PreviousLife->DungeonRunId == CurrentLife->DungeonRunId;
-    }
+        FExtensionStackState State;
+        EExtensionStackReleaseReason Reason;
+        TStrongObjectPtr<UPrototypeCastContext> ContextGuard;
+        TStrongObjectPtr<UObject> SourceGuard;
+
+        FRetiredStack(FExtensionStackState&& InState, EExtensionStackReleaseReason InReason)
+            : State(MoveTemp(InState)), Reason(InReason), ContextGuard(State.Context.Get()),
+              SourceGuard(State.RetainedSource.Get())
+        {
+        }
+    };
 
     /** Match the engine removal operation on the exact owned source. This also works after source/target life expires. */
     void ReleaseOwnedRootMotion(FExtensionMoveState& Move)
@@ -43,6 +48,150 @@ namespace
     }
 } // namespace
 
+bool FExtensionStackSettings::Validate(FString& Error) const
+{
+    Error.Reset();
+    if (EffectId.IsNone() || Threshold < 1 || Threshold > 16 || !FMath::IsFinite(Lifetime) || Lifetime < .1f ||
+        Lifetime > 60.f || !FMath::IsFinite(DetonationDelay) || DetonationDelay < 0.f || DetonationDelay > 10.f)
+    {
+        Error = TEXT("Stack requires an effect identity, 1-16 layers, lifetime in [0.1,60] and delay in [0,10].");
+    }
+    return Error.IsEmpty();
+}
+
+FGuid UExtensionWorldSubsystem::AddStackShared(const FExtensionStackRequest& Request, FString& Error)
+{
+    Error.Reset();
+    auto* Context = Request.Context;
+    if (bShuttingDown || !GetWorld() || GetWorld()->GetNetMode() == NM_Client || !CasterAlive(Context) ||
+        !Request.Settings.Validate(Error) || Context->DetonatedEffects.Contains(Request.Settings.EffectId) ||
+        !Request.TargetLife.Target.IsSet() || Request.TargetLife.World.Get() != GetWorld() ||
+        Request.TargetLife.DungeonRunId != Context->GetSourceLife().DungeonRunId || Request.Position.ContainsNaN() ||
+        Request.Direction.ContainsNaN() || Request.Depth < 0 ||
+        (!Request.TargetLife.Target.IsActor() && !Request.TargetLife.MassEntity.IsSet()))
+    {
+        if (Error.IsEmpty())
+        {
+            Error =
+                TEXT("Stack requires a current server source, captured target life and an unused effect in this cast.");
+        }
+        return {};
+    }
+    FVector Position = Request.Position;
+    FVector LivePosition;
+    if (AbilityExecutionIdentity::ResolveTarget(Context->GetSourceLife(), Request.TargetLife, LivePosition))
+    {
+        Position = LivePosition;
+    }
+    else if (!Request.bConfirmedHit)
+    {
+        Error = TEXT("Only a confirmed server hit may add a stack after its captured target life has ended.");
+        return {};
+    }
+    // ResolveTarget 失败会清空输出；已确认的致死命中必须保留请求中的历史位置。
+    auto* State = Stacks.FindByPredicate(
+        [&](const FExtensionStackState& Current)
+        {
+            return Current.Context && Current.Context->Caster == Context->Caster &&
+                   Current.Settings.EffectId == Request.Settings.EffectId && CasterAlive(Current.Context) &&
+                   AbilityBehaviorPrimitives::SameTargetLife(Current.TargetLife, Request.TargetLife);
+        });
+    if (State && State->bPending)
+    {
+        Error = TEXT("Threshold is already pending for this effect and captured target life.");
+        return {};
+    }
+    if (!State)
+    {
+        if (Stacks.Num() >= 256)
+        {
+            Error = TEXT("Extension stack capacity reached.");
+            return {};
+        }
+        State = &Stacks.AddDefaulted_GetRef();
+        State->VisualId = NextVisualId++;
+    }
+    TStrongObjectPtr<UPrototypeCastContext> PreviousContext(State->Context.Get());
+    TStrongObjectPtr<UObject> PreviousSource(State->RetainedSource.Get());
+    auto PreviousRelease = MoveTemp(State->OnReleased);
+    const FGuid Lease = FGuid::NewGuid();
+    State->Context = Context;
+    State->RetainedSource = Request.RetainedSource;
+    State->Settings = Request.Settings;
+    State->TargetLife = Request.TargetLife;
+    State->Lease = Lease;
+    State->Position = Position;
+    State->Direction = Request.Direction;
+    State->Depth = Request.Depth;
+    State->OnThreshold = Request.OnThreshold;
+    State->OnReleased = Request.OnReleased;
+    State->CancellationVersion = CancellationVersions.FindRef(Context->Caster);
+    ++State->Layers;
+    State->bPending = State->Layers >= Request.Settings.Threshold;
+    State->Remaining = State->bPending ? Request.Settings.DetonationDelay : Request.Settings.Lifetime;
+    // 最新数值/Context 已全部提交后才释放旧等待者；回调可重入，返回时不能再次访问数组内指针。
+    if (PreviousRelease)
+    {
+        PreviousRelease(EExtensionStackReleaseReason::Replaced);
+    }
+    return Lease;
+}
+
+bool UExtensionWorldSubsystem::CancelStack(FGuid Lease)
+{
+    if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client || !Lease.IsValid())
+    {
+        return false;
+    }
+    const int32 Index = Stacks.IndexOfByPredicate(
+        [Lease](const FExtensionStackState& State)
+        {
+            return State.Lease == Lease;
+        });
+    if (Index == INDEX_NONE)
+    {
+        return false;
+    }
+    FRetiredStack Retired(MoveTemp(Stacks[Index]), EExtensionStackReleaseReason::Cancelled);
+    Stacks.RemoveAtSwap(Index);
+    if (Retired.State.OnReleased)
+    {
+        Retired.State.OnReleased(Retired.Reason);
+    }
+    return true;
+}
+
+bool UExtensionWorldSubsystem::IsDisplacementActive(FGuid Token) const
+{
+    return Token.IsValid() && Moves.ContainsByPredicate(
+                                  [Token](const FExtensionMoveState& Move)
+                                  {
+                                      return Move.Token == Token && Move.Remaining > 0.f;
+                                  });
+}
+
+bool UExtensionWorldSubsystem::CancelDisplacement(FGuid Token)
+{
+    if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client || !Token.IsValid())
+    {
+        return false;
+    }
+    const int32 Index = Moves.IndexOfByPredicate(
+        [Token](const FExtensionMoveState& Move)
+        {
+            return Move.Token == Token;
+        });
+    if (Index == INDEX_NONE)
+    {
+        return false;
+    }
+    auto Retired = MoveTemp(Moves[Index]);
+    Moves.RemoveAtSwap(Index);
+    Replaced.Add(Token, GetWorld()->GetTimeSeconds() + 60.f);
+    ReleaseOwnedRootMotion(Retired);
+    return true;
+}
+
 /** 引擎子系统创建筛选：只支持 Game/PIE，避免编辑器预览世界维护战斗状态。 */
 bool UExtensionWorldSubsystem::DoesSupportWorldType(EWorldType::Type T) const
 {
@@ -53,6 +202,7 @@ void UExtensionWorldSubsystem::CancelCasterEffects(AActor* Caster)
 {
     if (!Caster || GetWorld()->GetNetMode() == NM_Client)
         return;
+    ++CancellationVersions.FindOrAdd(Caster);
     for (auto& S : Stacks)
         if (S.Context && S.Context->Caster == Caster)
             S.Context->bCancelled = true;
@@ -82,7 +232,7 @@ bool UExtensionWorldSubsystem::CasterAlive(UPrototypeCastContext* C)
 int32 UExtensionWorldSubsystem::LayersFor(AActor* Caster, FName Id, FPureMassCombatTarget T) const
 {
     for (const auto& S : Stacks)
-        if (S.Context->Caster == Caster && S.Node->EffectId == Id && S.Target == T)
+        if (S.Context && S.Context->Caster == Caster && S.Settings.EffectId == Id && S.TargetLife.Target == T)
             return S.Layers;
     return 0;
 }
@@ -99,105 +249,129 @@ bool UExtensionWorldSubsystem::AddStack(UPrototypeCastContext* C, UExtensionNode
         P = LivePosition;
     else if (!ConfirmedHit)
         return false; // Only a server-confirmed hit can carry a lethal snapshot.
-    FExtensionStackState* S = Stacks.FindByPredicate(
-        [&](const auto& V)
-        {
-            return V.Context && V.Node && V.Context->Caster == C->Caster && V.Node->EffectId == N->EffectId &&
-                   V.Target == T && CasterAlive(V.Context) && SameCapturedTargetLife(*V.Context, *C, T);
-        });
-    if (S && S->bPending)
+    const auto* TargetLife = C->FindTargetLife(T);
+    if (!TargetLife)
+    {
         return false;
-    if (!S)
+    }
+    FExtensionStackRequest Request;
+    Request.Context = C;
+    Request.RetainedSource = N;
+    Request.Settings.EffectId = N->EffectId;
+    Request.Settings.Threshold = N->StackThreshold;
+    Request.Settings.Lifetime = N->StackLifetime;
+    Request.Settings.DetonationDelay = N->DetonationDelay;
+    Request.TargetLife = *TargetLife;
+    Request.Position = P;
+    Request.Direction = D;
+    Request.Depth = Depth;
+    Request.bConfirmedHit = ConfirmedHit;
+    Request.OnThreshold = [N, Admission = MoveTemp(ChildAdmission)](const FExtensionStackTrigger& Trigger)
     {
-        if (Stacks.Num() >= 256)
+        if (Admission)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Extension stack capacity reached"));
-            return false;
+            FLegacyAbilityChildRequest Child;
+            Child.Event = TEXT("OnExpire");
+            Child.Config = N->CompleteChild;
+            Child.Context = Trigger.Context;
+            Child.Position = Trigger.Position;
+            Child.Direction = Trigger.Direction;
+            Child.EventCenter = Trigger.Position;
+            Child.Depth = Trigger.Depth + 1;
+            Admission(Child);
         }
-        S = &Stacks.AddDefaulted_GetRef();
-        S->Target = T;
-        S->VisualId = NextVisualId++;
-    }
-    // 下一次叠层继承数值，执行所有权转给新施法。先移动旧回调，避免同步回调触及正在填写的数组元素。
-    TFunction<void()> PreviousRelease = MoveTemp(S->ReleasedCallback);
-    S->ChildAdmission = MoveTemp(ChildAdmission);
-    S->ReleasedCallback = MoveTemp(ReleasedCallback);
-    S->Context = C;
-    S->Node = N;
-    S->Position = P;
-    S->Direction = D;
-    S->Depth = Depth;
-    ++S->Layers;
-    S->bPending = S->Layers >= N->StackThreshold;
-    S->Remaining = S->bPending ? N->DetonationDelay : N->StackLifetime;
-    if (PreviousRelease)
+        else
+        {
+            AExtensionRuntime::Spawn(Trigger.Context, N->CompleteChild, Trigger.Position, Trigger.Direction, {},
+                                     Trigger.Depth + 1, Trigger.Position);
+        }
+    };
+    Request.OnReleased = [Release = MoveTemp(ReleasedCallback)](EExtensionStackReleaseReason)
     {
-        PreviousRelease();
-    }
-    return true;
+        if (Release)
+        {
+            Release();
+        }
+    };
+    FString Error;
+    return AddStackShared(Request, Error).IsValid();
 }
 /** 服务器逐帧过期清理；先移出待引爆记录再生成子节点以避免重入失效；清理根运动/替换令牌，并更新复制表现快照。 */
 void UExtensionWorldSubsystem::Tick(float Delta)
 {
-    if (GetWorld()->GetNetMode() == NM_Client)
+    if (bShuttingDown || GetWorld()->GetNetMode() == NM_Client || !FMath::IsFinite(Delta) || Delta < 0.f)
         return;
-    TArray<FExtensionStackState> Detonations;
-    TArray<TFunction<void()>> Releases;
+    TArray<FRetiredStack> RetiredStacks;
     for (int32 I = Stacks.Num() - 1; I >= 0; --I)
     {
         auto& S = Stacks[I];
         if (!CasterAlive(S.Context))
         {
-            if (S.ReleasedCallback)
-            {
-                Releases.Add(MoveTemp(S.ReleasedCallback));
-            }
+            const auto Reason = S.Context && S.Context->bCancelled ? EExtensionStackReleaseReason::Cancelled
+                                                                   : EExtensionStackReleaseReason::SourceInvalid;
+            RetiredStacks.Emplace(MoveTemp(S), Reason);
             Stacks.RemoveAtSwap(I);
             continue;
         }
         FVector P;
-        bool Alive = S.Context->ResolveTargetLife(S.Target, P);
+        const bool Alive = AbilityExecutionIdentity::ResolveTarget(S.Context->GetSourceLife(), S.TargetLife, P);
         if (Alive)
             S.Position = P;
         S.Remaining -= Delta;
         if (S.Remaining <= 0 || !Alive)
         {
-            if (S.bPending)
-                Detonations.Add(S);
-            else if (S.ReleasedCallback)
-                Releases.Add(MoveTemp(S.ReleasedCallback));
+            const auto Reason = S.bPending ? EExtensionStackReleaseReason::Triggered
+                                : Alive    ? EExtensionStackReleaseReason::Expired
+                                           : EExtensionStackReleaseReason::TargetLost;
+            RetiredStacks.Emplace(MoveTemp(S), Reason);
             Stacks.RemoveAtSwap(I);
         }
     }
-    // Remove records before callbacks; children may add new records.
-    for (auto& S : Detonations)
+    // 所有记录先离开共享数组，并各自强保活，再发布阈值；子图可以重入叠层，也可以触发 GC。
+    for (auto& Retired : RetiredStacks)
     {
-        S.Context->DetonatedEffects.Add(S.Node->EffectId);
-        if (S.ChildAdmission)
+        auto& S = Retired.State;
+        if (Retired.Reason != EExtensionStackReleaseReason::Triggered)
         {
-            FLegacyAbilityChildRequest Request;
-            Request.Event = TEXT("OnExpire");
-            Request.Config = S.Node->CompleteChild;
-            Request.Context = S.Context;
-            Request.Position = S.Position;
-            Request.Direction = S.Direction;
-            Request.EventCenter = S.Position;
-            Request.Depth = S.Depth + 1;
-            S.ChildAdmission(Request);
+            continue;
         }
-        else
+        if (bShuttingDown || !GetWorld() || GetWorld()->bIsTearingDown)
         {
-            AExtensionRuntime::Spawn(S.Context, S.Node->CompleteChild, S.Position, S.Direction, {}, S.Depth + 1,
-                                     S.Position);
+            Retired.Reason = EExtensionStackReleaseReason::WorldEnded;
+            continue;
         }
-        if (S.ReleasedCallback)
+        if (S.Context->bCancelled || S.CancellationVersion != CancellationVersions.FindRef(S.Context->Caster))
         {
-            Releases.Add(MoveTemp(S.ReleasedCallback));
+            Retired.Reason = EExtensionStackReleaseReason::Cancelled;
+            continue;
+        }
+        if (!CasterAlive(S.Context))
+        {
+            Retired.Reason = EExtensionStackReleaseReason::SourceInvalid;
+            continue;
+        }
+        S.Context->DetonatedEffects.Add(S.Settings.EffectId);
+        if (S.OnThreshold)
+        {
+            FExtensionStackTrigger Trigger;
+            Trigger.Lease = S.Lease;
+            Trigger.Source = S.Context->GetSourceLife();
+            Trigger.TargetLife = S.TargetLife;
+            Trigger.Position = S.Position;
+            Trigger.Direction = S.Direction;
+            Trigger.Context = S.Context;
+            Trigger.RetainedSource = S.RetainedSource;
+            Trigger.Depth = S.Depth;
+            S.OnThreshold(Trigger);
         }
     }
-    for (auto& Release : Releases)
+    // 保留旧流程“全部阈值先于等待者释放”的顺序；取消的记录不会伪装为正常阈值。
+    for (auto& Retired : RetiredStacks)
     {
-        Release();
+        if (Retired.State.OnReleased)
+        {
+            Retired.State.OnReleased(Retired.Reason);
+        }
     }
     for (int32 I = Moves.Num() - 1; I >= 0; --I)
     {
@@ -217,6 +391,13 @@ void UExtensionWorldSubsystem::Tick(float Delta)
     for (auto It = Replaced.CreateIterator(); It; ++It)
         if (It.Value() < GetWorld()->GetTimeSeconds())
             It.RemoveCurrent();
+    for (auto It = CancellationVersions.CreateIterator(); It; ++It)
+    {
+        if (!It.Key().IsValid())
+        {
+            It.RemoveCurrent();
+        }
+    }
     if (!Stacks.IsEmpty() && !IsValid(Presentation))
         Presentation = GetWorld()->SpawnActor<AExtensionPresentation>();
     if (Presentation)
@@ -277,7 +458,7 @@ FGuid UExtensionWorldSubsystem::RequestDisplacement(UPrototypeCastContext* C, UE
                                                     FPureMassCombatTarget T, FVector Center, FVector Direction)
 {
     FVector P;
-    if (GetWorld()->GetNetMode() == NM_Client || !CasterAlive(C) || !N || !N->ValidateGraph() ||
+    if (bShuttingDown || GetWorld()->GetNetMode() == NM_Client || !CasterAlive(C) || !N || !N->ValidateGraph() ||
         !C->ResolveTargetLife(T, P))
         return {};
     float Radius = 20, HalfHeight = 40, Scale = 1;
@@ -401,16 +582,22 @@ void UExtensionWorldSubsystem::MoveMass(FPureMassFragment& F, float Delta)
 /** 世界退出：移除所有记录的 Actor RootMotionSource，清空叠层/移动/令牌并销毁 Presentation，最后调用父类。 */
 void UExtensionWorldSubsystem::Deinitialize()
 {
-    auto RetiredStacks = MoveTemp(Stacks);
-    for (auto& Stack : RetiredStacks)
+    bShuttingDown = true;
+    TArray<FRetiredStack> RetiredStacks;
+    for (auto& Stack : Stacks)
     {
         if (Stack.Context)
         {
             Stack.Context->bCancelled = true;
         }
-        if (Stack.ReleasedCallback)
+        RetiredStacks.Emplace(MoveTemp(Stack), EExtensionStackReleaseReason::WorldEnded);
+    }
+    Stacks.Reset();
+    for (auto& Stack : RetiredStacks)
+    {
+        if (Stack.State.OnReleased)
         {
-            Stack.ReleasedCallback();
+            Stack.State.OnReleased(Stack.Reason);
         }
     }
     for (auto& M : Moves)
@@ -418,6 +605,7 @@ void UExtensionWorldSubsystem::Deinitialize()
     Moves.Reset();
     Stacks.Reset();
     Replaced.Reset();
+    CancellationVersions.Reset();
     if (IsValid(Presentation))
         Presentation->Destroy();
     Presentation = nullptr;

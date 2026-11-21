@@ -69,6 +69,14 @@ protected:
         OnRep_Presentation();
     }
     virtual void ApplyConfig();
+    // 子类可接管某个生效阶段的本地表现，默认继续播放原 Niagara。
+    virtual bool PlayAttackPresentation(const FStoneGolemPresentation&)
+    {
+        return false;
+    }
+    virtual void StopAttackPresentation()
+    {
+    }
 
 private:
     void ClearImpact();

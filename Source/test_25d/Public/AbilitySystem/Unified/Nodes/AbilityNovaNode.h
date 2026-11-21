@@ -43,5 +43,14 @@ namespace AbilityNovaNodes
 {
     /** 保留原 Actor 中心距离、敌友、存活和 ASC 条件；不加入 LOS 或目标数量上限。 */
     TEST_25D_API void GatherActorTargets(AActor* Source, const FVector& Center, float Radius, TArray<AActor*>& Out);
+    /** 原整体适配器与细节点共用：装备只解析一次，整批生命先捕获，再发原攻击报告。 */
+    TEST_25D_API bool PrepareTargets(UAbilityGraphInstance& Owner, const UAbilityNovaNodeConfig& Settings,
+                                     const FAbilityNodeInput& Input, FAbilityNodeInput& OutPrepared, FString& Error);
+    /** 只结算已捕获批次；保留原新星冲量和逐目标结果事件，不重新查询。 */
+    TEST_25D_API void ApplyPreparedDamage(UAbilityGraphInstance& Owner, const FGuid& Invocation,
+                                          const FAbilityNodeInput& Input,
+                                          const FAbilityNodeInput* ResultInput = nullptr);
+    /** 伤害阶段之后执行脚底Cue，半径来自已冻结的准备结果。 */
+    TEST_25D_API void PlayPreparedCue(const FAbilityNodeInput& Input, FGameplayTag CueTag);
     TEST_25D_API void Register(FAbilityNodeRegistry& Registry);
 } // namespace AbilityNovaNodes

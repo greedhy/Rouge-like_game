@@ -89,6 +89,7 @@ FMyGameplayTags FMyGameplayTags::BuildTagSnapshot(bool bRegisterNativeTags)
     Snapshot.InputTag_Backpack = ResolveTag(TEXT("InputTag.Backpack"));
     Snapshot.InputTag_Pickup = ResolveTag(TEXT("InputTag.Pickup"));
     Snapshot.InputTag_Dodge = ResolveTag(TEXT("InputTag.Dodge"));
+    Snapshot.InputTag_DeveloperRecipe = ResolveTag(TEXT("InputTag.DeveloperRecipe"));
 
     Snapshot.InputTag_Passive_1 = ResolveTag(TEXT("InputTag.Passive.1"));
     Snapshot.InputTag_Passive_2 = ResolveTag(TEXT("InputTag.Passive.2"));

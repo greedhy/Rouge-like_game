@@ -8,13 +8,14 @@
 #include "Equipment/EquipmentComponent.h"
 #include "Equipment/WeaponSetConfig.h"
 
-bool USpellMenuWidgetController::IsSelectedWeaponAbility()
+bool USpellMenuWidgetController::IsSelectedWeaponAbility(FGameplayTag RequestedAbility)
 {
+    const FGameplayTag Identity = RequestedAbility.IsValid() ? RequestedAbility : SelectedAbility.Ability;
     const auto* Set = GetCurrentWeaponSet();
     if (Set)
         for (const auto& Entry : Set->Abilities)
             if (Entry.Ability && Entry.Ability->GetDefaultObject<UGameplayAbility>()->GetAssetTags().HasTagExact(
-                                     SelectedAbility.Ability))
+                                     Identity))
                 return true;
     return false;
 }
@@ -28,7 +29,8 @@ UWeaponSetConfig* USpellMenuWidgetController::GetCurrentWeaponSet()
 void USpellMenuWidgetController::BroadcastInitialValues()
 {
     BroadcastAbilityInfo();
-    SpellPointsChanged.Broadcast(GetMyPS()->GetSpellPoints());
+    CurrentSpellPoints = GetMyPS()->GetSpellPoints();
+    SpellPointsChanged.Broadcast(CurrentSpellPoints);
 }
 
 void USpellMenuWidgetController::BindCallbacksToDependencies()
@@ -84,6 +86,13 @@ void USpellMenuWidgetController::BindCallbacksToDependencies()
 
 void USpellMenuWidgetController::SpellGlobeSelected(const FGameplayTag& AbilityTag)
 {
+    if (!AbilityInfo || (!IsSelectedWeaponAbility(AbilityTag) &&
+                        !AbilityInfo->CanLearn(AbilityTag, GetMyASC()->GetAvatarActor())))
+    {
+        // 新选择必须在当前职业目录里，不能沿用上一次选中的合法技能。
+        GlobeDeselect();
+        return;
+    }
     if (bWaitingForEquipSelection)
     {
         const FGameplayTag SelectedAbilityType = AbilityInfo->FindAbilityInfoForTag(AbilityTag).AbilityType;

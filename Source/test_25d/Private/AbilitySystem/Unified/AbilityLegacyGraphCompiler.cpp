@@ -213,7 +213,7 @@ UAbilityGraphInstance* UAbilityLegacyGraphCompiler::Execute(UAbilityGraphDefinit
     auto* Instance = NewObject<UAbilityGraphInstance>(World);
     FAbilityExecutionOptions Options;
     Options.CompatibilityProfile = Graph->CompatibilityProfile;
-    Options.BudgetPolicy = EAbilityGraphBudgetPolicy::LegacyStreaming;
+    Options.BudgetPolicy = Graph->BudgetPolicy;
     Options.Lifetime = EAbilityExecutionLifetime::IndependentCastEffect;
     if (!Instance->StartWithInput(Graph, Input, Options, Error) || !Owner->Adopt(Instance, Error))
     {

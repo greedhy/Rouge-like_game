@@ -1,6 +1,7 @@
 // 调用链：GAS Commit -> Shape.ArcaneNova 捕获目标生命 -> 原目标报告 -> 共享伤害/Cue -> End。
 #include "AbilitySystem/Ability/MyArcaneNova.h"
 #include "AbilitySystem/Unified/Nodes/AbilityNovaNode.h"
+#include "AbilitySystem/Unified/Nodes/AbilityNovaFragmentNodes.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -20,6 +21,21 @@ UMyArcaneNova::UMyArcaneNova()
     KnockbackChance = 0.f;
     KnockbackForceMagnitude = 0.f;
     bIsRadialDamage = false;
+}
+
+UAbilityGraphDefinition* UMyArcaneNova::BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const
+{
+    Error.Reset();
+    const TStrongObjectPtr<UAbilityNovaNodeConfig> ConfigGuard(NewObject<UAbilityNovaNodeConfig>());
+    auto* Config = ConfigGuard.Get();
+    Config->Radius = NovaRadius;
+    Config->CueTag = NovaCueTag;
+    const auto AbilityTag = FMyGameplayTags::Get().Abilities_Arcane_ArcaneNova;
+    if (GetAssetTags().HasTagExact(AbilityTag))
+    {
+        Config->EquipmentAbilityTag = AbilityTag;
+    }
+    return AbilityNovaFragments::Build(Outer, *Config);
 }
 
 bool UMyArcaneNova::CanActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -103,6 +119,16 @@ void UMyArcaneNova::ActivateAbility(const FGameplayAbilitySpecHandle Handle, con
         }
     };
     Input.Context = Context;
+    if (GetRuntimeRecipeSnapshot().Graph)
+    {
+        const bool bStarted =
+            StartFrozenRuntimeRecipe(Input, EAbilityExecutionLifetime::IndependentCastEffect, Error) != nullptr;
+        if (IsActive() && GetExecutionSession() == Session)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, !bStarted);
+        }
+        return;
+    }
     auto* Graph = NewObject<UAbilityGraphDefinition>(this);
     Graph->SchemaVersion = 2;
     Graph->CompatibilityProfile = TEXT("UnifiedV2");

@@ -9,6 +9,16 @@ class AMyProjectile;
 class APawn;
 class FAbilityNodeRegistry;
 
+/** 原 FireBolt 通知的调用实参，仅属于本次施法；默认定义不能从 CDO 猜测蓝图插槽/俯仰。 */
+UCLASS(Transient)
+class TEST_25D_API UAbilityActorProjectileContext : public UObject
+{
+    GENERATED_BODY()
+public:
+    bool bOverridePitch = false;
+    float PitchOverride = 0.f;
+};
+
 /** 原投射物配置；配置动作不会提交GA，也不会替代投射物自己的碰撞/伤害实现。 */
 USTRUCT(BlueprintType)
 struct TEST_25D_API FAbilityActorProjectileSettings
@@ -95,6 +105,11 @@ private:
 
 namespace AbilityTraditionalActions
 {
+    /** 原发射与细节点共用：先按等级限制数量，再在局部副本应用一次装备规则；零数量正常无发射。 */
+    TEST_25D_API bool PrepareProjectileLaunch(const FAbilitySourceToken& Source, const FDamageEffectParams& Damage,
+                                              const FAbilityActorProjectileSettings& Settings, float Level,
+                                              FAbilityActorProjectileSettings& OutSettings,
+                                              FDamageEffectParams& OutDamage, int32& OutCount, FString& Error);
     /** 延迟构造前验证原来源；伤害参数和生命令牌在蓝图Construction/BeginPlay前写入。 */
     TEST_25D_API AMyProjectile* CreateProjectileDeferred(const FAbilitySourceToken& Source,
                                                          const FDamageEffectParams& Damage,

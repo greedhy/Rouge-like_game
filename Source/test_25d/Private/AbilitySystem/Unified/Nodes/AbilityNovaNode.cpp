@@ -58,123 +58,21 @@ bool UAbilityNovaNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid&
         return false;
     }
     const auto& Settings = *CastChecked<UAbilityNovaNodeConfig>(&Config);
-    AActor* Avatar = nullptr;
-    if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
+    FAbilityNodeInput Prepared;
+    if (!AbilityNovaNodes::PrepareTargets(Owner, Settings, Input, Prepared, Error))
     {
-        Error = TEXT("Nova source life expired.");
         return false;
     }
-    float Radius = Settings.Radius;
-    FDamageEffectParams ResolvedDamage = Input.DamageParams;
-    int32 ExtraChainTargets = 0;
-    if (!EquipmentAbilityModifiers::ApplySpellRules(Input.SourceToken, Settings.EquipmentAbilityTag, Radius,
-                                                    ResolvedDamage, ExtraChainTargets))
+    if (!bStopped && !Owner.IsFinished())
     {
-        Error = TEXT("Nova equipment parameters failed to resolve.");
-        return false;
+        AbilityNovaNodes::ApplyPreparedDamage(Owner, Id, Prepared, &Input);
     }
-    TArray<AActor*> Actors;
-    AbilityNovaNodes::GatherActorTargets(Avatar, Input.Origin, Radius, Actors);
-    Actors.Sort(
-        [Center = Input.Origin](const AActor& A, const AActor& B)
-        {
-            return FVector::DistSquared(Center, A.GetActorLocation()) <
-                   FVector::DistSquared(Center, B.GetActorLocation());
-        });
-    TArray<FAbilityTargetToken> Targets;
-    for (auto* Actor : Actors)
+    if (!bStopped && !Owner.IsFinished())
     {
-        FAbilityTargetToken Token;
-        FString Ignored;
-        if (AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, FPureMassCombatTarget::FromActor(Actor), Token,
-                                                    Ignored))
-        {
-            Targets.Add(Token);
-        }
-    }
-    if (Settings.bIncludeMass)
-    {
-        for (const auto& Target :
-             PureMassCombat::Gather(Input.SourceToken.World.Get(), Avatar, Input.Origin, Radius))
-        {
-            FAbilityTargetToken Token;
-            FString Ignored;
-            if (!Target.IsActor() && AbilityExecutionIdentity::CaptureTarget(Input.SourceToken, Target, Token, Ignored))
-            {
-                Targets.Add(Token);
-            }
-        }
-    }
-    const TStrongObjectPtr<UAbilityNovaNodeContext> Context(Cast<UAbilityNovaNodeContext>(Input.Context.Get()));
-    if (Context.Get() && Context->BeforeActorDamage)
-    {
-        // 报告可能同步回收任一批次目标或取消本次GA；之后只解析上述令牌，绝不重新查询/捕获。
-        for (const auto& Target : Targets)
-        {
-            if (Target.Target.IsActor())
-            {
-                Context->BeforeActorDamage(Target.Target.Actor.Get());
-                break;
-            }
-        }
-    }
-    if (bStopped || Owner.IsFinished())
-    {
-        return true;
-    }
-    if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
-    {
-        Owner.Cancel(EAbilityGraphEndReason::SourceInvalid);
-        return true;
-    }
-    for (const auto& Target : Targets)
-    {
-        FVector Location;
-        if (bStopped || Owner.IsFinished() ||
-            !AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Target, Location))
-        {
-            continue;
-        }
-        auto Params = ResolvedDamage;
-        Params.bIsRadialDamage = false;
-        Params.KnockbackForce = FVector::ZeroVector;
-        Params.DeathImpulse = (Location - Avatar->GetActorLocation()).GetSafeNormal() * Params.DeathImpulseMagnitude;
-        const auto Result = AbilityDamageService::Apply(Input.SourceToken, Target, Params);
-        if (bStopped || Owner.IsFinished())
-        {
-            return true;
-        }
-        FAbilityNodeInput Payload = Input;
-        FAbilityImpactSnapshot Impact;
-        Impact.Location = Result.ImpactLocation;
-        Impact.ConfirmedTarget = Target;
-        Payload.Impact = Impact;
-        Payload.LiveTargetToken.Reset();
-        Payload.bHasDamageResult = true;
-        Payload.bDamageAttempted = Result.bAttempted;
-        Payload.bKilled = Result.bKilled;
-        Payload.DamageApplied = Result.Applied;
-        Payload.ActualDamage = Result.ActualDamage;
-        Owner.Publish(Id, TEXT("DamageResolved"), Payload);
-    }
-    if (!bStopped && !Owner.IsFinished() && AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
-    {
-        if (Settings.CueTag.IsValid())
-        {
-            FGameplayCueParameters Cue;
-            Cue.Location = Input.Origin;
-            if (const auto* Character = Cast<ACharacter>(Avatar))
-            {
-                Cue.Location.Z -= Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-            }
-            Cue.Normal = FVector::UpVector;
-            Cue.RawMagnitude = Radius;
-            Cue.Instigator = Avatar;
-            Cue.EffectCauser = Avatar;
-            Input.SourceToken.ASC->ExecuteGameplayCue(Settings.CueTag, Cue);
-        }
+        AbilityNovaNodes::PlayPreparedCue(Prepared, Settings.CueTag);
         if (!bStopped && !Owner.IsFinished())
         {
+            // 兼容整体适配器继续使用原输入完成合同；细节点版本另传冻结的空间参数。
             Owner.Publish(Id, TEXT("Completed"), Input);
         }
     }

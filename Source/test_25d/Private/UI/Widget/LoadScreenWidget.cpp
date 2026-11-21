@@ -6,10 +6,12 @@
 #include "Components/Button.h"
 #include "Components/EditableText.h"
 #include "Components/SizeBox.h"
+#include "Components/TextBlock.h"
 #include "Components/WidgetSwitcher.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "MVVMSubsystem.h"
+#include "Styling/CoreStyle.h"
 #include "UI/ViewModel/MVVM_LoadScreen.h"
 #include "UI/ViewModel/MVVM_LoadSlot.h"
 #include "View/MVVMView.h"
@@ -70,6 +72,20 @@ void ULoadScreenWidget::NativeOnInitialized()
     NewSlotButtonWidget = Cast<UUserWidget>(GetWidgetFromName(TEXT("Button_NewSlot")));
     SelectSlotButtonWidget = Cast<UUserWidget>(GetWidgetFromName(TEXT("Button_SelectSlot")));
     NameEntry = Cast<UEditableText>(GetWidgetFromName(TEXT("Text_EnterName")));
+    // 使用内置中文回退字体并保留描边。窄卡片限制字号，给全宽字形留出位置。
+    if (NameEntry)
+    {
+        const FSlateFontInfo OriginalFont = NameEntry->GetFont();
+        NameEntry->SetFont(
+            FCoreStyle::GetDefaultFontStyle("Regular", FMath::Min(OriginalFont.Size, 18.f), OriginalFont.OutlineSettings));
+    }
+    if (auto* NameDisplay = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_PlayerName"))))
+    {
+        const FSlateFontInfo OriginalFont = NameDisplay->GetFont();
+        NameDisplay->SetFont(
+            FCoreStyle::GetDefaultFontStyle("Regular", FMath::Min(OriginalFont.Size, 18.f), OriginalFont.OutlineSettings));
+        NameDisplay->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    }
 
     if (UButton* Button = GetWideButton(PlayButtonWidget))
     {

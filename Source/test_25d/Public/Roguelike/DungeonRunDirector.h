@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Roguelike/DungeonRunModel.h"
 #include "Roguelike/DungeonEnemyPool.h"
+#include "Roguelike/DungeonEliteAffix.h"
 #include "PureMass/PureMassEncounterTypes.h"
 #include "DungeonRunDirector.generated.h"
 
@@ -77,6 +78,8 @@ public:
     static ADungeonRunDirector* Find(const UWorld* World);
     // 检查存活、世界、阶段和房间，仅放行当前遭遇的玩家与敌人交战。
     static bool AllowsCombat(const AActor* Source, const AActor* Target);
+    // 权威端在扣除 Actor 敌人的生命前查询守护词缀。
+    float GetEliteProtectionMultiplier(AEnemyCharacter* Target) const;
     // 依据遭遇标志识别受本局管理的敌人。
     static bool IsManagedEnemy(const AActor* Actor);
     // Source-owned summons count toward the same encounter cap but never consume ordinary pool slots.
@@ -89,6 +92,8 @@ public:
 private:
     // 回归夹具直接设置遭遇账本，测试真实的延迟生成/碰撞失败与死亡结算入口。
     friend class FDungeonSummonSpawnLifecycleTest;
+    friend class FDungeonEliteAffixWaveTest;
+    friend class FDungeonEliteProtectionTest;
     // 校验配置，初始化模型与经济服务，绑定实体移除及效果生成监听后进入探索。
     bool InitializeRun();
     // 等待资源和地图就绪，检查团灭与边界，推进波次并按预算消费生成队列。
@@ -111,10 +116,11 @@ private:
     bool SpawnActorGroup(int32 Count, bool bRequired);
     // 查找出生点后借用跨房间闲置对象或延迟生成新对象，绑定结算并设置生命属性。
     bool SpawnActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired = true, bool bIsBoss = false,
-                          FName ReservedId = NAME_None, bool bPoolEligible = false);
+                          FName ReservedId = NAME_None, bool bPoolEligible = false,
+                          EDungeonEliteAffix EliteAffix = EDungeonEliteAffix::None);
     // 检查容量并预留目标编号，保存本局与房间身份以防旧请求生效。
     bool QueueActorTarget(TSubclassOf<AEnemyCharacter> Class, float Health, bool bRequired, bool bIsBoss = false,
-                          bool bPoolEligible = false);
+                          bool bPoolEligible = false, EDungeonEliteAffix EliteAffix = EDungeonEliteAffix::None);
     // 按数量及耗时预算生成目标，拒绝旧局请求并跳过首领死亡后的可选目标。
     void PumpSpawnQueue();
     // 结算金币、复活倒地玩家并清理遭遇，转入探索或胜利。
@@ -164,6 +170,7 @@ private:
         int32 Room;
         bool PoolEligible;
         bool IsMass = false;
+        EDungeonEliteAffix EliteAffix = EDungeonEliteAffix::None;
     };
     TArray<FPendingEnemy> SpawnQueue;
     TSharedPtr<FStreamableHandle> EnemyLoadHandle;
@@ -206,6 +213,7 @@ private:
     FDungeonRunModel Model;
     TMap<int32, FName> MassTargets;
     TMap<TWeakObjectPtr<AActor>, FName> ActorTargets;
+    TWeakObjectPtr<AEnemyCharacter> ProtectiveElite;
     TSet<int32> OptionalMass;
     TSet<TWeakObjectPtr<AActor>> OptionalActors;
     TMap<TWeakObjectPtr<AActor>, FVector> LastSafeLocations;

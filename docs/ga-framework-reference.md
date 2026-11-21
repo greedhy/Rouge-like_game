@@ -25,9 +25,17 @@
 | 工厂 | `FAbilityNodeRegistry` | TypeId、配置类、真实执行类、输入/端口类型、寿命和目标能力 |
 | 具体行为 | `Nodes/Ability*Node*`、`AbilityCharacterActions`、`AbilityTraditionalActions` | 实际查询、投射物、伤害、状态、召唤、格挡和表现 |
 | 旧资产编译 | `UAbilityLegacyGraphCompiler` | 将旧 DA 引用图编译为同一 Schema 2 结构，保留原参数和明确兼容语义 |
+| 默认细化 | `AbilityPrototypeFineCompiler`、`AbilityAuthoredGraphFineCompiler` | 从实际参数/原边导出细节点；authored 图保留原调用、事件、深度和寿命证明，不复活断开的孩子 |
+| 局内配方 | `UAbilityRuntimeRecipeComponent`、`AbilityRuntimeRecipes` | 按来源原子提交修正，失败保持旧版本；激活前复制本次图，在途不跟随后续编辑 |
 | 生命周期 | `UAbilityTask_RunGraph`、`UAbilityGraphWorldSubsystem` | GA 绑定图、独立施法图、世界退出清理；持久目标状态仍由原组件/子系统管理 |
 
 目录分别记录 `entryDispatch=GraphInstance`、`SharedRegisteredAction` 和 `HostSessionSharedAction`。共享动作入口表示原动画宿主和图节点调用同一个实际动作函数，不表示原宿主已经改为图时钟。AI 选择器和 GAS 基类是入口/管理职责；被动监听器若实际施加 GE，也必须复用已注册的 GE 动作，不能因名称为监听器而漏迁移。
+
+运行时配方仍由同一个 `GraphInstance` 执行。它不创建新的 `UClass`：PlayerState 组件持有已接受版本，`PreActivate` 冻结本次图，原目标与 Notify 时点启动它。服务器保留图、参数帧、队列与资源租约；客户端沿原属性/GE、蒙太奇、投射物及纯表现值快照同步结果。完整示例和开发面板边界见[运行时组合说明](ga-runtime-composition-development.md)，逐类证据见[法师台账](ga-dynamic-mage-inventory.json)。
+
+动态开发继续使用这条入口。参数编辑必须由实际消费该值的 Scope/动作接收；新增共享动作须登记输入输出和资源合同。编译后定义只读，修改通过新贡献事务生成新版本，不能直接改已发布图。散射追踪还需显式保留本次选中目标的原生命；持续效果的新纯载荷分支必须由准确端口授予资格，异步或物理派生继续受有限预算约束。接口和调用示例见上述运行时说明，实际操作见[PIE验收步骤](ga-dynamic-mage-acceptance.md)。
+
+免费图工作台的界面调用链为`属性按钮 → AMyHUD::ShowCharacterMenu → UCharacterMenuWidget第四页 → UAbilityRuntimeRecipePanel`，再进入`ServerBeginGraphPreview → CreateCastSnapshot/GraphView → Slate准确节点或边选择 → PreviewGraphEdit → Compile → DraftToken → ApplyGraphDraft → 原GA释放`。`InsertOnEdge`只重定向一个`From/OutputPort/To`，通过有限域`PassThrough.*`的Apply子树完成后Continue原载荷，不等同于AppendBranch的并行新增。图值投影只向所属玩家复制，草稿不执行；详见[工作台操作与边界](runtime-graph-workshop-guide.md)。
 
 ## 注册动作与资产兼容
 
@@ -115,6 +123,8 @@ Mass 的 `ApplyDamage` 返回实际移除生命；飘字显示包含过量部分
 旧兼容 profile 保留 Actor/Mixed 持续费用、周期追赶、尾帧、目标失效、第五批叠层和位移规则。原递归子调用改为 FIFO 队列是明确的调度差异；子调用额度预约成功不保证之后表现 Actor 生成成功。不要声称所有同步回调顺序完全不变。
 
 新图默认最多 64 次调用、256 个累计事件、32 个活动节点、深度 8，每帧排空最多 64 个事件。显式 `LegacyStreaming` 允许长期渠道累计事件增长，但物理队列、活动数、深度与总生成调用预算仍有界；它不表示可以无限产生子节点。
+
+原持续宿主的新增纯载荷另经 `AbilityRuntimePayloadPolicy` 验证：从登记的准确无限输出口沿DAG推导资格，节点及其实际输入必须证明是允许的同步动作。这样持续场或引导可在第325个周期继续附加状态，同时保持原速率、活动资源和队列上限。该资格不能传给新的延迟、调度、Scope或物理投递；有限派生仍按原额度计量，物理开始累计最多64次、同时最多32份租约。不能只改兼容profile或填写安全标记来跳过这些检查。详细合同与测试见[运行时组合说明](ga-runtime-composition-development.md)。
 
 旧 ArcaneShards 首片之后尝试费用、尾延迟后提交冷却；Electrocute 按周期费用并保留结束命中；旧 Summon/Melee 不额外增加 Commit；Melee 击退概率分支的额外伤害以兼容配置明确保留。新技能应选择清晰的费用合同，不能照搬这些历史例外作为默认。
 

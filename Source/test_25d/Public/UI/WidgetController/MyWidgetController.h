@@ -46,6 +46,7 @@ class TEST_25D_API UMyWidgetController : public UObject
 {
     GENERATED_BODY()
 public:
+    virtual UWorld* GetWorld() const override;
     UFUNCTION(BlueprintCallable)
     void SetWidgetControllerParams(const FWidgetControllerParams& WCParams);
 

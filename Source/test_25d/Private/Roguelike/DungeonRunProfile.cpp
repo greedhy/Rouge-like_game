@@ -1,5 +1,70 @@
+// 调用链：导演初始化校验 Profile，生成每波名单时读取确定性的普通怪与精英选择。
 #include "Roguelike/DungeonRunProfile.h"
 #include "Character/EnemyCharacter.h"
+#include "Roguelike/DungeonGenerationTypes.h"
+
+// 拒绝无法安全抽样的配置，让错误在开局时报告。
+bool UDungeonRunProfile::ValidateEliteAffixes(FString& Error) const
+{
+    Error.Reset();
+    if (!bEnableEliteAffixes)
+    {
+        return true;
+    }
+    if (!FMath::IsFinite(CombatEliteHealth) || CombatEliteHealth < 1.f || CombatEliteHealth > 1000000.f ||
+        !FMath::IsFinite(SecondWaveEliteChance) || SecondWaveEliteChance < 0.f || SecondWaveEliteChance > 1.f ||
+        EliteAffixWeights.IsEmpty())
+    {
+        Error = TEXT("InvalidEliteAffixSettings");
+        return false;
+    }
+    TSet<EDungeonEliteAffix> Seen;
+    for (const auto& Entry : EliteAffixWeights)
+    {
+        if (Entry.Affix <= EDungeonEliteAffix::None || Entry.Affix > EDungeonEliteAffix::Protective ||
+            Entry.Weight < 1 || Entry.Weight > 100 || Seen.Contains(Entry.Affix))
+        {
+            Error = TEXT("InvalidEliteAffixWeight");
+            return false;
+        }
+        Seen.Add(Entry.Affix);
+    }
+    return true;
+}
+
+// 使用与普通名单独立的随机流，队列拆帧和其它抽样不会影响精英词缀。
+EDungeonEliteAffix UDungeonRunProfile::RollEliteAffix(int32 Seed, int32 Room, EDungeonRoomRole Role, int32 Wave) const
+{
+    const bool bCombatWave = Role == EDungeonRoomRole::Combat && (Wave == 1 || Wave == 2);
+    const bool bEliteWave = Role == EDungeonRoomRole::Elite && Wave == 1;
+    if (!bEnableEliteAffixes || (!bCombatWave && !bEliteWave))
+    {
+        return EDungeonEliteAffix::None;
+    }
+
+    FRandomStream Stream(HashCombineFast(uint32(Seed),
+                                         HashCombineFast(0x454C4954u, HashCombineFast(uint32(Room), uint32(Wave)))));
+    if (bCombatWave && Wave == 2 && Stream.GetFraction() >= SecondWaveEliteChance)
+    {
+        return EDungeonEliteAffix::None;
+    }
+
+    int32 TotalWeight = 0;
+    for (const auto& Entry : EliteAffixWeights)
+    {
+        TotalWeight += Entry.Weight;
+    }
+    int32 Remaining = Stream.RandRange(1, TotalWeight);
+    for (const auto& Entry : EliteAffixWeights)
+    {
+        Remaining -= Entry.Weight;
+        if (Remaining <= 0)
+        {
+            return Entry.Affix;
+        }
+    }
+    return EDungeonEliteAffix::None;
+}
 
 bool UDungeonRunProfile::ValidateNormalRoster(FString& Error) const
 {

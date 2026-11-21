@@ -31,6 +31,9 @@ UCLASS()
 class TEST_25D_API UPrototypeSpellTree : public UMyUserWidget
 {
     GENERATED_BODY()
+public:
+    virtual void SetWidgetController(UObject* InWidgetController) override;
+
 protected:
     virtual void NativeConstruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -47,6 +50,9 @@ private:
     UFUNCTION()
     void ShowWeapons();
     void RefreshWeapons();
+    void RefreshPrototypes();
+    UPROPERTY()
+    TObjectPtr<class UUniformGridPanel> PrototypeGrid;
     UPROPERTY()
     TObjectPtr<UWidget> WeaponPage;
     UPROPERTY()

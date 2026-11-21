@@ -1,5 +1,6 @@
 // 调用链：环境/测试注册策略 -> 图静态校验 -> 每次调用按 ExecutionClass 实例化。
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
+#include "AbilitySystem/Unified/Nodes/AbilityGraphPassThroughNodes.h"
 #include "AbilitySystem/Unified/AbilityNodeExecution.h"
 #include "AbilitySystem/Unified/Nodes/AbilityBasicNodeExecutions.h"
 #include "AbilitySystem/Unified/Nodes/AbilityLegacyNodeExecution.h"
@@ -18,6 +19,43 @@
 #include "AbilitySystem/Unified/Nodes/AbilityGameplayEffectNodes.h"
 #include "AbilitySystem/Unified/Nodes/AbilityWorldTimeNodes.h"
 #include "AbilitySystem/Unified/Nodes/AbilityDefenseNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityDeliveryNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPropagationNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityBehaviorNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityTemporalNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityBatchCombatNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityStateCompositionNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityDistributionNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityInputDamageNode.h"
+#include "AbilitySystem/Unified/Nodes/AbilityNovaFragmentNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeParameterNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypePhaseNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypePresentationNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityForkedPropagationNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeSurfaceNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityNativeProjectileParameterNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityArcaneShardFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeTargetNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeExtensionNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityElectrocuteFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityOrbitFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeFlightNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPetrifyFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeDistributionNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityLightningFragments.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeEmitterNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeOrbitNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeWaveNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityPrototypeFollowFieldNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityGameplayRuleNodes.h"
+
+TArray<FName> FAbilityNodeRegistry::GetRegisteredTypeIds() const
+{
+    TArray<FName> Result;
+    Descriptors.GetKeys(Result);
+    Result.Sort(FNameLexicalLess());
+    return Result;
+}
 
 bool FAbilityNodeRegistry::Register(const FAbilityNodeDescriptor& Descriptor, FString& Error)
 {
@@ -79,6 +117,26 @@ bool FAbilityNodeRegistry::Register(const FAbilityNodeDescriptor& Descriptor, FS
         Seen.Add(Port.Name);
         Normalized.OutputPorts.Add(Port.Name);
     }
+    if (Normalized.bRuntimePurePayload && Normalized.bIsAsync)
+    {
+        Error = TEXT("A repeated pure action cannot own an asynchronous executor lifetime.");
+        return false;
+    }
+    TSet<FName> RepeatedPorts;
+    for (const FName Name : Normalized.PotentiallyUnboundedOutputPorts)
+    {
+        const auto* Port = Normalized.Ports.FindByPredicate(
+            [Name](const FAbilityPortDescriptor& Item)
+            {
+                return Item.Name == Name;
+            });
+        if (!Port || Port->bTerminal || RepeatedPorts.Contains(Name))
+        {
+            Error = TEXT("Potentially unbounded ports must be distinct declared nonterminal business outputs.");
+            return false;
+        }
+        RepeatedPorts.Add(Name);
+    }
     Descriptors.Add(Descriptor.TypeId, MoveTemp(Normalized));
     return true;
 }
@@ -113,6 +171,36 @@ bool FAbilityNodeRegistry::IsLegacyProfile(FName Profile)
 
 void FAbilityNodeRegistry::RegisterBuiltins()
 {
+    AbilityGraphPassThroughNodes::Register(*this);
+    AbilityDeliveryNodes::Register(*this);
+    AbilityPropagationNodes::Register(*this);
+    AbilityBehaviorNodes::Register(*this);
+    AbilityTemporalNodes::Register(*this);
+    AbilityBatchCombatNodes::Register(*this);
+    AbilityStateCompositionNodes::Register(*this);
+    AbilityDistributionNodes::Register(*this);
+    AbilityInputDamageNodes::Register(*this);
+    AbilityNovaFragments::Register(*this);
+    AbilityPrototypeParameterNodes::Register(*this);
+    AbilityPrototypePhaseNodes::Register(*this);
+    AbilityPrototypePresentationNodes::Register(*this);
+    AbilityForkedPropagationNodes::Register(*this);
+    AbilityGameplayRuleNodes::Register(*this);
+    AbilityPrototypeSurfaceNodes::Register(*this);
+    AbilityNativeProjectileParameters::Register(*this);
+    AbilityArcaneShardFragments::Register(*this);
+    AbilityPrototypeTargetNodes::Register(*this);
+    AbilityPrototypeExtensionNodes::Register(*this);
+    AbilityElectrocuteFragments::Register(*this);
+    AbilityOrbitFragments::Register(*this);
+    AbilityPrototypeFlightNodes::Register(*this);
+    AbilityPetrifyFragments::Register(*this);
+    AbilityPrototypeDistributionNodes::Register(*this);
+    AbilityLightningFragments::Register(*this);
+    AbilityPrototypeEmitterNodes::Register(*this);
+    AbilityPrototypeOrbitNodes::Register(*this);
+    AbilityPrototypeWaveNodes::Register(*this);
+    AbilityPrototypeFollowFieldNodes::Register(*this);
     AbilityWorldTimeNodes::Register(*this);
     AbilityDefenseNodes::Register(*this);
     FAbilityNodeDescriptor Delay;
@@ -123,7 +211,26 @@ void FAbilityNodeRegistry::RegisterBuiltins()
     Delay.bSupportsActorTargets = true;
     Delay.bSupportsMassTargets = true;
     Delay.bIsAsync = true;
+    Delay.bSustainedSafe = true;
+    // 原时钟只持有本次调用的剩余秒数；Stop封口，没有Actor工厂或图外定时器。
+    Delay.bRuntimeFiniteSafe = true;
     Delay.Lifetime = EAbilityExecutionLifetime::IndependentCastEffect;
+
+    // 原 Control.Delay 为 V1 活目标合同，继续要求其原生命；位置型配方使用独立端口声明复用同一时钟。
+    FAbilityNodeDescriptor OriginDelay = Delay;
+    OriginDelay.TypeId = TEXT("Control.DelayOrigin");
+    OriginDelay.InputPayload = EAbilityPortPayload::Origin;
+    OriginDelay.bRuntimeFiniteSafe = true;
+    OriginDelay.OutputPorts.Reset();
+    OriginDelay.bSupportsSnapshotTargets = true;
+    OriginDelay.Ports = {{TEXT("Completed"), EAbilityPortPayload::Origin, true},
+                         {TEXT("Cancelled"), EAbilityPortPayload::Origin, true},
+                         {TEXT("Failed"), EAbilityPortPayload::Origin, true}};
+    if (!Find(OriginDelay.TypeId))
+    {
+        FString Error;
+        ensureMsgf(Register(OriginDelay, Error), TEXT("Invalid origin delay strategy: %s"), *Error);
+    }
 
     FAbilityNodeDescriptor Petrify;
     Petrify.TypeId = TEXT("Status.Petrify");
@@ -132,6 +239,11 @@ void FAbilityNodeRegistry::RegisterBuiltins()
     Petrify.OutputPorts = {TEXT("Completed"), TEXT("Failed")};
     Petrify.bSupportsActorTargets = true;
     Petrify.bSupportsMassTargets = true;
+    // 单目标有限状态委托给既有状态所有者；无生成/额外时钟，允许已准入持续宿主复用。
+    Petrify.bSustainedSafe = true;
+    Petrify.bPrototypeCompatibilitySafe = true;
+    Petrify.bRuntimeFiniteSafe = true;
+    Petrify.bRuntimePurePayload = true;
     Petrify.Lifetime = EAbilityExecutionLifetime::TargetPersistentState;
     for (const FAbilityNodeDescriptor* Descriptor : {&Delay, &Petrify})
     {
@@ -155,4 +267,10 @@ void FAbilityNodeRegistry::RegisterBuiltins()
     AbilityEnemySpecialNodes::Register(*this);
     AbilityMovementNodes::Register(*this);
     AbilityGameplayEffectNodes::Register(*this);
+}
+
+bool FAbilityNodeRegistry::IsPrototypeCompatibilityProfile(FName Profile)
+{
+    return Profile == TEXT("PrototypeFine.Actor.v1") || Profile == TEXT("PrototypeFine.Mixed.v1") ||
+           Profile == TEXT("PrototypeFine.Extension.v1");
 }

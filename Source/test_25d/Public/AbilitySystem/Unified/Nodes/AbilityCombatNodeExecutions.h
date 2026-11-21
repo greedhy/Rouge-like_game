@@ -12,6 +12,10 @@ UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
 class TEST_25D_API UAbilityResolveImpactNodeConfig : public UAbilityNodeConfig
 {
     GENERATED_BODY()
+public:
+    /** 两种准确事实输入只重验原生命；同调度器同步转换，不重捕目标、不建宿主或时钟。 */
+    virtual bool SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
+                                            FString& Error) const override;
 };
 
 UCLASS(Transient)

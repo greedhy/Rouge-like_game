@@ -3,6 +3,8 @@ param(
     [string]$Filter = 'test_25d.UnifiedGA+test_25d.Batch6.PetrifyLeaseIsolation+test_25d.Batch6.MassPetrifyLifecycle+test_25d.Batch6.ActorPetrifyLifecycle',
     [string[]]$ExpectedTests = @(),
     [switch]$SkipBuild,
+    [switch]$Rendered,
+    [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')][string[]]$DisabledPlugins = @(),
     [switch]$SelfTest,
     [ValidateRange(10, 7200)][int]$TimeoutSeconds = 900
 )
@@ -34,6 +36,14 @@ function Get-ValidationInputManifest {
     $Libraries = @(Get-ChildItem -LiteralPath $Binaries -File -Recurse -Filter '*.dll')
     if ($Libraries.Count -eq 0) { throw 'No project binaries available for validation.' }
     foreach ($Library in $Libraries) { $null = $Paths.Add($Library.FullName) }
+    $PluginsDirectory = Join-Path $Root 'Plugins'
+    if (Test-Path -LiteralPath $PluginsDirectory -PathType Container) {
+        foreach ($PluginFile in Get-ChildItem -LiteralPath $PluginsDirectory -File -Recurse |
+                 Where-Object { $_.Extension -eq '.uplugin' -or $_.Name.EndsWith('.Build.cs') -or
+                     ($_.Extension -eq '.dll' -and $_.FullName -match '[\\/]Binaries[\\/]') }) {
+            $null = $Paths.Add($PluginFile.FullName)
+        }
+    }
     $null = $Paths.Add((Join-Path $Root 'test_25d.uproject'))
     $Matrix = Get-Content -LiteralPath (Join-Path $Root 'docs/ga-unified-migration-matrix.json') -Raw | ConvertFrom-Json
     $Packages = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -135,11 +145,42 @@ function Assert-AutomationReport {
         }
     }
     foreach ($Name in $Expected) {
-        if (-not $Names.ContainsKey($Name)) {
+        if ($Name.EndsWith('.*')) {
+            $Prefix = $Name.Substring(0, $Name.Length - 1)
+            if (-not @($Names.Keys | Where-Object { $_.StartsWith($Prefix, [System.StringComparison]::Ordinal) }).Count) {
+                throw "Expected dynamic test group was not executed: $Name"
+            }
+        }
+        elseif (-not $Names.ContainsKey($Name)) {
             throw "Expected test was not executed: $Name"
         }
     }
     return $Tests
+}
+
+function Get-ExpectedAutomationTests {
+    param([string]$Root, [string]$RequestedFilter, [bool]$UseRendered)
+    $Prefixes = @($RequestedFilter.Split('+') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $Discovered = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($File in Get-ChildItem -LiteralPath (Join-Path $Root 'Source') -Filter '*.cpp' -Recurse) {
+        $SourceText = Get-Content -LiteralPath $File.FullName -Raw
+        foreach ($Match in [regex]::Matches($SourceText, 'IMPLEMENT_\w*AUTOMATION_TEST\s*\(\s*\w+\s*,\s*"([^"]+)"')) {
+            $DeclarationEnd = $SourceText.IndexOf(')', $Match.Index + $Match.Length)
+            $Declaration = if ($DeclarationEnd -ge 0) { $SourceText.Substring($Match.Index, $DeclarationEnd - $Match.Index) } else { $Match.Value }
+            # UE excludes NonNullRHI declarations under NullRHI. Their evidence must
+            # come from a separate real-RHI run, not an omitted test marked green.
+            if (-not $UseRendered -and $Declaration.Contains('EAutomationTestFlags::NonNullRHI')) { continue }
+            $Name = $Match.Groups[1].Value
+            $Complex = $Match.Value.StartsWith('IMPLEMENT_COMPLEX_AUTOMATION_TEST')
+            foreach ($Prefix in $Prefixes) {
+                if ($Name.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+                    ($Complex -and $Prefix.StartsWith($Name + '.', [System.StringComparison]::OrdinalIgnoreCase))) {
+                    $null = $Discovered.Add($(if ($Complex) { $Name + '.*' } else { $Name }))
+                }
+            }
+        }
+    }
+    return @($Discovered | Sort-Object)
 }
 
 function Invoke-ParserSelfTest {
@@ -153,6 +194,7 @@ function Invoke-ParserSelfTest {
     $Cases = @(
         @{ name = 'zero'; report = @{ failed = 0; notRun = 0; inProcess = 0; tests = @() }; expected = @() },
         @{ name = 'missing expected'; report = $Good; expected = @('Fixture.Missing') },
+        @{ name = 'missing dynamic group'; report = $Good; expected = @('Missing.*') },
         @{ name = 'failed state'; report = @{ failed = 0; notRun = 0; inProcess = 0; tests = @(
             @{ fullTestPath = 'Fixture.Known'; state = 'Fail' }
         ) }; expected = @() },
@@ -170,6 +212,7 @@ function Invoke-ParserSelfTest {
     }
     $Good | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ReportFile -Encoding utf8
     $null = Assert-AutomationReport $ReportFile $Start @('Fixture.Known')
+    $null = Assert-AutomationReport $ReportFile $Start @('Fixture.*')
     $Rejected = $false
     try { $null = Assert-AutomationReport $ReportFile ([datetime]::UtcNow.AddMinutes(1)) @('Fixture.Known') }
     catch { $Rejected = $true }
@@ -221,6 +264,19 @@ function Invoke-ParserSelfTest {
     try { Assert-CompiledSourceCurrent $Fixture }
     catch { $Rejected = $true }
     if (-not $Rejected) { throw 'Preflight accepted an old DLL after source changed.' }
+    Set-Content -LiteralPath (Join-Path $Fixture 'Source/Discovery.cpp') -Value @'
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSimple, "Fixture.Simple", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRendered, "Fixture.Rendered", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::NonNullRHI)
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FDynamic, "Fixture.Dynamic", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+'@ -Encoding utf8
+    $Headless = @(Get-ExpectedAutomationTests $Fixture 'Fixture' $false)
+    $Visual = @(Get-ExpectedAutomationTests $Fixture 'Fixture' $true)
+    $DynamicCase = @(Get-ExpectedAutomationTests $Fixture 'Fixture.Dynamic.Child' $false)
+    if ($Headless.Count -ne 2 -or $Headless -notcontains 'Fixture.Dynamic.*' -or $Headless -contains 'Fixture.Rendered') {
+        throw 'NullRHI test discovery did not preserve groups or exclude rendering-only declarations.'
+    }
+    if ($Visual.Count -ne 3 -or $Visual -notcontains 'Fixture.Rendered') { throw 'Rendered discovery omitted a real-RHI declaration.' }
+    if ($DynamicCase.Count -ne 1 -or $DynamicCase[0] -ne 'Fixture.Dynamic.*') { throw 'An exact dynamic child filter lost its declaration group.' }
     Write-Output "PASS: report freshness/absence and complete input fingerprints, changed bytes/new class/stale DLL rejection; synthetic fixtures only: $Directory"
 }
 
@@ -232,24 +288,13 @@ if ($SelfTest) {
 # Default expectations are derived from test declarations, not report contents. This
 # prevents a misspelled/partially-discovered filter from silently becoming green.
 if ($ExpectedTests.Count -eq 0) {
-    $Prefixes = @($Filter.Split('+') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    $Discovered = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($File in Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'Source') -Filter '*.cpp' -Recurse) {
-        $SourceText = Get-Content -LiteralPath $File.FullName -Raw
-        foreach ($Match in [regex]::Matches($SourceText, 'IMPLEMENT_\w*AUTOMATION_TEST\s*\(\s*\w+\s*,\s*"([^"]+)"')) {
-            $Name = $Match.Groups[1].Value
-            foreach ($Prefix in $Prefixes) {
-                if ($Name.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    $null = $Discovered.Add($Name)
-                }
-            }
-        }
-    }
-    $ExpectedTests = @($Discovered | Sort-Object)
+    $ExpectedTests = @(Get-ExpectedAutomationTests $ProjectRoot $Filter ([bool]$Rendered))
 }
 
 if (-not $SkipBuild) {
-    & (Join-Path $EngineRoot 'Engine/Build/BatchFiles/Build.bat') test_25dEditor Win64 Development "-Project=$ProjectFile" -WaitMutex -NoHotReloadFromIDE -NoUBA
+    $BuildArguments = @('test_25dEditor', 'Win64', 'Development', "-Project=$ProjectFile", '-WaitMutex', '-NoHotReloadFromIDE', '-NoUBA')
+    if ($DisabledPlugins.Count -gt 0) { $BuildArguments += '-DisablePlugin=' + ($DisabledPlugins -join '+') }
+    & (Join-Path $EngineRoot 'Engine/Build/BatchFiles/Build.bat') @BuildArguments
     if ($LASTEXITCODE -ne 0) { throw 'Build failed; refusing to test an old DLL.' }
 }
 $RunId = ([datetime]::UtcNow.ToString('yyyyMMddTHHmmss')) + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -261,17 +306,22 @@ $null = New-Item -ItemType Directory -Path $RunDirectory
 $Log = Join-Path $ProjectRoot "Saved/Logs/UnifiedGA-$RunId.log"
 $Summary = [ordered]@{
     schemaVersion = 2; runId = $RunId; filter = $Filter; expectedTests = $ExpectedTests; success = $false
+    renderingMode = $(if ($Rendered) { 'RHI-Offscreen' } else { 'NullRHI' })
+    disabledPlugins = @($DisabledPlugins)
     reportDirectory = $ReportDirectory; log = $Log; startedUtc = [datetime]::UtcNow.ToString('o')
     inputManifest = [ordered]@{
-        schemaVersion = 1; runId = $RunId; scope = 'Source+Config+ProjectDLL+MatrixContentPackages+ProjectFile'
+        schemaVersion = 1; runId = $RunId; scope = 'Source+Config+ProjectDLL+ProjectPluginDescriptorsRulesDLL+MatrixContentPackages+ProjectFile'
         before = $null; after = $null; unchanged = $false
     }
 }
 $Arguments = @(
-    ('"' + $ProjectFile + '"'), '-unattended', '-NullRHI', '-nosplash', '-nop4',
+    ('"' + $ProjectFile + '"'), '-unattended', '-nosplash', '-nop4',
     ('"-ExecCmds=Automation RunTests ' + $Filter + '"'), '"-TestExit=Automation Test Queue Empty"',
     ('"-ReportExportPath=' + $ReportDirectory + '"'), ('"-abslog=' + $Log + '"')
 )
+if ($Rendered) { $Arguments += @('-RenderOffscreen', '-NoVSync') }
+else { $Arguments += '-NullRHI' }
+if ($DisabledPlugins.Count -gt 0) { $Arguments += '-DisablePlugins=' + ($DisabledPlugins -join ',') }
 $StartedUtc = [datetime]::UtcNow
 try {
     Assert-CompiledSourceCurrent $ProjectRoot

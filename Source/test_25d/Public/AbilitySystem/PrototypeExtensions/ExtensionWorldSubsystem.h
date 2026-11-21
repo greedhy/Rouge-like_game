@@ -12,6 +12,64 @@
 
 struct FRootMotionSource;
 
+/** 与旧扩展节点共享同一个世界叠层宿主；不含 CompleteChild 或任何固定 payload。 */
+USTRUCT(BlueprintType)
+struct TEST_25D_API FExtensionStackSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName EffectId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Threshold = 3;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float Lifetime = 4.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DetonationDelay = .4f;
+
+    /** 独立校验叠层数值，不要求创建无实际作用的子节点资产。 */
+    bool Validate(FString& Error) const;
+};
+
+enum class EExtensionStackReleaseReason : uint8
+{
+    Replaced,
+    Triggered,
+    Expired,
+    Cancelled,
+    SourceInvalid,
+    TargetLost,
+    WorldEnded
+};
+
+/** 服务器历史阈值事实。原目标生命可已死亡，只能以位置继续范围 payload，不能据此重授权状态。 */
+struct TEST_25D_API FExtensionStackTrigger
+{
+    FGuid Lease;
+    FAbilitySourceToken Source;
+    FAbilityTargetToken TargetLife;
+    FVector Position = FVector::ZeroVector;
+    FVector Direction = FVector::ForwardVector;
+    UPrototypeCastContext* Context = nullptr;
+    UObject* RetainedSource = nullptr;
+    int32 Depth = 0;
+};
+
+/** 请求只在服务器内部构建；World 接受后须保活 Context/RetainedSource，替换时释放原等待者。 */
+struct TEST_25D_API FExtensionStackRequest
+{
+    UPrototypeCastContext* Context = nullptr;
+    UObject* RetainedSource = nullptr;
+    FExtensionStackSettings Settings;
+    FAbilityTargetToken TargetLife;
+    FVector Position = FVector::ZeroVector;
+    FVector Direction = FVector::ForwardVector;
+    int32 Depth = 0;
+    bool bConfirmedHit = false;
+    TFunction<void(const FExtensionStackTrigger&)> OnThreshold;
+    TFunction<void(EExtensionStackReleaseReason)> OnReleased;
+};
+
 USTRUCT()
 struct FExtensionStackState
 {
@@ -19,15 +77,19 @@ struct FExtensionStackState
     UPROPERTY()
     TObjectPtr<UPrototypeCastContext> Context;
     UPROPERTY()
-    TObjectPtr<UExtensionNode> Node;
-    FPureMassCombatTarget Target;
+    TObjectPtr<UObject> RetainedSource;
+    UPROPERTY()
+    FExtensionStackSettings Settings;
+    FAbilityTargetToken TargetLife;
+    FGuid Lease;
     FVector Position, Direction;
     int32 Depth = 0, Layers = 0, VisualId = 0;
     float Remaining = 0;
     bool bPending = false;
     // 非复制的调用出口；仅在服务器保存。记录移除或替换时必须通知旧执行释放等待状态。
-    FLegacyAbilityChildAdmission ChildAdmission;
-    TFunction<void()> ReleasedCallback;
+    TFunction<void(const FExtensionStackTrigger&)> OnThreshold;
+    TFunction<void(EExtensionStackReleaseReason)> OnReleased;
+    uint64 CancellationVersion = 0;
 };
 
 USTRUCT()
@@ -67,8 +129,15 @@ public:
     bool AddStack(UPrototypeCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target, FVector Position,
                   FVector Direction, int32 Depth, bool bConfirmedHit = false,
                   FLegacyAbilityChildAdmission ChildAdmission = {}, TFunction<void()> ReleasedCallback = {});
+    /** 共享服务器叠层 API；返回本次接管的准确租约，失败不改变既有层数/等待者。 */
+    FGuid AddStackShared(const FExtensionStackRequest& Request, FString& Error);
+    /** 仅取消当前仍由该租约拥有的记录；旧施法清理不能取消接管后的新记录。 */
+    bool CancelStack(FGuid Lease);
     FGuid RequestDisplacement(UPrototypeCastContext* Context, UExtensionNode* Node, FPureMassCombatTarget Target,
                               FVector Center, FVector Direction);
+    /** 查询/取消准确位移命令，不能按目标或可复用 RootMotion ID 回收其他施法的资源。 */
+    bool IsDisplacementActive(FGuid Token) const;
+    bool CancelDisplacement(FGuid Token);
     /** Mass 处理器逐实体调用：插值到终点并再次约束碰撞，更新 Remaining；清空旧路径并短暂占用移动，避免同帧导航覆盖。 */
     void MoveMass(struct FPureMassFragment& Fragment, float Delta);
     /** Runtime 查询旧位移令牌是否已被替换或失效，用于阻止旧单目标节点继续完成子图。 */
@@ -97,5 +166,8 @@ private:
     UPROPERTY()
     TObjectPtr<class AExtensionPresentation> Presentation;
     TMap<FGuid, float> Replaced;
+    /** 取消先封口：已经移出数组、尚待回调的同施法者记录也会看到新版本，不能再发布阈值。 */
+    TMap<TWeakObjectPtr<AActor>, uint64> CancellationVersions;
     int32 NextVisualId = 1;
+    bool bShuttingDown = false;
 };

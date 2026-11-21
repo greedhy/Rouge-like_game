@@ -1,0 +1,136 @@
+{
+  "generated_at": "2026-11-19",
+  "engine": "UE 5.8.1-56057345",
+  "generated_by": "SOMOLMCP (asset_duplicate_v2 / asset_rename_v2 / material_instance_set_* / niagara_compile_system / niagara_system_inspect)",
+  "root": "/Game/Art/ElementOrbs",
+  "summary": "5 个互相独立的元素法球 Niagara 系统，全部 ready_to_run=true、0 compile error，已在 L_RoguelikeRun 中生成并截图验证。毒/藤两色通过调整所引用的材质实例参数实现（原值见 recolored_shared_materials）。",
+  "orbs": [
+    {
+      "element": "Frost",
+      "display_cn": "冰霜",
+      "system": "/Game/Art/ElementOrbs/Systems/NS_Orb_Frost",
+      "source_system": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/NiagaraSystem/NS_Orb_2",
+      "color": "冰蓝（青）",
+      "emitters": ["Orb_Base", "Sparks", "Sparks001", "Embers"],
+      "user_params": ["SpriteSize", "Camera Offset Amount"],
+      "damage_tag": "Damage.Water",
+      "impact_vfx": "/Game/Art/CompositionEffects/NS_Frost_Impact",
+      "suggested_kind": "Orbit",
+      "gameplay": "叠 3 层后定身 1.5s（State.Enemy.Hitstun），控场定位",
+      "control_note": "NiagaraComponent->SetFloatParameter(\"SpriteSize\", v)"
+    },
+    {
+      "element": "Lava",
+      "display_cn": "熔岩",
+      "system": "/Game/Art/ElementOrbs/Systems/NS_Orb_Lava",
+      "source_system": "/Game/resources/MayuOrbs/02_Orbs/Orb_4/NiagaraSystems/NS_Orb_4",
+      "color": "橙红火焰 + 火星",
+      "emitters": ["Orb_Base", "Embers", "Smoke"],
+      "user_params": ["SpriteSize", "Camera Offset Amount"],
+      "damage_tag": "Damage.Fire",
+      "impact_vfx": "/Game/Assets/Effects/Projectiles/FireExplosion/NS_FireExplosion",
+      "suggested_kind": "Projectile",
+      "gameplay": "命中后每秒 1 跳、持续 3s 燃烧 DoT，持续输出定位",
+      "control_note": "NiagaraComponent->SetFloatParameter(\"SpriteSize\", v)"
+    },
+    {
+      "element": "Mud",
+      "display_cn": "泥沼",
+      "system": "/Game/Art/ElementOrbs/Systems/NS_Orb_Mud",
+      "source_system": "/Game/resources/MayuOrbs/02_Orbs/Orb_5/NiagaraSystems/NS_Orb_5",
+      "color": "棕褐烟团",
+      "emitters": ["Orb_Base", "Smoke"],
+      "user_params": [],
+      "damage_tag": "Damage.Physics",
+      "impact_vfx": "/Game/CompositionBatch6/NS_EarthShockwave",
+      "suggested_kind": "Field",
+      "gameplay": "移速 -40% 持续 2s，可叠加「下陷」，削弱/聚怪定位",
+      "control_note": "无 user param，只能靠组件 SetRelativeScale3D 或 DA 的 LoopVFXScale 缩放"
+    },
+    {
+      "element": "Toxic",
+      "display_cn": "剧毒",
+      "system": "/Game/Art/ElementOrbs/Systems/NS_Orb_Toxic",
+      "source_system": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/NiagaraSystems/NS_Orb_3",
+      "color": "酸绿（由 MI_orb_3_Plasma 改色实现，原品红）",
+      "emitters": ["Orb_Base", "Embers"],
+      "user_params": ["SpriteSize", "Camera Offset Amount"],
+      "damage_tag": "Damage.Magic",
+      "impact_vfx": "/Game/Assets/Effects/Combat/NS_BloodImpact_green",
+      "suggested_kind": "Field",
+      "gameplay": "中毒 4s，死亡时向邻近敌人扩散，清群定位",
+      "control_note": "NiagaraComponent->SetFloatParameter(\"SpriteSize\", v)"
+    },
+    {
+      "element": "Vines",
+      "display_cn": "藤蔓",
+      "system": "/Game/Art/ElementOrbs/Systems/NS_Orb_Vines",
+      "source_system": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem/NS_Orb_1",
+      "color": "金属外壳 + 翠绿核心（小体型结晶）",
+      "emitters": ["NE_Orb", "Embers", "NE_Orb001(disabled)"],
+      "user_params": ["SpriteSize"],
+      "damage_tag": "Damage.Magic",
+      "impact_vfx": "/Game/Art/CompositionEffects/NS_Bramble_Warning",
+      "suggested_kind": "Orbit",
+      "gameplay": "命中定身 1s，期间受伤 +15%，单体锁定位",
+      "control_note": "体型约为其它四者的 1/3：DA 里设 LoopVFXScale=(1.8,1.8,1.8) 统一；或复制 NS_Orb_Toxic 另存为藤蔓版本",
+      "known_gap": "源设计 Orb_1 本身是小型结晶，不是大法球"
+    }
+  ],
+  "recolored_shared_materials": [
+    {
+      "asset": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/Materials/MI_orb_3_Plasma",
+      "note": "1 号参数名是 COlor 1（大写 O，资产原拼写）",
+      "original": {"COlor 1": [0.0573, 0.0, 0.0259, 1.0], "Color 2": [0.8594, 0.0, 0.5936, 1.0]},
+      "current": {"COlor 1": [0.02, 0.16, 0.01, 1.0], "Color 2": [0.55, 1.0, 0.08, 1.0]},
+      "affects": ["NS_Orb_Toxic", "NS_Orb_3", "NS_Orb_3_Small"]
+    },
+    {
+      "asset": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/Materials/MI_Orb_1_purple",
+      "original": {"Color 1": [0.0899, 0.0, 0.125, 1.0], "Color 2": [0.2476, 0.0, 1.0, 1.0], "Final Intensity": 1.3134, "Center Glow Intensity": 0.8112, "Inner Intensity": 0.032},
+      "current": {"Color 1": [0.01, 0.075, 0.02, 1.0], "Color 2": [0.25, 0.90, 0.35, 1.0], "Final Intensity": 4.0, "Center Glow Intensity": 2.5, "Inner Intensity": 0.3},
+      "affects": ["NS_Orb_Vines", "NS_Orb_1", "NS_Orb_1_Small", "NE_Orb"]
+    }
+  ],
+  "optional_materials": [
+    {
+      "asset": "/Game/Art/ElementOrbs/Materials/MI_Green_Acid",
+      "parent": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/Materials/M_Orb_2",
+      "colors": {"4way Color": [0.03, 0.25, 0.02, 1.0], "Center Glow And Ring Color": [0.35, 1.0, 0.10, 1.0]},
+      "note": "独立资产，需人工在 Niagara 编辑器指定到渲染器（MCP 换材质无效）"
+    },
+    {
+      "asset": "/Game/Art/ElementOrbs/Materials/MI_Green_Emerald",
+      "parent": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/Materials/M_Orb_2",
+      "colors": {"4way Color": [0.02, 0.20, 0.05, 1.0], "Center Glow And Ring Color": [0.20, 0.85, 0.30, 1.0]},
+      "note": "独立资产，需人工在 Niagara 编辑器指定到渲染器（MCP 换材质无效）"
+    }
+  ],
+  "wiring": {
+    "prototype_class": "/Script/test_25d.AbilityPrototype",
+    "vfx_fields": ["LoopVFX", "ImpactVFX", "LoopVFXScale", "ImpactVFXScale", "bGroundPresentation", "SurfaceClass"],
+    "other_fields": ["Kind", "Radius", "Duration", "Period", "Damage", "DamagePerLevel", "DamageType", "Count", "OrbitSettings", "OnHit", "OnPeriod", "OnExpire"],
+    "templates": {
+      "orbit": "/Game/BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Orbit",
+      "orbit_settings": "/Game/BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_OrbitSettings",
+      "field": "/Game/BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Field",
+      "projectile_orb": "/Game/BluePrints/AbilitySystem/Player/Ability/PassiveSpell/OrbitingFireBolt/DA_OrbitingFireBolt"
+    },
+    "damage_tags_available": ["Damage.Fire", "Damage.Water", "Damage.Thunder", "Damage.Physics", "Damage.Magic", "Damage.Pure"],
+    "ge_templates": ["/Game/BluePrints/AbilitySystem/Player/Effect/GE_Damage"]
+  },
+  "verification": {
+    "compile": "5/5 ready_to_run=true, 0 errors",
+    "in_level": "已生成并截图：青 / 火 / 酸绿 / 棕 / 翠绿结晶",
+    "screenshot": "Saved/SOMOLMCP/Screenshots/20261118/20261118T173501Z_editor_screenshot_viewport_*.png",
+    "cleanup": "测试 NiagaraActor 已全部删除，关卡未保存"
+  },
+  "mcp_limitations": [
+    "PIE 运行中写操作会失败（Failed to save asset），必须先 pie_stop",
+    "niagara_set_renderer_properties 的 OverrideMaterials 与 niagara_add_mesh_renderer 的 override_material_paths 在本项目不生效：写入成功、磁盘可见新 MI 路径，但渲染不变",
+    "目标 Content 目录必须先在磁盘存在，否则创建成功但保存失败",
+    "新建 MI / RECOMPILESHADERS 期间材质回退为灰银色，编译完成后才恢复，勿误判为失败",
+    "导入包 emitter 为内联结构，无法按系统单独替换材质；改色只能改共享 MI 或整包新建",
+    "改了资产必须 asset_save，否则只存在内存中"
+  ]
+}

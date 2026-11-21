@@ -14,6 +14,7 @@
 #include "Interface/CombatInterface.h"
 #include "GameplayEffect.h"
 #include "Engine/World.h"
+#include "UObject/StrongObjectPtr.h"
 
 bool UAbilityOrbitNodeConfig::Validate(FString& Error) const
 {
@@ -160,6 +161,8 @@ void UAbilityOrbitNodeExecution::HandleAttack(UGameplayAbility* Ability, AActor*
 
 void UAbilityOrbitNodeExecution::Replenish()
 {
+    const TStrongObjectPtr<UAbilityOrbitNodeExecution> Self(this);
+    const TStrongObjectPtr<UAbilityGraphInstance> OwnerGuard(GraphOwner.Get());
     if (!ValidateSource())
     {
         return;
@@ -182,10 +185,18 @@ void UAbilityOrbitNodeExecution::Replenish()
     {
         return;
     }
+    const TStrongObjectPtr<AMyOrbitingFireBolt> BoltGuard(Bolt);
     Bolt->SetCastContext(LifeContext);
     Bolt->InitializeOrbit(Avatar, Settings, 0.f);
     Bolts.Add(Bolt);
     Bolt->DamageApplied.AddUObject(this, &ThisClass::BoltHit);
+    if (!PrepareDelivery(Bolt))
+    {
+        Bolt->DamageApplied.RemoveAll(this);
+        Bolts.Remove(Bolt);
+        Bolt->Destroy();
+        return;
+    }
     Bolt->FinishSpawning(Transform);
     if (bStopped)
     {
@@ -224,6 +235,8 @@ void UAbilityOrbitNodeExecution::ArrangeOrbit()
 
 void UAbilityOrbitNodeExecution::LaunchNext()
 {
+    const TStrongObjectPtr<UAbilityOrbitNodeExecution> Self(this);
+    const TStrongObjectPtr<UAbilityGraphInstance> OwnerGuard(GraphOwner.Get());
     if (!ValidateSource())
     {
         return;
@@ -238,7 +251,12 @@ void UAbilityOrbitNodeExecution::LaunchNext()
     {
         if (IsValid(Bolt) && !Bolt->IsLaunched())
         {
-            Bolt->LaunchAt(GetAttackTarget());
+            const auto Target = AttackTargetLife.GetValue();
+            DispatchLaunch(Bolt, Target);
+            if (bStopped || !GraphOwner.IsValid())
+            {
+                return;
+            }
             ArrangeOrbit();
             auto Payload = Input;
             Payload.LiveTargetToken = AttackTargetLife;
@@ -247,6 +265,21 @@ void UAbilityOrbitNodeExecution::LaunchNext()
             break;
         }
     }
+}
+
+bool UAbilityOrbitNodeExecution::PrepareDelivery(AMyOrbitingFireBolt*)
+{
+    return true;
+}
+
+void UAbilityOrbitNodeExecution::DispatchLaunch(AMyOrbitingFireBolt* Bolt, const FAbilityTargetToken& Target)
+{
+    Bolt->LaunchAt(Target.Target.Actor.Get());
+}
+
+const UOrbitingFireBoltConfig* UAbilityOrbitNodeExecution::GetOrbitSettings() const
+{
+    return Settings;
 }
 
 void UAbilityOrbitNodeExecution::BoltHit(AActor* Target)

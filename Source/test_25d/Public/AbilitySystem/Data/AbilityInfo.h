@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Engine/DataAsset.h"
+#include "Game/PlayerProfession.h"
 #include "AbilityInfo.generated.h"
 
 /**
@@ -42,6 +43,10 @@ struct FMyAbilityInfo
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     int32 LevelRequirement = 1;
 
+    // 旧目录默认归法师；近战可学习技能在资产中显式设为 Stander。
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    EPlayerProfession RequiredProfession = EPlayerProfession::Mage;
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     TSubclassOf<UGameplayAbility> Ability;
 };
@@ -55,4 +60,6 @@ public:
     TArray<FMyAbilityInfo> AbilityInformation;
 
     FMyAbilityInfo FindAbilityInfoForTag(const FGameplayTag& AbilityTag, bool bLogNotFound = false) const;
+    static EPlayerProfession ResolveProfession(const AActor* Actor);
+    bool CanLearn(const FGameplayTag& AbilityTag, const AActor* Actor) const;
 };

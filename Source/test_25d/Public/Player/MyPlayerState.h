@@ -26,6 +26,7 @@ class UBackpackComponent;
 class UEquipmentComponent;
 class UBackpackItemDefinitions;
 class ULoadScreenSaveGame;
+class UAbilityRuntimeRecipeComponent;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlayerStatChanged, int32 /*StatValue*/)
     DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLevelChanged, int32 /*StatValue*/, bool /*bLevelUp*/)
@@ -40,9 +41,13 @@ class TEST_25D_API AMyPlayerState : public APlayerState, public IAbilitySystemIn
 
 public:
     // Set on the server at login and carried across seamless travel.
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Profession")
     EPlayerProfession Profession = EPlayerProfession::Unselected;
     // 创建可复制能力系统、属性集、背包与装备组件。
     AMyPlayerState();
+    /** 当前玩家的运行时技能配方；组件随 PlayerState 管理，具体执行仍由原 ASC/图持有。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Runtime Recipe")
+    TObjectPtr<UAbilityRuntimeRecipeComponent> RuntimeRecipeComponent;
     // 注册本类需要复制的状态，同时保留父类复制字段。
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     // 返回当前角色或玩家状态持有的能力系统。

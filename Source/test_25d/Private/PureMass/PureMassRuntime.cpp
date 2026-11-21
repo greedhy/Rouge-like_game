@@ -1,4 +1,5 @@
 /** GA / graph strategy -> Spawn or SpawnDriven -> mixed driver; graph or compatibility Tick advances behavior. Actor owns replicated endpoints, Surface and Batch6 presentation; driver owns clocks, targeting and child admission. */
+// 细节点独立表现：SpawnPresentationOnly -> 共享 renderer；纯表现模式不预留业务生成预算，也不执行 Driver。
 // 技能运行入口：施法生成行为节点，逐帧分发弹道与范围行为，经统一目标查询分流到角色效果或实体伤害；结束时清理附属表现。
 #include "PureMass/PureMassRuntime.h"
 #include "AbilitySystem/Unified/LegacyMixedAbilityDriver.h"
@@ -10,6 +11,7 @@
 #include "AbilitySystem/Data/OrbitingFireBoltConfig.h"
 #include "AbilitySystem/Ability/MyDamageGameplayAbility.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
+#include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "Components/SceneComponent.h"
@@ -54,6 +56,159 @@ APureMassRuntime* APureMassRuntime::SpawnDriven(UPrototypeCastContext* InContext
 {
     return SpawnInternal(InContext, Config, Position, InDirection, InTarget, InDepth, bInSingle, MoveTemp(Admission),
                          true, PresentationConfig);
+}
+
+APureMassRuntime* APureMassRuntime::SpawnPresentationOnly(const FAbilitySourceToken& Source,
+                                                          const UAbilityPrototype& Frozen,
+                                                          UAbilityPrototype* StableReference,
+                                                          const FAbilityPrototypePresentationFrame& Frame,
+                                                          FString& Error)
+{
+    Error.Reset();
+    AActor* Avatar = nullptr;
+    auto Snapshot = AbilityPrototypePresentationService::Capture(Frozen, StableReference,
+                                                                 EAbilityPrototypePresentationProfile::Mixed);
+    Snapshot.bSingleProjectile = Frame.bSingleProjectile;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Avatar) || !Snapshot.bReady ||
+        !AbilityPrototypePresentationService::IsValidFrame(Frame))
+    {
+        Error = TEXT("Invalid source life or frozen mixed presentation values");
+        return nullptr;
+    }
+    auto* Actor = Avatar->GetWorld()->SpawnActorDeferred<APureMassRuntime>(
+        StaticClass(), Frame.Transform, Avatar, Cast<APawn>(Avatar), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Actor)
+    {
+        Error = TEXT("Mixed presentation host spawn failed");
+        return nullptr;
+    }
+    // The presentation mode is installed before BeginPlay and does not reserve Context.Spawned.
+    Actor->PresentationSource = Source;
+    Actor->ApplyPresentationReplica(Snapshot, Frame);
+    Actor->FinishSpawning(Frame.Transform);
+    return Actor;
+}
+
+void APureMassRuntime::ApplyPresentationReplica(const FAbilityPrototypeVisualSnapshot& Snapshot,
+                                                const FAbilityPrototypePresentationFrame& Frame)
+{
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    PresentationSnapshot = Snapshot;
+    AbilityPrototypePresentationService::AcceptFrame(Frame, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    if (HasActorBegunPlay())
+    {
+        OnRep_PresentationState();
+    }
+}
+
+bool APureMassRuntime::UpdatePresentationOnly(const FAbilityPrototypePresentationFrame& Frame)
+{
+    if (!bPresentationOnly || !HasAuthority() || LocalPresentation.bTerminal)
+    {
+        return false;
+    }
+    AActor* Avatar = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+    {
+        FinishPresentationOnly(true, false);
+        return false;
+    }
+    if (!AbilityPrototypePresentationService::AcceptFrame(Frame, LocalPresentation, PresentationStats))
+    {
+        return false;
+    }
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    OnRep_PresentationState();
+    if (LocalPresentation.bTerminal)
+    {
+        SetLifeSpan(.35f);
+    }
+    ForceNetUpdate();
+    return true;
+}
+
+bool APureMassRuntime::ImpactPresentationOnly(uint32 EventId, const FVector& Position)
+{
+    if (!bPresentationOnly || !HasAuthority() || bFinished || EventId == 0 || Position.ContainsNaN() ||
+        !AbilityPrototypePresentationService::CanAcceptImpact(LocalPresentation, EventId))
+    {
+        return false;
+    }
+    AActor* Avatar = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+    {
+        FinishPresentationOnly(true, false);
+        return false;
+    }
+    MulticastPresentationImpact(EventId, Position);
+    return true;
+}
+
+bool APureMassRuntime::FinishPresentationOnly(bool bCancelled, bool bRequestedImpactOnFinish,
+                                              bool bUseOriginalFinishPolicy)
+{
+    if (!bPresentationOnly || !HasAuthority() || LocalPresentation.bTerminal)
+    {
+        return false;
+    }
+    auto Last = LocalPresentation.AcceptedFrame;
+    if (!Last.bReady)
+    {
+        return false;
+    }
+    Last.Revision = Last.Revision < MAX_uint32 ? Last.Revision + 1 : MAX_uint32;
+    Last.bFinished = true;
+    Last.bCancelled = bCancelled;
+    Last.bOriginalMixedFinish = bUseOriginalFinishPolicy;
+    Last.bImpactOnFinish = bUseOriginalFinishPolicy || (!bCancelled && bRequestedImpactOnFinish);
+    AbilityPrototypePresentationService::AcceptFrame(Last, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    OnRep_PresentationState();
+    SetLifeSpan(.35f);
+    ForceNetUpdate();
+    return true;
+}
+
+void APureMassRuntime::OnRep_PresentationState()
+{
+    if (!bPresentationOnly && !PresentationSnapshot.bReady && !PresentationFrame.bReady)
+    {
+        return;
+    }
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    if (bFinished && !LocalPresentation.bTerminal && !PresentationFrame.bFinished)
+    {
+        LocalPresentation.bAwaitingFinishFrame = true;
+    }
+    AbilityPrototypePresentationService::AcceptFrame(PresentationFrame, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    bFinished = LocalPresentation.bTerminal || LocalPresentation.bAwaitingFinishFrame;
+    if (PresentationFrame.bReady)
+    {
+        // 先同步已接受的空间帧，不以视觉BeginPlay门延迟真实宿主位置，也不启动任何Driver。
+        SetActorTransform(PresentationFrame.Transform);
+    }
+    BeamEnd = PresentationFrame.BeamEnd;
+    WaveRadius = PresentationFrame.WaveRadius;
+    if (HasActorBegunPlay())
+    {
+        AbilityPrototypePresentationService::Refresh(*this, PresentationSnapshot, LocalPresentation, PresentationStats,
+                                                     Visual);
+    }
+}
+
+void APureMassRuntime::MulticastPresentationImpact_Implementation(uint32 EventId, FVector Position)
+{
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    AbilityPrototypePresentationService::PresentImpact(*this, PresentationSnapshot, LocalPresentation,
+                                                       PresentationStats, EventId, Position);
 }
 
 APureMassRuntime* APureMassRuntime::SpawnInternal(UPrototypeCastContext* InContext, UAbilityPrototype* Config,
@@ -109,6 +264,11 @@ APureMassRuntime* APureMassRuntime::SpawnInternal(UPrototypeCastContext* InConte
 void APureMassRuntime::BeginPlay()
 {
     Super::BeginPlay();
+    if (bPresentationOnly || PresentationSnapshot.bReady || PresentationFrame.bReady)
+    {
+        OnRep_PresentationState();
+        return;
+    }
     RefreshVisual();
     Driver->Start();
 }
@@ -172,6 +332,15 @@ void APureMassRuntime::NotifyCommittedAttack(AActor* Caster, UGameplayAbility* A
     FVector Position;
     if (!PureMassCombat::Resolve(Caster->GetWorld(), Caster, Candidate, Position))
         return;
+    if (auto* ASC = Cast<UMyAbilitySystemComponent>(UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Caster)))
+    {
+        // 新细库存与旧Runtime共享同一个实际提交门；不创建全局监听器，也不替换下方旧迭代。
+        ASC->PrototypeMixedCommittedAttack.Broadcast(Ability, Candidate);
+    }
+    if (!IsValid(Caster))
+    {
+        return;
+    }
     for (TActorIterator<APureMassRuntime> It(Caster->GetWorld()); It; ++It)
         if (It->GetOwner() == Caster && !It->bFinished && It->Prototype &&
             It->Prototype->Kind == EAbilityPrototypeKind::Orbit && It->Prototype->OrbitSettings &&
@@ -198,6 +367,17 @@ void APureMassRuntime::Orbit(float Delta)
 void APureMassRuntime::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if (bPresentationOnly)
+    {
+        AActor* Avatar = nullptr;
+        if (HasAuthority() && PresentationSource.World.IsValid() && !LocalPresentation.bTerminal &&
+            !AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+        {
+            FinishPresentationOnly(true, false);
+        }
+        OnRep_PresentationState();
+        return;
+    }
     if (Prototype && GetNetMode() != NM_DedicatedServer)
     {
         if (const auto* Config = Cast<UBatch6FieldPrototype>(Prototype);
@@ -257,6 +437,11 @@ void APureMassRuntime::Finish(bool bCancelled)
 /** 外部/GA 的服务器取消入口：标记整次施法 Context 并结束本节点。 */
 void APureMassRuntime::CancelCast()
 {
+    if (bPresentationOnly)
+    {
+        FinishPresentationOnly(true, false);
+        return;
+    }
     if (!HasAuthority())
         return;
     if (Context)
@@ -268,6 +453,11 @@ void APureMassRuntime::CancelCast()
 /** BeginPlay/Finish/RepNotify 共用：更新循环和一次结束表现；专用服务器跳过；初始化光束端点后才激活 Niagara。 */
 void APureMassRuntime::RefreshVisual()
 {
+    if (bPresentationOnly || PresentationSnapshot.bReady || PresentationFrame.bReady)
+    {
+        OnRep_PresentationState();
+        return;
+    }
     if (!Prototype || GetNetMode() == NM_DedicatedServer)
         return;
     if (bFinished)
@@ -376,6 +566,10 @@ void APureMassRuntime::EndPlay(EEndPlayReason::Type Reason)
 {
     // World teardown or external destruction closes the invocation without emitting gameplay children.
     bFinished = true;
+    if (bPresentationOnly)
+    {
+        AbilityPrototypePresentationService::StopVisuals(LocalPresentation, Visual);
+    }
     if (HasAuthority() && IsValid(Surface))
         Surface->Destroy();
     Surface = nullptr;
@@ -394,4 +588,7 @@ void APureMassRuntime::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
     DOREPLIFETIME(APureMassRuntime, OrbitBolts);
     DOREPLIFETIME(APureMassRuntime, bFinished);
     DOREPLIFETIME(APureMassRuntime, bSingle);
+    DOREPLIFETIME(APureMassRuntime, bPresentationOnly);
+    DOREPLIFETIME(APureMassRuntime, PresentationSnapshot);
+    DOREPLIFETIME(APureMassRuntime, PresentationFrame);
 }

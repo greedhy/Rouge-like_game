@@ -5,6 +5,7 @@
 #include "PureMass/PureMassCombatTarget.h"
 #include "AbilitySystem/PrototypeExtensions/ExtensionNode.h"
 #include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
+#include "AbilitySystem/Unified/AbilityPrototypePresentationService.h"
 #include "ExtensionRuntime.generated.h"
 
 class FExtensionAbilityDriver;
@@ -55,11 +56,55 @@ public:
     {
         return Driver;
     }
+    /** 纯表现工厂在 FinishSpawning 前安装模式，不预留逻辑预算或运行 Extension Driver。 */
+    static AExtensionRuntime* SpawnPresentationOnly(const FAbilitySourceToken& Source, const UExtensionNode& Frozen,
+                                                    UExtensionNode* StableReference,
+                                                    const FAbilityPrototypePresentationFrame& Frame, FString& Error);
+    /** 复制值接收入口；资源/值/终态可乱序到达，不读取临时执行参数。 */
+    void ApplyPresentationReplica(const FAbilityPrototypeVisualSnapshot& Snapshot,
+                                  const FAbilityPrototypePresentationFrame& Frame);
+    bool UpdatePresentationOnly(const FAbilityPrototypePresentationFrame& Frame);
+    bool ImpactPresentationOnly(uint32 EventId, const FVector& Position);
+    bool FinishPresentationOnly(bool bCancelled, bool bRequestedImpactOnFinish);
+    /** 联机开发读回仅返回本机冻结复制半径；未就绪为-1，不暴露整个私有状态或读取DA。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    float GetPresentationRadius() const
+    {
+        return PresentationSnapshot.bReady ? PresentationSnapshot.Radius : -1.f;
+    }
+    /** 开发只读冻结类型；未收到快照返回-1，不以Extension资产字段补造结果。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    int32 GetPresentationKind() const
+    {
+        return PresentationSnapshot.bReady ? static_cast<int32>(PresentationSnapshot.Kind) : INDEX_NONE;
+    }
+    const FAbilityPrototypeVisualSnapshot& GetPresentationSnapshot() const
+    {
+        return PresentationSnapshot;
+    }
+    const FAbilityPrototypePresentationStats& GetPresentationStats() const
+    {
+        return PresentationStats;
+    }
 
 private:
     friend class FExtensionAbilityDriver;
     TSharedPtr<FExtensionAbilityDriver> Driver;
     bool bExternallyDriven = false;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypeVisualSnapshot PresentationSnapshot;
+    FAbilityPrototypePresentationStats PresentationStats;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypePresentationFrame PresentationFrame;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    bool bPresentationOnly = false;
+    FAbilitySourceToken PresentationSource;
+    FAbilityPrototypePresentationLocalState LocalPresentation;
+    UFUNCTION()
+    /** 模式/快照/旧结束位的复制均进入同一值接收器，先关业务 Driver 再刷新组件。 */
+    void OnRep_PresentationState();
+    UFUNCTION(NetMulticast, Unreliable)
+    void MulticastPresentationImpact(uint32 EventId, FVector Position);
     /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
     UPROPERTY()
     TObjectPtr<UExtensionNode> ExecutionNode;

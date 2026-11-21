@@ -3,6 +3,8 @@
 #include "Equipment/WeaponSetConfig.h"
 #include "Backpack/ItemDefinition.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "AbilitySystem/MyAbilitySystemLibrary.h"
+#include "AbilitySystem/Data/AbilityInfo.h"
 #include "Character/StanderPlayer.h"
 #include "Player/MyPlayerState.h"
 #include "MyGameplayTags.h"
@@ -59,7 +61,24 @@ bool UEquipmentComponent::CanAssignWeaponSlot(FGameplayAbilitySpecHandle Handle,
     if (const auto* Set = GetWeaponSet())
         for (const auto& Entry : Set->Abilities)
             if (Entry.InputTag == Slot)
-                return IsWeaponAbility(Handle);
+            {
+                if (IsWeaponAbility(Handle))
+                {
+                    return true;
+                }
+                // 已学习的本职业技能可以替换数字快捷槽，左右键仍归武器动作组。
+                const auto& Tags = FMyGameplayTags::Get();
+                const bool bNumberSlot = Slot == Tags.InputTag_1 || Slot == Tags.InputTag_2 ||
+                                         Slot == Tags.InputTag_3 || Slot == Tags.InputTag_4;
+                const auto* AbilitySystem = Cast<UMyAbilitySystemComponent>(ASC());
+                const auto* Spec = AbilitySystem ? AbilitySystem->FindAbilitySpecFromHandle(Handle) : nullptr;
+                const auto* Catalog = AbilitySystem
+                                          ? UMyAbilitySystemLibrary::GetAbilityInfo(AbilitySystem->GetAvatarActor())
+                                          : nullptr;
+                return bNumberSlot && Spec && Catalog &&
+                       Catalog->CanLearn(UMyAbilitySystemComponent::GetAbilityTagFromSpec(*Spec),
+                                         AbilitySystem->GetAvatarActor());
+            }
     return true;
 }
 // 撤销尚未提交的临时武器能力。

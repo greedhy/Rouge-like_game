@@ -24,8 +24,42 @@
 #include "Player/MyPlayerState.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "UI/ViewModel/MVVM_LoadSlot.h"
+#include "Backpack/BackpackPersistence.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChineseSaveSlotTest, "test_25d.Rooms.ChineseSaveSlot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// 用专用临时槽走真实的保存与读取流程，并用另一种存档类型模拟不可读文件。
+bool FChineseSaveSlotTest::RunTest(const FString&)
+{
+    auto* World = UWorld::CreateWorld(EWorldType::Game, false);
+    auto* Mode = World->SpawnActor<AMyGameModeBase>();
+    auto* Slot = NewObject<UMVVM_LoadSlot>();
+    const FString SlotId = TEXT("UnicodeQA_") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
+    const FString Name = TEXT("林夕·冰霜法师 A1");
+    Slot->SetLoadSlotName(SlotId);
+    Slot->SetPlayerName(Name);
+    TestTrue(TEXT("Chinese player name saved through the game mode"), Mode->SaveSlotData(Slot, 0, EPlayerProfession::Mage));
+    Slot->SetPlayerName(FString());
+    Slot->ApplySaveData(Mode->GetSaveSlotData(SlotId, 0));
+    TestFalse(TEXT("Chinese slot is readable"), Slot->bUnreadable);
+    TestEqual(TEXT("Saved name reaches the slot view model unchanged"), Slot->GetPlayerName(), Name);
+    AMyGameModeBase::DeleteSlot(SlotId, 0);
+
+    TestTrue(TEXT("Different SaveGame class written"), UGameplayStatics::SaveGameToSlot(
+        NewObject<UBackpackPersistenceSaveGame>(), SlotId, 0));
+    Slot->ApplySaveData(Mode->GetSaveSlotData(SlotId, 0));
+    TestTrue(TEXT("Incompatible file is marked unreadable"), Slot->bUnreadable);
+    TestTrue(TEXT("Unreadable file can still be selected for deletion"), Slot->SlotStatus == Taken);
+    TestEqual(TEXT("Unreadable slot has a Chinese notification"), Slot->GetPlayerName(), FString(TEXT("存档无法读取")));
+    AMyGameModeBase::DeleteSlot(SlotId, 0);
+    TestFalse(TEXT("Unreadable file can be removed"), UGameplayStatics::DoesSaveGameExist(SlotId, 0));
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSavedProfessionTest, "test_25d.Rooms.SavedProfession",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 // Verify serialization and the same per-controller pawn selection used after seamless travel.

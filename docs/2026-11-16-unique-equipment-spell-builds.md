@@ -30,6 +30,10 @@
 | 隔离资产制作 | 生成 5 个 GE、20 条曲线、5 个物品行，保留原 36 个物品行。再次制作无修改，独立进程读回 14 件暗金通过，作者规则移除保护探针通过 |
 | 相关回归 | 88/88 通过。真实新星验证额外范围、费用、齐套和拆套。雷链验证二次目标、实际周期参数、费用与取消。真实资产测试验证系列第二成员的参数和近战 Niagara 引用 |
 | 全项目回归 | 459/460 通过。唯一失败仍是 9 个旧 Timeline 资产的目录引用校验 |
-| 主工程接入 | 本轮收尾时编辑器正在打开主工程。五件已制成的资产位于 `Saved/Automation/UniqueEquipment/Batch3Sandbox/Content/Equipment`，主工程仍有原 9 件 |
+| 主工程接入 | 2026-11-17 用默认 Editor 模块制作 5 个 GE、追加 20 条曲线和 5 个物品行。两张共享表均已备份，原 36 个物品行保留。重复执行无改写，独立进程读回全部 14 件暗金 |
+| 主工程自动化 | 装备测试 32/32 通过，其中暗金测试 16/16。全项目 460/466 通过。失败项为原有 Timeline 目录校验、格挡窗口、剑盾输入交接、各武器格挡输入、恶魔双阶段、蘑菇怪双阶段 |
+| 主工程拾取 | `L_RoguelikeRun` 单人 PIE 中通过 `Equipment.SpawnUniques` 生成 14/14 个 Soul。五件新品均显示近身提示，经实际拾取和装备请求进入对应槽位。霜旋战盔替换奇点兜帽后，兜帽以原实例返回背包 |
 
-隔离工程的资产报告在 `Batch3Sandbox/Saved/Equipment`，自动化报告在 `Batch3Sandbox/Tests` 与 `Batch3Sandbox/FullTests`。主工程关闭后对当前资产备份，再用默认 Editor DLL 运行作者与独立读回。画面验收包含法师范围、剑盾挥空、短时跟随、卸装后下一次动作以及远端表现。
+报告位于 `Saved/Automation/UniqueEquipment`。隔离工程报告在 `Batch3Sandbox`，主工程报告在 `Batch3Main`，包含 `Author.json`、`Idempotent.json`、`Verify.json`、`FullTests/index.json` 和 `Pickup.json`。`Author.json` 记录两张表的备份路径。
+
+拾取测试在无渲染的单人 PIE 中调用 E 键绑定所用的拾取请求。周身特效的画面与远端表现仍待有渲染的联机 PIE 验收，重点检查挥空、随身跟随和卸装后下一次动作。

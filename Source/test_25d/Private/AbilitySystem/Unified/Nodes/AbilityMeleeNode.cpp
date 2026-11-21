@@ -11,6 +11,7 @@
 #include "AbilitySystem/Defense/PerfectDodgeComponent.h"
 #include "AbilitySystem/Defense/GuardParryComponent.h"
 #include "Engine/World.h"
+#include "Combat/BloodFXGameplay.h"
 
 bool UAbilityMeleeNodeConfig::Validate(FString& Error) const
 {
@@ -31,6 +32,7 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
         return false;
     }
     const auto& Settings = *CastChecked<UAbilityMeleeNodeConfig>(&Config);
+    const FGuid BloodAttackId = FGuid::NewGuid();
     AActor* Avatar = nullptr;
     if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
     {
@@ -103,10 +105,12 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
         Params.KnockbackForce = Direction * Params.KnockbackForceMagnitude;
         Params.DeathImpulse = Direction * Params.DeathImpulseMagnitude;
         const bool bExtra = FMath::FRandRange(0.f, 100.f) < Params.KnockbackChance;
+        const FBloodHitSnapshot Blood = BloodFXGameplay::Capture(Target, Input.Origin, Location);
         FAbilityDamageResult ExtraResult;
         if (Settings.bLegacyExtraDamageOnKnockback && bExtra)
         {
             ExtraResult = AbilityDamageService::Apply(Input.SourceToken, Target, Params);
+            BloodFXGameplay::Confirm(Blood, ExtraResult, BloodAttackId);
         }
         // GE 可同步触发死亡/回收/取消；第二路径不允许击中刚复用的新生命。
         if (bStopped || Owner.IsFinished())
@@ -130,6 +134,12 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
                 {
                     Spec.Data->SetSetByCallerMagnitude(Params.DamageType, Params.BaseDamage);
                     SourceASC->ApplyGameplayEffectSpecToTarget(*Spec.Data, TargetASC);
+                    FAbilityDamageResult Result;
+                    if (const auto* Context = FMyGameplayEffectContext::GetMutable(Spec.Data->GetContext()))
+                    {
+                        Result.ActualDamage = Context->ResolvedHealthDamage;
+                    }
+                    BloodFXGameplay::Confirm(Blood, Result, BloodAttackId);
                     bAttempted = true;
                     if (auto* Actor = Target.Target.Actor.Get();
                         IsValid(Actor) && Actor->Implements<UCombatInterface>())
@@ -144,6 +154,7 @@ bool UAbilityMeleeNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
             Params.DebuffChance = 0.f;
             Params.DeathImpulse = FVector::ZeroVector;
             const auto BaseResult = AbilityDamageService::Apply(Input.SourceToken, Target, Params);
+            BloodFXGameplay::Confirm(Blood, BaseResult, BloodAttackId);
             bAttempted |= BaseResult.bAttempted;
             bKilled |= BaseResult.bKilled;
         }

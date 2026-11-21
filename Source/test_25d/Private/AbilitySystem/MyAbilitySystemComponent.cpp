@@ -27,6 +27,20 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/StrongObjectPtr.h"
+
+void UMyAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor)
+{
+    const TStrongObjectPtr<UMyAbilitySystemComponent> SelfGuard(this);
+    const TWeakObjectPtr<AActor> PreviousAvatar(GetAvatarActor());
+    Super::InitAbilityActorInfo(InOwnerActor, InAvatarActor);
+    const TWeakObjectPtr<AActor> CurrentAvatar(GetAvatarActor());
+    if (PreviousAvatar != CurrentAvatar)
+    {
+        // 以 Super 完成后的真实绑定为准；同 Pawn 重复初始化不撤销当前预览或重复建立订阅。
+        OnAvatarBindingChanged.Broadcast(PreviousAvatar.Get(), CurrentAvatar.Get());
+    }
+}
 
 int32 UMyAbilitySystemComponent::HandleGameplayEvent(FGameplayTag EventTag, const FGameplayEventData* Payload)
 {
@@ -411,10 +425,18 @@ void UMyAbilitySystemComponent::ClientUpdateAbilityStatus_Implementation(const F
 void UMyAbilitySystemComponent::UpdateAbilityStatuses(int32 Level)
 {
     UAbilityInfo* AbilityInfo = UMyAbilitySystemLibrary::GetAbilityInfo(GetAvatarActor());
+    if (!AbilityInfo)
+    {
+        return;
+    }
     for (const FMyAbilityInfo& Info : AbilityInfo->AbilityInformation)
     {
         if (!Info.AbilityTag.IsValid())
             continue;
+        if (!AbilityInfo->CanLearn(Info.AbilityTag, GetAvatarActor()))
+        {
+            continue;
+        }
         const auto* CatalogAbility = Info.Ability ? Cast<UMyGameplayAbility>(Info.Ability.GetDefaultObject()) : nullptr;
         if (CatalogAbility && CatalogAbility->IsEquipmentGrantedOnly())
             continue;
@@ -433,6 +455,19 @@ void UMyAbilitySystemComponent::UpdateAbilityStatuses(int32 Level)
 // 排除装备专属技能，消耗点数解锁或升级并同步等级状态。
 void UMyAbilitySystemComponent::ServerSpendSpellPoint_Implementation(const FGameplayTag& AbilityTag)
 {
+    const auto* Catalog = UMyAbilitySystemLibrary::GetAbilityInfo(GetAvatarActor());
+    const auto* Existing = GetSpecFromAbilityTag(AbilityTag);
+    const auto& Tags = FMyGameplayTags::Get();
+    if (!Catalog || !Catalog->CanLearn(AbilityTag, GetAvatarActor()) || !Existing ||
+        Catalog->FindAbilityInfoForTag(AbilityTag).Ability != Existing->Ability->GetClass() ||
+        !GetAvatarActor()->Implements<UPlayerInterface>() ||
+        IPlayerInterface::Execute_GetSpellPoints(GetAvatarActor()) <= 0 ||
+        (GetStatusFromSpec(*Existing) != Tags.Abilities_Status_Eligible &&
+         GetStatusFromSpec(*Existing) != Tags.Abilities_Status_Unlocked &&
+         GetStatusFromSpec(*Existing) != Tags.Abilities_Status_Equipped))
+    {
+        return;
+    }
     if (auto* State = Cast<AMyPlayerState>(GetOwnerActor()))
         if (auto* Spec = GetSpecFromAbilityTag(AbilityTag);
             Spec && State->GetEquipmentComponent()->IsWeaponAbility(Spec->Handle))
@@ -583,6 +618,13 @@ void UMyAbilitySystemComponent::ServerEquipAbility_Implementation(const FGamepla
     if (auto* State = Cast<AMyPlayerState>(GetOwnerActor());
         State && !State->GetEquipmentComponent()->CanAssignWeaponSlot(Spec->Handle, Slot))
         return;
+    const auto* Catalog = UMyAbilitySystemLibrary::GetAbilityInfo(GetAvatarActor());
+    const auto* EquipmentState = Cast<AMyPlayerState>(GetOwnerActor());
+    const bool bWeaponAbility = EquipmentState && EquipmentState->GetEquipmentComponent()->IsWeaponAbility(Spec->Handle);
+    if (!bWeaponAbility && Catalog && !Catalog->CanLearn(AbilityTag, GetAvatarActor()))
+    {
+        return;
+    }
     const FMyGameplayTags& Tags = FMyGameplayTags::Get();
     const FGameplayTag Status = GetStatusFromSpec(*Spec);
     if (Status != Tags.Abilities_Status_Equipped && Status != Tags.Abilities_Status_Unlocked)
@@ -771,8 +813,13 @@ void UMyAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& Inpu
 // 恢复存档等级槽位，兼容旧开关技能并恢复已装备被动。
 void UMyAbilitySystemComponent::AddCharacterAbilitiesFromSaveData(ULoadScreenSaveGame* SaveData)
 {
+    const auto* Catalog = UMyAbilitySystemLibrary::GetAbilityInfo(GetAvatarActor());
     for (const FSavedAbility& Data : SaveData->SavedAbilities)
     {
+        if (Catalog && !Catalog->CanLearn(Data.AbilityTag, GetAvatarActor()))
+        {
+            continue;
+        }
         const TSubclassOf<UGameplayAbility> LoadedAbilityClass = Data.GameplayAbility;
         const auto* SavedAbility =
             LoadedAbilityClass ? Cast<UMyGameplayAbility>(LoadedAbilityClass.GetDefaultObject()) : nullptr;

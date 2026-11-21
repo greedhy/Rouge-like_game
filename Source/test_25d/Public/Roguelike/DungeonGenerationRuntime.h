@@ -7,6 +7,7 @@
 #include "DungeonGenerationRuntime.generated.h"
 
 class UDungeonGenerationProfile;
+class UDungeonThemeComponent;
 class ULevelStreamingDynamic;
 class UStaticMeshComponent;
 class ADungeonGenerationController;
@@ -109,6 +110,10 @@ private:
     FVector RoomCenter(int32 Index) const;
     // 确认上报者仍属于当前服务器世界的玩家列表。
     bool IsCurrentController(const ADungeonGenerationController* Controller) const;
+    // 将已就绪的本地关卡和只读清单交给主题组件，不参与装配或导航判定。
+    void InitializeThemes();
+    UPROPERTY(Transient)
+    TObjectPtr<UDungeonThemeComponent> Themes;
     UPROPERTY(Transient)
     TArray<TObjectPtr<ULevelStreamingDynamic>> StreamingRooms;
     UPROPERTY(Transient)

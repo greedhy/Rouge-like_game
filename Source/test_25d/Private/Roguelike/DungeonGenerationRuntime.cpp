@@ -3,6 +3,7 @@
 #include "Roguelike/DungeonGenerationProfile.h"
 #include "Roguelike/DungeonGenerationController.h"
 #include "Roguelike/DungeonLayoutLibrary.h"
+#include "Roguelike/DungeonThemeComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -18,7 +19,14 @@
 #include "Net/UnrealNetwork.h"
 #include "Misc/PackageName.h"
 #include "Misc/SecureHash.h"
+#include "HAL/IConsoleManager.h"
 #include "Serialization/JsonSerializer.h"
+
+namespace
+{
+    TAutoConsoleVariable<bool> CVarDungeonThemes(
+        TEXT("Dungeon.Theme.Enabled"), true, TEXT("Apply dungeon room art themes when the floor becomes ready."));
+}
 
 // 建立复制宿主及低频装配检查周期。
 ADungeonGenerationRuntime::ADungeonGenerationRuntime()
@@ -348,9 +356,32 @@ void ADungeonGenerationRuntime::Tick(float DeltaSeconds)
         SafetyGate->SetCollisionEnabled(Open ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
         SafetyGate->SetVisibility(!Open);
     }
+    if (CanLocalPlayerMove() && !Themes && GetNetMode() != NM_DedicatedServer && CVarDungeonThemes.GetValueOnGameThread())
+    {
+        InitializeThemes();
+    }
     const double Timeout = Profile ? Profile->ReadyTimeout : 30.f;
     if ((!bLocalReady || Phase != EDungeonGenerationPhase::Ready) && FPlatformTime::Seconds() - StartedAt > Timeout)
         Fail(TEXT("ReadyTimeout:") + (bLocalReady ? TEXT("WaitingForPlayers") : PendingReason));
+}
+
+// 地牢就绪后交付本地视觉组件，保留清单索引和流式实例的对应关系。
+void ADungeonGenerationRuntime::InitializeThemes()
+{
+    TArray<ULevel*> Levels;
+    int32 StreamingIndex = 0;
+    for (const FDungeonRoomPlacement& Room : Manifest.Layout.Rooms)
+    {
+        Levels.Add(Room.bPersistent ? GetLevel() : StreamingRooms[StreamingIndex++]->GetLoadedLevel());
+    }
+
+    const TSoftClassPtr<UDungeonThemeComponent> Blueprint(FSoftObjectPath(
+        TEXT("/Game/ThemeSystem/BP_ThemeApplyComponent.BP_ThemeApplyComponent_C")));
+    UClass* ThemeClass = Blueprint.LoadSynchronous();
+    Themes = NewObject<UDungeonThemeComponent>(this, ThemeClass ? ThemeClass : UDungeonThemeComponent::StaticClass());
+    AddInstanceComponent(Themes);
+    Themes->RegisterComponent();
+    Themes->InitializeFloor(Manifest.Layout, Manifest.RoomSpacing, Levels);
 }
 
 // 确认上报者仍属于当前服务器世界的玩家列表。
@@ -466,6 +497,10 @@ FString ADungeonGenerationRuntime::GetGenerationReport() const
         Connections.Add(MakeShared<FJsonValueObject>(Item));
     }
     Report->SetArrayField(TEXT("connections"), Connections);
+    if (Themes)
+    {
+        Report->SetStringField(TEXT("theme"), Themes->GetThemeReport());
+    }
     FString Json;
     FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json));
     return Json;
@@ -474,6 +509,11 @@ FString ADungeonGenerationRuntime::GetGenerationReport() const
 // 退出时释放本对象持有的资源与状态，并调用父类结束生命周期。
 void ADungeonGenerationRuntime::EndPlay(EEndPlayReason::Type Reason)
 {
+    if (Themes)
+    {
+        Themes->DestroyComponent();
+        Themes = nullptr;
+    }
     for (const auto& Level : StreamingRooms)
         if (IsValid(Level))
         {

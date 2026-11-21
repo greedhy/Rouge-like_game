@@ -64,6 +64,40 @@ AMyProjectile* AbilityTraditionalActions::CreateProjectileDeferred(const FAbilit
     return Projectile;
 }
 
+bool AbilityTraditionalActions::PrepareProjectileLaunch(const FAbilitySourceToken& Source,
+                                                        const FDamageEffectParams& Damage,
+                                                        const FAbilityActorProjectileSettings& Settings, float Level,
+                                                        FAbilityActorProjectileSettings& OutSettings,
+                                                        FDamageEffectParams& OutDamage, int32& OutCount, FString& Error)
+{
+    Error.Reset();
+    OutSettings = Settings;
+    OutDamage = Damage;
+    OutCount = 0;
+    AActor* Avatar = nullptr;
+    if (!Settings.Validate(Error) || !FMath::IsFinite(Level) ||
+        !AbilityExecutionIdentity::ResolveSource(Source, Avatar))
+    {
+        if (Error.IsEmpty())
+        {
+            Error = TEXT("Projectile preparation requires a finite level and current source.");
+        }
+        return false;
+    }
+    OutCount = Settings.bLimitCountToLevel ? FMath::Min(Settings.Count, FMath::FloorToInt(Level)) : Settings.Count;
+    if (OutCount <= 0)
+    {
+        return false;
+    }
+    // 与原动作相同：等级限制只执行一次，装备追加之后不能再按等级把额外弹数裁掉。
+    if (!EquipmentAbilityModifiers::ApplyProjectileRules(Source, OutSettings, OutDamage, OutCount))
+    {
+        Error = TEXT("Projectile equipment preparation failed.");
+        return false;
+    }
+    return true;
+}
+
 TArray<AMyProjectile*> AbilityTraditionalActions::SpawnProjectiles(const FAbilitySourceToken& Source,
                                                                    const FDamageEffectParams& Damage,
                                                                    const FAbilityActorProjectileSettings& Settings,
@@ -78,16 +112,10 @@ TArray<AMyProjectile*> AbilityTraditionalActions::SpawnProjectiles(const FAbilit
     {
         return Spawned;
     }
-    int32 Count =
-        Settings.bLimitCountToLevel ? FMath::Min(Settings.Count, FMath::FloorToInt(Level)) : Settings.Count;
-    if (Count <= 0)
-    {
-        return Spawned;
-    }
-    // 原技能先限制数量，暗金再追加；副本固定本次发射结果，后续换装不重写在途弹体。
-    auto LaunchSettings = Settings;
-    auto LaunchDamage = Damage;
-    if (!EquipmentAbilityModifiers::ApplyProjectileRules(Source, LaunchSettings, LaunchDamage, Count))
+    int32 Count = 0;
+    FAbilityActorProjectileSettings LaunchSettings;
+    FDamageEffectParams LaunchDamage;
+    if (!PrepareProjectileLaunch(Source, Damage, Settings, Level, LaunchSettings, LaunchDamage, Count, Error))
     {
         return Spawned;
     }
@@ -96,12 +124,13 @@ TArray<AMyProjectile*> AbilityTraditionalActions::SpawnProjectiles(const FAbilit
     {
         Rotation.Pitch = LaunchSettings.PitchOverride;
     }
-    const auto Rotations =
-        UMyAbilitySystemLibrary::EvenlySpacedRotators(Rotation.Vector(), FVector::UpVector, LaunchSettings.Spread, Count);
+    const auto Rotations = UMyAbilitySystemLibrary::EvenlySpacedRotators(Rotation.Vector(), FVector::UpVector,
+                                                                         LaunchSettings.Spread, Count);
     for (const FRotator& Direction : Rotations)
     {
         const FTransform Transform(Direction, Origin);
-        AMyProjectile* Projectile = CreateProjectileDeferred(Source, LaunchDamage, LaunchSettings.ProjectileClass, Transform);
+        AMyProjectile* Projectile =
+            CreateProjectileDeferred(Source, LaunchDamage, LaunchSettings.ProjectileClass, Transform);
         if (!Projectile)
         {
             continue;
@@ -280,7 +309,13 @@ bool UAbilityActorProjectileNodeExecution::Start(UAbilityGraphInstance& Owner, c
     {
         AimPoint = Origin + Input.Direction * 1000.f;
     }
-    AbilityTraditionalActions::SpawnProjectiles(Input.SourceToken, Input.DamageParams, Settings.Settings, Input.Level,
+    auto LaunchSettings = Settings.Settings;
+    if (const auto* Call = Cast<UAbilityActorProjectileContext>(Input.Context.Get()))
+    {
+        LaunchSettings.bOverridePitch = Call->bOverridePitch;
+        LaunchSettings.PitchOverride = Call->PitchOverride;
+    }
+    AbilityTraditionalActions::SpawnProjectiles(Input.SourceToken, Input.DamageParams, LaunchSettings, Input.Level,
                                                 Origin, AimPoint, HomingTarget);
     return Owner.Publish(Id, TEXT("Completed"), Input);
 }

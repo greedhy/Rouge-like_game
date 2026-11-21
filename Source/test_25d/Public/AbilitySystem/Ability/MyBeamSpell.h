@@ -19,6 +19,8 @@ class TEST_25D_API UMyBeamSpell : public UMyDamageGameplayAbility
     GENERATED_BODY()
 public:
     UMyBeamSpell();
+    /** 导出原引导策略；周期费用与松键信号由本次前端 Context 提供。 */
+    virtual UAbilityGraphDefinition* BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const override;
     virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
                                  FGameplayAbilityActivationInfo ActivationInfo,
                                  const FGameplayEventData* TriggerEventData) override;

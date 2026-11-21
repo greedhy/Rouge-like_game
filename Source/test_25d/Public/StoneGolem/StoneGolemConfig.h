@@ -84,6 +84,9 @@ struct TEST_25D_API FStoneGolemAttackTuning
     TObjectPtr<UMaterialInterface> WarningMaterial;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact")
     TObjectPtr<UNiagaraSystem> ImpactEffect;
+    // 可选的表现蓝图预设。留空时仍使用 ImpactEffect。
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact")
+    FName ImpactPresentationPreset;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact")
     FName ImpactSocket = TEXT("weapon_rSocket");
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact")

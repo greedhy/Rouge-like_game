@@ -6,6 +6,7 @@
 #include "Equipment/EquipmentComponent.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystem/Ability/MyGameplayAbility.h"
+#include "AbilitySystem/Unified/AbilityRuntimeRecipeDeveloperComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/MyPlayerState.h"
 #include "AbilitySystemComponent.h"
@@ -440,6 +441,14 @@ void APlayerCharacter::WriteProgressToSaveData(ULoadScreenSaveGame* SaveData, co
         {
             auto* EquipmentState = GetPlayerState<AMyPlayerState>();
             auto* Equipment = EquipmentState ? EquipmentState->GetEquipmentComponent() : nullptr;
+            const auto* Developer = EquipmentState
+                ? EquipmentState->FindComponentByClass<UAbilityRuntimeRecipeDeveloperComponent>()
+                : nullptr;
+            if (Developer && Developer->OwnsTemporaryAbility(AbilitySpec.Handle))
+            {
+                // 开发预览按授予句柄排除，正式同类/同身份技能仍照常保存。
+                return;
+            }
             if (Equipment && Equipment->IsWeaponAbility(AbilitySpec.Handle))
                 return;
             if (const auto* Ability = Cast<UMyGameplayAbility>(AbilitySpec.Ability);

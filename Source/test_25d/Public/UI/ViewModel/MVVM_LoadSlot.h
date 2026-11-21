@@ -24,6 +24,9 @@ public:
     FEnableSelectSlotButton EnableSelectSlotButton;
 
     void InitializeSlot();
+    // 用读档结果刷新槽位。无法读取的文件仍可被选中后删除。
+    void ApplySaveData(const ULoadScreenSaveGame* Save);
+    bool bUnreadable = false;
 
     UPROPERTY()
     int32 SlotIndex;

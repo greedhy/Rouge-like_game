@@ -10,6 +10,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
+#include "PureMass/PureMassCombatTarget.h"
 #include "MyAbilitySystemComponent.generated.h"
 
 class ULoadScreenSaveGame;
@@ -25,6 +26,8 @@ DECLARE_MULTICAST_DELEGATE_FourParams(FAbilityEquipped, const FGameplayTag& /*Ab
 DECLARE_MULTICAST_DELEGATE_OneParam(FDeactivatePassiveAbility, const FGameplayTag& /*AbilityTag*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FActivatePassiveEffect, const FGameplayTag& /*AbilityTag*/, bool /*bActivate*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOffensiveAttackTargeted, UGameplayAbility*, AActor*);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FPrototypeMixedCommittedAttack, UGameplayAbility*, FPureMassCombatTarget);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FAbilityAvatarBindingChanged, AActor*, AActor*);
 
 // Presentation snapshot for the owning client of a server-only Standard montage.
 USTRUCT()
@@ -53,6 +56,9 @@ class TEST_25D_API UMyAbilitySystemComponent : public UAbilitySystemComponent
 {
     GENERATED_BODY()
 public:
+    /** 所有 Avatar 绑定共用引擎入口；生命周期订阅者只接收本地实际绑定变化，不代替网络复制。 */
+    virtual void InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor) override;
+    FAbilityAvatarBindingChanged OnAvatarBindingChanged;
     // 绑定自身效果应用委托，交给客户端回调提取资产标签。
     void AbilityActorInfoSet();
     virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
@@ -71,6 +77,8 @@ public:
     FActivatePassiveEffect ActivatePassiveEffect;
     // Server-local accepted attack signal. Cosmetic/projectile damage must not emit it.
     FOffensiveAttackTargeted OffensiveAttackTargeted;
+    /** 服务器本地Mixed提交信号；原NotifyCommittedAttack权限门通过后才发，订阅随具体图调用解绑。 */
+    FPrototypeMixedCommittedAttack PrototypeMixedCommittedAttack;
     // 校验服务器权限、攻击提交及敌对存活目标，广播有效攻击事件。
     void NotifyOffensiveAttack(UGameplayAbility* SourceAbility, AActor* Target);
 

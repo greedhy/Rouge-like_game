@@ -7,6 +7,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "AbilitySystem/AbilityTask/TargetDataUnderMouse.h"
 #include "AbilitySystem/Unified/Nodes/AbilityElectrocuteNodeExecutions.h"
+#include "AbilitySystem/Unified/Nodes/AbilityElectrocuteFragments.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityGraphWorldSubsystem.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
@@ -51,7 +52,7 @@ void UMyBeamSpell::OnElectrocuteTargetData(const FGameplayAbilityTargetDataHandl
         return;
     }
     const auto Session = GetExecutionSession();
-    if (!Session || !Session->IsSourceCurrent())
+    if (!Session || !Session->IsSourceCurrent() || !GetRuntimeRecipeError().IsEmpty())
     {
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
         return;
@@ -111,6 +112,22 @@ void UMyBeamSpell::OnElectrocuteTargetData(const FGameplayAbilityTargetDataHandl
     Release->ReadyForActivation();
 }
 
+UAbilityGraphDefinition* UMyBeamSpell::BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const
+{
+    Error.Reset();
+    auto* Config = NewObject<UAbilityElectrocuteNodeConfig>(Outer ? Outer : GetTransientPackage());
+    Config->DamageInterval = ElectrocuteDamageInterval;
+    Config->MaxAdditionalTargets = MaxNumShockTargets;
+    Config->LoopCue = FGameplayTag::RequestGameplayTag(TEXT("GameplayCue.ShockLoop"));
+    const auto AbilityTag = FMyGameplayTags::Get().Abilities_Thunder_Electrocute;
+    if (GetAssetTags().HasTagExact(AbilityTag))
+    {
+        Config->EquipmentAbilityTag = AbilityTag;
+    }
+    // 仅运行时配方导出细宿主/独立周期与Final；无配方Notify仍走下方原LegacyStreaming宏。
+    return AbilityElectrocuteFragments::Build(Outer, *Config);
+}
+
 void UMyBeamSpell::OnElectrocuteNotify(FGameplayEventData Payload)
 {
     if (!IsActive() || bChannelStarted || !bTargetConfirmed)
@@ -153,6 +170,10 @@ void UMyBeamSpell::OnElectrocuteNotify(FGameplayEventData Payload)
     Node.Config = Config;
     Graph->Nodes.Add(Node);
     Graph->EntryNodeId = Node.NodeId;
+    if (GetRuntimeRecipeSnapshot().Graph)
+    {
+        Graph = GetRuntimeRecipeSnapshot().Graph;
+    }
     ElectrocuteContext = NewObject<UAbilityElectrocuteContext>(this);
     ElectrocuteContext->AimActor = MouseHitActor;
     const TWeakObjectPtr<UMyBeamSpell> WeakThis(this);
@@ -184,13 +205,17 @@ void UMyBeamSpell::OnElectrocuteNotify(FGameplayEventData Payload)
             }
         });
     FAbilityExecutionOptions Options;
-    Options.BudgetPolicy = EAbilityGraphBudgetPolicy::LegacyStreaming;
+    Options.BudgetPolicy = Graph->BudgetPolicy;
+    Options.OwnerLease = GetRuntimeExecutionOwnerLease();
+    Options.CompatibilityProfile = Graph->CompatibilityProfile;
     FString Error;
     const TStrongObjectPtr<UAbilityGraphInstance> Starting(ElectrocuteGraph.Get());
+    ObserveFrozenRuntimeGraph(Starting.Get(), ElectrocuteInput.SourceToken);
     auto* WorldOwner = GetWorld()->GetSubsystem<UAbilityGraphWorldSubsystem>();
     if (!Starting->StartWithInput(Graph, ElectrocuteInput, Options, Error) || !WorldOwner ||
         !WorldOwner->Adopt(Starting.Get(), Error))
     {
+        ForgetFrozenRuntimeGraph(Starting.Get(), ElectrocuteInput.SourceToken);
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
     }
 }

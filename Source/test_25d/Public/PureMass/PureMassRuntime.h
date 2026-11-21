@@ -1,4 +1,5 @@
 /** GA / graph strategy -> Spawn or SpawnDriven -> mixed driver; graph or compatibility Tick advances behavior. Actor owns replicated endpoints, Surface and Batch6 presentation; driver owns clocks, targeting and child admission. */
+// 细节点独立表现：SpawnPresentationOnly -> 共享 renderer；冻结表现帧独立复制，不能启动混合目标业务。
 // 技能运行入口：施法生成行为节点，逐帧分发弹道与范围行为，经统一目标查询分流到角色效果或实体伤害；结束时清理附属表现。
 #pragma once
 #include "CoreMinimal.h"
@@ -6,6 +7,7 @@
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "PureMass/PureMassCombatTarget.h"
 #include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
+#include "AbilitySystem/Unified/AbilityPrototypePresentationService.h"
 #include "PureMassRuntime.generated.h"
 
 class FMixedAbilityDriver;
@@ -94,10 +96,55 @@ public:
         return Driver;
     }
 
+    /** 纯表现工厂；模式必须在 FinishSpawning 前安装，不启动混合目标 Driver。 */
+    static APureMassRuntime* SpawnPresentationOnly(const FAbilitySourceToken& Source, const UAbilityPrototype& Frozen,
+                                                   UAbilityPrototype* StableReference,
+                                                   const FAbilityPrototypePresentationFrame& Frame, FString& Error);
+    /** 复制通知和本地更新共用；快照不包含执行图或伤害参数。 */
+    void ApplyPresentationReplica(const FAbilityPrototypeVisualSnapshot& Snapshot,
+                                  const FAbilityPrototypePresentationFrame& Frame);
+    /** 仅更新粒子、圆盘与端点，不执行原型周期或伤害。 */
+    bool UpdatePresentationOnly(const FAbilityPrototypePresentationFrame& Frame);
+    /** EventId 在单个表现宿主内去重；结束后拒绝命中表现。 */
+    bool ImpactPresentationOnly(uint32 EventId, const FVector& Position);
+    /** 纯表现终止，不触发 OnExpire，也不修改共享业务 Context。 */
+    bool FinishPresentationOnly(bool bCancelled, bool bRequestedImpactOnFinish, bool bUseOriginalFinishPolicy = false);
+    /** 读取本机已收到的冻结复制半径；-1表示快照未就绪，不从临时DA补值或推进表现。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    float GetPresentationRadius() const
+    {
+        return PresentationSnapshot.bReady ? PresentationSnapshot.Radius : -1.f;
+    }
+    /** 开发只读冻结类型；纯表现宿主不要求旧Prototype有值，未ready返回-1。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    int32 GetPresentationKind() const
+    {
+        return PresentationSnapshot.bReady ? static_cast<int32>(PresentationSnapshot.Kind) : INDEX_NONE;
+    }
+    const FAbilityPrototypePresentationStats& GetPresentationStats() const
+    {
+        return PresentationStats;
+    }
+
 private:
     friend class FMixedAbilityDriver;
     TSharedPtr<FMixedAbilityDriver> Driver;
     bool bExternallyDriven = false;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    bool bPresentationOnly = false;
+    FAbilitySourceToken PresentationSource;
+    FAbilityPrototypePresentationStats PresentationStats;
+    FAbilityPrototypePresentationLocalState LocalPresentation;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypeVisualSnapshot PresentationSnapshot;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypePresentationFrame PresentationFrame;
+    UFUNCTION()
+    /** 只消费冻结值；与旧 RefreshVisual 业务兼容分支分离。 */
+    void OnRep_PresentationState();
+    UFUNCTION(NetMulticast, Unreliable)
+    /** 接收纯表现命中，仅播放粒子且按事件身份去重。 */
+    void MulticastPresentationImpact(uint32 EventId, FVector Position);
     /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
     UPROPERTY()
     TObjectPtr<UAbilityPrototype> ExecutionPrototype;

@@ -1,6 +1,18 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：加载界面读取槽位 → 同步 ViewModel 字段 → WidgetSwitcher 显示对应页面。
 
 #include "UI/ViewModel/MVVM_LoadSlot.h"
+
+void UMVVM_LoadSlot::ApplySaveData(const ULoadScreenSaveGame* Save)
+{
+    bUnreadable = Save == nullptr;
+    SlotStatus = Save ? Save->SaveSlotStatus.GetValue() : Taken;
+    SetPlayerName(Save ? Save->PlayerName : NSLOCTEXT("LoadScreen", "UnreadableSave", "存档无法读取").ToString());
+    SetMapName(Save ? Save->MapName : FString());
+    PlayerStartTag = Save ? Save->PlayerStartTag : NAME_None;
+    MapAssetName = Save ? Save->MapAssetName : FString();
+    SetPlayerLevel(Save ? Save->PlayerLevel : 0);
+    InitializeSlot();
+}
 
 void UMVVM_LoadSlot::InitializeSlot()
 {

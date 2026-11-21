@@ -7,6 +7,23 @@
 #include "AbilitySystem/MyAbilitySystemComponent.h"
 #include "AbilitySystem/MyAttributeSet.h"
 #include "AbilitySystem/Data/AbilityInfo.h"
+#include "Character/SwordShieldPlayer.h"
+#include "AbilitySystem/MyAbilitySystemLibrary.h"
+
+// 控制器的定时菜单操作绑定到拥有者的游戏世界，蓝图派生类共享同一上下文。
+UWorld* UMyWidgetController::GetWorld() const
+{
+    if (IsTemplate())
+    {
+        return nullptr;
+    }
+    if (PlayerController)
+    {
+        return PlayerController->GetWorld();
+    }
+    return ASC ? ASC->GetWorld() : nullptr;
+}
+
 // 先解除旧依赖回调、清空类型缓存，再替换本轮 UI 使用的玩家与 GAS 对象。
 void UMyWidgetController::SetWidgetControllerParams(const FWidgetControllerParams& WCParams)
 {
@@ -19,6 +36,17 @@ void UMyWidgetController::SetWidgetControllerParams(const FWidgetControllerParam
     PlayerState = WCParams.PlayerState;
     ASC = WCParams.AbilitySystemComponent;
     AttributeSet = WCParams.AttributeSet;
+    // 服务器使用实际角色目录，客户端近战 HUD 也解析同一近战目录。
+    const AActor* Avatar = ASC ? ASC->GetAvatarActor() : nullptr;
+    if (UAbilityInfo* Catalog = UMyAbilitySystemLibrary::GetAbilityInfo(Avatar))
+    {
+        AbilityInfo = Catalog;
+    }
+    else if (Avatar && UAbilityInfo::ResolveProfession(Avatar) == EPlayerProfession::Stander)
+    {
+        AbilityInfo = LoadObject<UAbilityInfo>(
+            nullptr, TEXT("/Game/BluePrints/Characters/Stander/DA_SwordAbilityInfo.DA_SwordAbilityInfo"));
+    }
 }
 
 // 初始值广播扩展点，基类不提供具体面板数据。

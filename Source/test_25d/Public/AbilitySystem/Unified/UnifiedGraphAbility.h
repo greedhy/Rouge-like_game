@@ -67,6 +67,9 @@ public:
     bool HasPendingGraphWork() const;
 
 protected:
+    /** 目标解释、费用校验与运行共用这一激活的定义；不改写可被其它实例共享的 Graph 资产。 */
+    UPROPERTY(Transient)
+    TObjectPtr<UAbilityGraphDefinition> ActivationGraph;
     /** 目标任务回调：客户端只停止等待；服务器只接受一次载荷并重新验证位置和生命身份。 */
     UFUNCTION()
     void TargetReady(const FGameplayAbilityTargetDataHandle& Data);

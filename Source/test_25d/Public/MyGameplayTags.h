@@ -57,6 +57,8 @@ public:
     FGameplayTag InputTag_Backpack;
     FGameplayTag InputTag_Pickup;
     FGameplayTag InputTag_Dodge;
+    /** 开发预览独占槽，普通存档和正式技能槽不使用。 */
+    FGameplayTag InputTag_DeveloperRecipe;
 
     FGameplayTag InputTag_Passive_1;
     FGameplayTag InputTag_Passive_2;

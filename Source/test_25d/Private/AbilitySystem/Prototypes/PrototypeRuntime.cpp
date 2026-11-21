@@ -1,4 +1,5 @@
 /** GA / graph strategy -> Spawn or SpawnDriven -> driver Start; compatibility Tick or graph Advance -> driver behavior and child admission. This Actor owns only replication, presentation resources and compatibility delegates. */
+// 细节点独立表现：SpawnPresentationOnly -> 冻结 Snapshot/Frame -> 共享 renderer；此模式不启动/推进 Driver。
 #include "AbilitySystem/Prototypes/PrototypeRuntime.h"
 #include "AbilitySystem/Unified/LegacyActorAbilityDriver.h"
 #include "AbilitySystemBlueprintLibrary.h"
@@ -50,6 +51,158 @@ APrototypeRuntime* APrototypeRuntime::SpawnDriven(UPrototypeCastContext* InConte
 {
     return SpawnInternal(InContext, Config, Position, InDirection, Target, InDepth, bSingle, MoveTemp(Admission), true,
                          PresentationConfig);
+}
+
+APrototypeRuntime* APrototypeRuntime::SpawnPresentationOnly(const FAbilitySourceToken& Source,
+                                                            const UAbilityPrototype& Frozen,
+                                                            UAbilityPrototype* StableReference,
+                                                            const FAbilityPrototypePresentationFrame& Frame,
+                                                            FString& Error)
+{
+    Error.Reset();
+    AActor* Avatar = nullptr;
+    auto Snapshot = AbilityPrototypePresentationService::Capture(Frozen, StableReference,
+                                                                       EAbilityPrototypePresentationProfile::Actor);
+    Snapshot.bSingleProjectile = Frame.bSingleProjectile;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Avatar) || !Snapshot.bReady ||
+        !AbilityPrototypePresentationService::IsValidFrame(Frame))
+    {
+        Error = TEXT("Invalid source life or frozen actor presentation values");
+        return nullptr;
+    }
+    auto* Actor = Avatar->GetWorld()->SpawnActorDeferred<APrototypeRuntime>(
+        StaticClass(), Frame.Transform, Avatar, Cast<APawn>(Avatar), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Actor)
+    {
+        Error = TEXT("Actor presentation host spawn failed");
+        return nullptr;
+    }
+    // Install isolation before FinishSpawning can dispatch BeginPlay; no Context budget is reserved here.
+    Actor->PresentationSource = Source;
+    Actor->ApplyPresentationReplica(Snapshot, Frame);
+    Actor->FinishSpawning(Frame.Transform);
+    return Actor;
+}
+
+void APrototypeRuntime::ApplyPresentationReplica(const FAbilityPrototypeVisualSnapshot& Snapshot,
+                                                 const FAbilityPrototypePresentationFrame& Frame)
+{
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    PresentationSnapshot = Snapshot;
+    AbilityPrototypePresentationService::AcceptFrame(Frame, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    if (HasActorBegunPlay())
+    {
+        OnRep_PresentationState();
+    }
+}
+
+bool APrototypeRuntime::UpdatePresentationOnly(const FAbilityPrototypePresentationFrame& Frame)
+{
+    if (!bPresentationOnly || !HasAuthority() || LocalPresentation.bTerminal)
+    {
+        return false;
+    }
+    AActor* Avatar = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+    {
+        FinishPresentationOnly(true, false);
+        return false;
+    }
+    if (!AbilityPrototypePresentationService::AcceptFrame(Frame, LocalPresentation, PresentationStats))
+    {
+        return false;
+    }
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    OnRep_PresentationState();
+    if (LocalPresentation.bTerminal)
+    {
+        SetLifeSpan(.35f);
+    }
+    ForceNetUpdate();
+    return true;
+}
+
+bool APrototypeRuntime::ImpactPresentationOnly(uint32 EventId, const FVector& Position)
+{
+    if (!bPresentationOnly || !HasAuthority() || bFinished || EventId == 0 || Position.ContainsNaN() ||
+        !AbilityPrototypePresentationService::CanAcceptImpact(LocalPresentation, EventId))
+    {
+        return false;
+    }
+    AActor* Avatar = nullptr;
+    if (!AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+    {
+        FinishPresentationOnly(true, false);
+        return false;
+    }
+    MulticastPresentationImpact(EventId, Position);
+    return true;
+}
+
+bool APrototypeRuntime::FinishPresentationOnly(bool bCancelled, bool bRequestedImpactOnFinish)
+{
+    if (!bPresentationOnly || !HasAuthority() || LocalPresentation.bTerminal)
+    {
+        return false;
+    }
+    auto Last = LocalPresentation.AcceptedFrame;
+    if (!Last.bReady)
+    {
+        return false;
+    }
+    Last.Revision = Last.Revision < MAX_uint32 ? Last.Revision + 1 : MAX_uint32;
+    Last.bFinished = true;
+    Last.bCancelled = bCancelled;
+    Last.bImpactOnFinish = !bCancelled && bRequestedImpactOnFinish;
+    AbilityPrototypePresentationService::AcceptFrame(Last, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    OnRep_PresentationState();
+    SetLifeSpan(.35f);
+    ForceNetUpdate();
+    return true;
+}
+
+void APrototypeRuntime::OnRep_PresentationState()
+{
+    if (!bPresentationOnly && !PresentationSnapshot.bReady && !PresentationFrame.bReady)
+    {
+        return;
+    }
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    if (bFinished && !LocalPresentation.bTerminal && !PresentationFrame.bFinished)
+    {
+        LocalPresentation.bAwaitingFinishFrame = true;
+    }
+    AbilityPrototypePresentationService::AcceptFrame(PresentationFrame, LocalPresentation, PresentationStats);
+    PresentationFrame = LocalPresentation.AcceptedFrame;
+    bFinished = LocalPresentation.bTerminal || LocalPresentation.bAwaitingFinishFrame;
+    if (PresentationFrame.bReady)
+    {
+        // 空间事实独立于组件BeginPlay；首次视觉就绪前也必须与接受的服务器帧保持同一位置。
+        SetActorTransform(PresentationFrame.Transform);
+    }
+    BeamEnd = PresentationFrame.BeamEnd;
+    WaveRadius = PresentationFrame.WaveRadius;
+    bReturning = PresentationFrame.bReturning;
+    if (HasActorBegunPlay())
+    {
+        AbilityPrototypePresentationService::Refresh(*this, PresentationSnapshot, LocalPresentation, PresentationStats,
+                                                     Visual, InnerVisual);
+    }
+}
+
+void APrototypeRuntime::MulticastPresentationImpact_Implementation(uint32 EventId, FVector Position)
+{
+    bPresentationOnly = true;
+    bExternallyDriven = true;
+    Driver.Reset();
+    AbilityPrototypePresentationService::PresentImpact(*this, PresentationSnapshot, LocalPresentation,
+                                                       PresentationStats, EventId, Position);
 }
 
 APrototypeRuntime* APrototypeRuntime::SpawnInternal(UPrototypeCastContext* InContext, UAbilityPrototype* Config,
@@ -144,6 +297,11 @@ bool APrototypeRuntime::SpendMana(AActor* Caster, float Amount)
 void APrototypeRuntime::BeginPlay()
 {
     Super::BeginPlay();
+    if (bPresentationOnly || PresentationSnapshot.bReady || PresentationFrame.bReady)
+    {
+        OnRep_PresentationState();
+        return;
+    }
     OnRep_Prototype();
     Driver->Start();
 }
@@ -151,6 +309,11 @@ void APrototypeRuntime::BeginPlay()
 /** 配置复制通知，同时由 BeginPlay 主动调用；负责本地 Niagara 初始化，不执行权威伤害。 */
 void APrototypeRuntime::OnRep_Prototype()
 {
+    if (bPresentationOnly)
+    {
+        OnRep_PresentationState();
+        return;
+    }
     if (!Prototype || GetNetMode() == NM_DedicatedServer || bPresentationReady)
         return;
     bPresentationReady = true;
@@ -207,6 +370,17 @@ void APrototypeRuntime::OnRep_Prototype()
 void APrototypeRuntime::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if (bPresentationOnly)
+    {
+        AActor* Avatar = nullptr;
+        if (HasAuthority() && PresentationSource.World.IsValid() && !LocalPresentation.bTerminal &&
+            !AbilityExecutionIdentity::ResolveSource(PresentationSource, Avatar))
+        {
+            FinishPresentationOnly(true, false);
+        }
+        OnRep_PresentationState();
+        return;
+    }
     if (!Prototype)
         return;
     using K = EAbilityPrototypeKind;
@@ -307,6 +481,11 @@ void APrototypeRuntime::Finish(bool bCancelled)
 /** 结束状态复制通知及服务器本地主动调用：关闭循环特效，并通过 bFinishPresented 防止重复结束表现。 */
 void APrototypeRuntime::OnRep_Finished()
 {
+    if (bPresentationOnly || PresentationSnapshot.bReady || PresentationFrame.bReady)
+    {
+        OnRep_PresentationState();
+        return;
+    }
     if (!bFinished)
         return;
     Visual->DeactivateImmediate();
@@ -321,6 +500,11 @@ void APrototypeRuntime::OnRep_Finished()
 /** GA 或外部的服务器取消入口：标记共享 Context，使同次施法其他 Runtime 在后续更新中停止。 */
 void APrototypeRuntime::CancelCast()
 {
+    if (bPresentationOnly)
+    {
+        FinishPresentationOnly(true, false);
+        return;
+    }
     if (!HasAuthority())
         return;
     if (Context)
@@ -374,7 +558,14 @@ void APrototypeRuntime::EndPlay(const EEndPlayReason::Type Reason)
 {
     // World teardown or external destruction closes the invocation without emitting gameplay children.
     bFinished = true;
-    CleanupOwnedActors();
+    if (bPresentationOnly)
+    {
+        AbilityPrototypePresentationService::StopVisuals(LocalPresentation, Visual, InnerVisual);
+    }
+    else
+    {
+        CleanupOwnedActors();
+    }
     Super::EndPlay(Reason);
 }
 
@@ -395,4 +586,7 @@ void APrototypeRuntime::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
     DOREPLIFETIME(APrototypeRuntime, bSingleProjectile);
     DOREPLIFETIME(APrototypeRuntime, bImpactOnFinish);
     DOREPLIFETIME(APrototypeRuntime, bFinished);
+    DOREPLIFETIME(APrototypeRuntime, bPresentationOnly);
+    DOREPLIFETIME(APrototypeRuntime, PresentationSnapshot);
+    DOREPLIFETIME(APrototypeRuntime, PresentationFrame);
 }

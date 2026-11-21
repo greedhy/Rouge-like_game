@@ -136,6 +136,8 @@ bool FAbilityGraphRuntimeBudgets::RunTest(const FString&)
             TestFalse(TEXT("Per-frame cap leaves events queued"), Run->IsFinished());
             for (int32 Frame = 0; Frame < 4; ++Frame)
             {
+                // 每次模拟独立游戏帧；同帧重复Advance/Flush不能重置公共事件额度。
+                ++GFrameCounter;
                 Run->Advance(.251f);
             }
             TestEqual(TEXT("Both invocations of shared config execute"), Calls.Num(), 4);

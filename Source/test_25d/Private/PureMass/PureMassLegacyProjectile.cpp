@@ -56,8 +56,8 @@ void UPureMassLegacyProjectile::Moved(USceneComponent* Component, EUpdateTransfo
     const FVector Start = PreviousLocation, End = Component->GetComponentLocation();
     PreviousLocation = End;
     auto* P = Projectile.Get();
-    if (bConsumed || !IsValid(P) || !P->HasAuthority() || !P->HasActorBegunPlay() || Teleport != ETeleportType::None ||
-        !P->Sphere->IsQueryCollisionEnabled())
+    if (bConsumed || !IsValid(P) || P->IsGraphDeliveryManaged() || !P->HasAuthority() || !P->HasActorBegunPlay() ||
+        Teleport != ETeleportType::None || !P->Sphere->IsQueryCollisionEnabled())
         return;
     auto* Mass = GetWorld()->GetSubsystem<UPureMassSubsystem>();
     const FDamageEffectParams Params = P->DamageEffectParams;

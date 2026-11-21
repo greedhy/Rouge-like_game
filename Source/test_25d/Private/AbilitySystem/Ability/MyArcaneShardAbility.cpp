@@ -2,6 +2,7 @@
 // 原蓝图在首次碎片之后扣费用，在尾延迟之后提交冷却；不把这些时点改为激活时一次提交。
 #include "AbilitySystem/Ability/MyArcaneShardAbility.h"
 #include "AbilitySystem/Unified/Nodes/AbilityArcaneShardNode.h"
+#include "AbilitySystem/Unified/Nodes/AbilityArcaneShardFragments.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityGraphWorldSubsystem.h"
 #include "AbilitySystem/AbilityTask/TargetDataUnderMouse.h"
@@ -38,6 +39,12 @@ UAbilityArcaneShardNodeConfig* UMyArcaneShardAbility::MakeShardConfig(UObject* O
     return Config;
 }
 
+UAbilityGraphDefinition* UMyArcaneShardAbility::BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const
+{
+    Error.Reset();
+    return AbilityArcaneShardFragments::Build(Outer, *MakeShardConfig(GetTransientPackage()));
+}
+
 void UMyArcaneShardAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle,
                                             const FGameplayAbilityActorInfo* ActorInfo,
                                             FGameplayAbilityActivationInfo ActivationInfo,
@@ -45,6 +52,8 @@ void UMyArcaneShardAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle,
 {
     bConfirmedTarget = false;
     bShardStarted = false;
+    bShardCostStageFinished = false;
+    PendingShardEnd.Reset();
     if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !ShardMontage || !ShardPointCollectionClass ||
         !CheckCost(Handle, ActorInfo))
     {
@@ -96,12 +105,29 @@ void UMyArcaneShardAbility::OnShardTargetData(const FGameplayAbilityTargetDataHa
             EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
             return;
         }
-        PreparedPoints =
-            UAbilityArcaneShardNodeExecution::PreparePoints(this, ShardInput, *MakeShardConfig(this), Error);
-        if (!PreparedPoints)
+        const UAbilityArcaneShardNodeConfig* PointConfig = nullptr;
+        if (const auto* Frozen = GetRuntimeRecipeSnapshot().Graph.Get())
+        {
+            // 点的数量与间隔必须来自同一冻结版本；替换为其他行为时不创建无用的旧点集合。
+            PointConfig = AbilityArcaneShardFragments::FindSettings(*Frozen);
+        }
+        else
+        {
+            PointConfig = MakeShardConfig(this);
+        }
+        if (!GetRuntimeRecipeError().IsEmpty())
         {
             EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
             return;
+        }
+        if (PointConfig)
+        {
+            PreparedPoints = UAbilityArcaneShardNodeExecution::PreparePoints(this, ShardInput, *PointConfig, Error);
+            if (!PreparedPoints)
+            {
+                EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+                return;
+            }
         }
     }
     if (Avatar && Avatar->Implements<UCombatInterface>())
@@ -134,47 +160,41 @@ void UMyArcaneShardAbility::OnShardNotify(FGameplayEventData Payload)
         return;
     }
     auto* WorldOwner = GetWorld()->GetSubsystem<UAbilityGraphWorldSubsystem>();
-    if (!PreparedPoints || !WorldOwner)
+    if ((!PreparedPoints && !GetRuntimeRecipeSnapshot().Graph) || !WorldOwner)
     {
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
         return;
     }
-    auto* Graph = NewObject<UAbilityGraphDefinition>(this);
-    Graph->SchemaVersion = 2;
-    Graph->CompatibilityProfile = TEXT("UnifiedV2");
-    FAbilityGraphNode Node;
-    Node.NodeId = FGuid::NewGuid();
-    Node.TypeId = TEXT("Shape.ArcaneShards");
-    Node.Config = MakeShardConfig(Graph);
-    Graph->Nodes.Add(Node);
-    Graph->EntryNodeId = Node.NodeId;
+    FString Error;
+    auto* Graph =
+        GetRuntimeRecipeSnapshot().Graph ? GetRuntimeRecipeSnapshot().Graph.Get() : BuildRuntimeBaseGraph(this, Error);
     ShardInput.DamageParams = MakeDamageEffectParamsFromClassDefaults(nullptr, ShardInput.Origin);
     ShardInput.Context = PreparedPoints;
     ShardGraph = NewObject<UAbilityGraphInstance>(GetWorld());
     const TWeakObjectPtr<UMyArcaneShardAbility> WeakThis(this);
+    const auto Session = GetExecutionSession();
     GraphFinishedHandle = ShardGraph->OnFinished.AddLambda(
-        [WeakThis](EAbilityGraphEndReason Reason)
+        [WeakThis, Session](EAbilityGraphEndReason Reason)
         {
-            if (auto* Self = WeakThis.Get(); Self && Self->IsActive())
+            if (auto* Self = WeakThis.Get(); Self && Self->IsActive() && Self->GetExecutionSession() == Session)
             {
-                if (Reason == EAbilityGraphEndReason::Completed)
-                {
-                    Self->CommitAbilityCooldown(Self->CurrentSpecHandle, Self->CurrentActorInfo,
-                                                Self->CurrentActivationInfo, false);
-                }
-                Self->EndAbility(Self->CurrentSpecHandle, Self->CurrentActorInfo, Self->CurrentActivationInfo, true,
-                                 Reason != EAbilityGraphEndReason::Completed);
+                Self->OnShardGraphFinished(Reason);
             }
         });
-    FString Error;
     const TStrongObjectPtr<UAbilityGraphInstance> StartingGraph(ShardGraph.Get());
-    const bool bStarted = StartingGraph->StartWithInput(Graph, ShardInput, {}, Error);
+    ObserveFrozenRuntimeGraph(StartingGraph.Get(), ShardInput.SourceToken);
+    FAbilityExecutionOptions Options;
+    Options.BudgetPolicy = Graph->BudgetPolicy;
+    Options.OwnerLease = GetRuntimeExecutionOwnerLease();
+    Options.CompatibilityProfile = Graph->CompatibilityProfile;
+    const bool bStarted = StartingGraph->StartWithInput(Graph, ShardInput, Options, Error);
     if (!IsActive())
     {
         return;
     }
     if (!bStarted || !WorldOwner->Adopt(StartingGraph.Get(), Error))
     {
+        ForgetFrozenRuntimeGraph(StartingGraph.Get(), ShardInput.SourceToken);
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
         return;
     }
@@ -182,6 +202,35 @@ void UMyArcaneShardAbility::OnShardNotify(FGameplayEventData Payload)
     {
         // 原蓝图忽略 CommitCost 返回值；保持首次效果之后的单次费用尝试，不追加第二次完整 Commit。
         CommitAbilityCost(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo);
+        if (IsActive() && GetExecutionSession() == Session)
+        {
+            bShardCostStageFinished = true;
+            if (PendingShardEnd.IsSet())
+            {
+                const auto Reason = PendingShardEnd.GetValue();
+                PendingShardEnd.Reset();
+                OnShardGraphFinished(Reason);
+            }
+        }
+    }
+}
+
+void UMyArcaneShardAbility::OnShardGraphFinished(EAbilityGraphEndReason Reason)
+{
+    if (!bShardCostStageFinished)
+    {
+        PendingShardEnd = Reason;
+        return;
+    }
+    const auto Session = GetExecutionSession();
+    if (Reason == EAbilityGraphEndReason::Completed)
+    {
+        CommitAbilityCooldown(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false);
+    }
+    if (IsActive() && GetExecutionSession() == Session)
+    {
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true,
+                   Reason != EAbilityGraphEndReason::Completed);
     }
 }
 

@@ -2,6 +2,9 @@
 // 全部临时索引与计数属于本次校验；共享 DA、Config 和注册表都不被修改。
 #include "AbilitySystem/Unified/AbilityGraphDefinition.h"
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
+#include "AbilitySystem/Unified/AbilityOriginalProjectionValidation.h"
+#include "AbilitySystem/Unified/AbilityRuntimePayloadPolicy.h"
+#include "AbilitySystem/Unified/AbilityRuntimeRecipe.h"
 
 bool UAbilityGraphDefinition::ValidateForAuthoring(TArray<FString>& Errors) const
 {
@@ -32,19 +35,44 @@ namespace
 bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TArray<FString>& Errors) const
 {
     Errors.Reset();
+    if (!RuntimeCompilationSeal.IsEmpty() && RuntimeCompilationSeal != AbilityRuntimeRecipes::Fingerprint(*this))
+    {
+        // StartWithInput与再次Compile都先走此校验；删除公开域标记不能将快照误改洗成原helper。
+        Errors.Add(
+            TEXT("Runtime compiled definition was modified after publication; compile a new private recipe instead."));
+        return false;
+    }
     if (SchemaVersion != 1 && SchemaVersion != 2)
     {
         Errors.Add(FString::Printf(TEXT("Unsupported SchemaVersion %d; expected 1 or 2."), SchemaVersion));
     }
     const bool bLegacy = SchemaVersion == 2 && FAbilityNodeRegistry::IsLegacyProfile(CompatibilityProfile);
-    const bool bStreaming = BudgetPolicy == EAbilityGraphBudgetPolicy::LegacyStreaming && bLegacy;
+    const bool bLegacyStreaming = BudgetPolicy == EAbilityGraphBudgetPolicy::LegacyStreaming && bLegacy;
+    const bool bSustained = BudgetPolicy == EAbilityGraphBudgetPolicy::RegisteredSustained;
+    const bool bPrototype = BudgetPolicy == EAbilityGraphBudgetPolicy::PrototypeCompatibility;
+    const bool bStreaming = bLegacyStreaming || bSustained || bPrototype;
+    if (BudgetPolicy != EAbilityGraphBudgetPolicy::Bounded &&
+        BudgetPolicy != EAbilityGraphBudgetPolicy::LegacyStreaming && !bSustained && !bPrototype)
+    {
+        Errors.Add(TEXT("Unknown graph budget policy."));
+    }
+    if (bSustained && (SchemaVersion != 2 || CompatibilityProfile != TEXT("UnifiedV2")))
+    {
+        Errors.Add(TEXT("Registered sustained admission requires a Schema2 UnifiedV2 graph."));
+    }
+    if (bPrototype &&
+        (SchemaVersion != 2 || !FAbilityNodeRegistry::IsPrototypeCompatibilityProfile(CompatibilityProfile)))
+    {
+        Errors.Add(TEXT("Prototype compatibility requires its explicit Schema2 fine profile."));
+    }
     if ((SchemaVersion == 1 && CompatibilityProfile != TEXT("UnifiedV1")) ||
-        (SchemaVersion == 2 && CompatibilityProfile != TEXT("UnifiedV2") && !bLegacy))
+        (SchemaVersion == 2 && CompatibilityProfile != TEXT("UnifiedV2") && !bLegacy &&
+         !(bPrototype && FAbilityNodeRegistry::IsPrototypeCompatibilityProfile(CompatibilityProfile))))
     {
         Errors.Add(FString::Printf(TEXT("Unsupported CompatibilityProfile '%s'; expected UnifiedV1."),
                                    *CompatibilityProfile.ToString()));
     }
-    if (BudgetPolicy == EAbilityGraphBudgetPolicy::LegacyStreaming && !bStreaming)
+    if (BudgetPolicy == EAbilityGraphBudgetPolicy::LegacyStreaming && !bLegacyStreaming)
     {
         Errors.Add(TEXT("Streaming budget requires Schema2 and an explicitly registered Legacy profile."));
     }
@@ -55,9 +83,47 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
     const FAbilityGraphBudget Limits;
     CheckBudget(TEXT("MaxInvocations"), Budget.MaxInvocations, Limits.MaxInvocations, Errors);
     CheckBudget(TEXT("MaxEvents"), Budget.MaxEvents, Limits.MaxEvents, Errors);
-    CheckBudget(TEXT("MaxActiveNodes"), Budget.MaxActiveNodes, bStreaming ? 64 : Limits.MaxActiveNodes, Errors);
+    CheckBudget(TEXT("MaxActiveNodes"), Budget.MaxActiveNodes,
+                bLegacyStreaming || (bPrototype && OriginalProjection.bEnabled) ? 64 : Limits.MaxActiveNodes, Errors);
     CheckBudget(TEXT("MaxDepth"), Budget.MaxDepth, Limits.MaxDepth, Errors);
     CheckBudget(TEXT("MaxEventsPerTick"), Budget.MaxEventsPerTick, Limits.MaxEventsPerTick, Errors);
+    const bool bFiniteNodes = Nodes.ContainsByPredicate(
+        [](const auto& Node)
+        {
+            return Node.bRuntimeFinite;
+        });
+    if (bHasRuntimeFinite != bFiniteNodes || (bHasRuntimeFinite && (!bPrototype && !bSustained)))
+    {
+        Errors.Add(TEXT("Runtime finite nodes require their explicit aggregate overlay on a registered host."));
+    }
+    if (bHasRuntimeFinite)
+    {
+        CheckBudget(TEXT("RuntimeFinite.MaxInvocations"), RuntimeFiniteBudget.MaxInvocations, Limits.MaxInvocations,
+                    Errors);
+        CheckBudget(TEXT("RuntimeFinite.MaxEvents"), RuntimeFiniteBudget.MaxEvents, Limits.MaxEvents, Errors);
+        CheckBudget(TEXT("RuntimeFinite.MaxActiveNodes"), RuntimeFiniteBudget.MaxActiveNodes, Limits.MaxActiveNodes,
+                    Errors);
+        CheckBudget(TEXT("RuntimeFinite.MaxDepth"), RuntimeFiniteBudget.MaxDepth, Limits.MaxDepth, Errors);
+        CheckBudget(TEXT("RuntimeFinite.MaxEventsPerTick"), RuntimeFiniteBudget.MaxEventsPerTick,
+                    Limits.MaxEventsPerTick, Errors);
+    }
+    if (bSustained)
+    {
+        CheckBudget(TEXT("Sustained.InvocationStartsPerSecond"), SustainedBudget.InvocationStartsPerSecond, 256,
+                    Errors);
+        CheckBudget(TEXT("Sustained.PhysicalStartsPerSecond"), SustainedBudget.PhysicalStartsPerSecond, 64, Errors);
+        CheckBudget(TEXT("Sustained.MaxActivePhysical"), SustainedBudget.MaxActivePhysical, 32, Errors);
+    }
+    if (bPrototype)
+    {
+        CheckBudget(TEXT("PrototypeHelper.MaxRetainedInvocations"), PrototypeHelperBudget.MaxRetainedInvocations, 256,
+                    Errors);
+        CheckBudget(TEXT("PrototypeHelper.MaxActiveNodes"), PrototypeHelperBudget.MaxActiveNodes, 128, Errors);
+        CheckBudget(TEXT("PrototypeHelper.MaxEventsPerTick"), PrototypeHelperBudget.MaxEventsPerTick, 8192, Errors);
+        CheckBudget(TEXT("PrototypeHelper.MaxActivePhysical"), PrototypeHelperBudget.MaxActivePhysical, 64, Errors);
+        CheckBudget(TEXT("PrototypeHelper.PhysicalStartsPerSecond"), PrototypeHelperBudget.PhysicalStartsPerSecond, 64,
+                    Errors);
+    }
     if (!Errors.IsEmpty())
     {
         return false;
@@ -104,6 +170,27 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
                 FString::Printf(TEXT("NodeId %s uses unknown TypeId '%s'."), *NodeName, *Node.TypeId.ToString()));
             continue;
         }
+        if (bSustained && !Node.bRuntimeFinite && !Descriptor->bSustainedSafe)
+        {
+            Errors.Add(FString::Printf(TEXT("NodeId %s TypeId '%s' has no sustained resource contract."), *NodeName,
+                                       *Node.TypeId.ToString()));
+        }
+        if (Node.bRuntimeFinite &&
+            (Node.NodeId == EntryNodeId || Node.OriginalIndex != INDEX_NONE ||
+             Node.OriginalRole != EAbilityOriginalNodeRole::Helper || !Node.OriginalOutputs.IsEmpty()))
+        {
+            Errors.Add(TEXT("Runtime finite nodes cannot claim a root or original/helper budget identity."));
+        }
+        if (Node.bRuntimeFinite && !Descriptor->bRuntimeFiniteSafe)
+        {
+            Errors.Add(TEXT("Runtime finite strategy has no audited physical/resource contract: ") +
+                       Node.TypeId.ToString());
+        }
+        if (bPrototype && !Node.bRuntimeFinite && !Descriptor->bPrototypeCompatibilitySafe)
+        {
+            Errors.Add(FString::Printf(TEXT("NodeId %s TypeId '%s' has no prototype helper contract."), *NodeName,
+                                       *Node.TypeId.ToString()));
+        }
         if (!IsValid(Node.Config) || !Node.Config->IsA(Descriptor->ConfigClass.Get()))
         {
             Errors.Add(FString::Printf(TEXT("NodeId %s TypeId '%s' requires ConfigClass '%s'; got '%s'."), *NodeName,
@@ -126,7 +213,32 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
     {
         Errors.Add(FString::Printf(TEXT("EntryNodeId %s does not identify a valid node."), *EntryNodeId.ToString()));
     }
+    else if (bSustained)
+    {
+        const int32 EntryIndex = NodeIndices.FindChecked(EntryNodeId);
+        const auto* Descriptor = NodeDescriptors[EntryIndex];
+        FString AdmissionError;
+        if (!Descriptor || !Descriptor->bSustainedRoot || !Nodes[EntryIndex].Config ||
+            !Nodes[EntryIndex].Config->SupportsSustainedRoot(AdmissionError))
+        {
+            Errors.Add(TEXT("Entry has no registered sustained-root admission: ") + AdmissionError);
+        }
+    }
+    else if (bPrototype)
+    {
+        const int32 EntryIndex = NodeIndices.FindChecked(EntryNodeId);
+        const auto* Descriptor = NodeDescriptors[EntryIndex];
+        FString AdmissionError;
+        if (!Descriptor || !Descriptor->bPrototypeCompatibilityRoot || !Descriptor->bPrototypeLogicalEntry ||
+            !Nodes[EntryIndex].Config ||
+            !Nodes[EntryIndex].Config->SupportsPrototypeCompatibilityRoot(CompatibilityProfile, AdmissionError))
+        {
+            Errors.Add(TEXT("Entry has no registered prototype root admission: ") + AdmissionError);
+        }
+    }
 
+    AbilityOriginalProjectionValidation::Validate(*this, Registry, Errors);
+    AbilityRuntimePayloadPolicy::ValidateGraph(*this, Registry, Errors);
     TArray<TArray<int32>> Outgoing;
     Outgoing.SetNum(Nodes.Num());
     TArray<int32> Indegrees;
@@ -162,8 +274,12 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
                     return Item.Name == Edge.OutputPort;
                 });
             const auto* TargetDescriptor = NodeDescriptors[*ToIndex];
-            if (Port && TargetDescriptor && TargetDescriptor->InputPayload != EAbilityPortPayload::Origin &&
-                TargetDescriptor->InputPayload != Port->Payload)
+            const bool bDropsPreparedInventory =
+                Port && TargetDescriptor && Port->Payload == EAbilityPortPayload::PreparedInventory &&
+                TargetDescriptor->InputPayload != EAbilityPortPayload::PreparedInventory;
+            if (Port && TargetDescriptor &&
+                (bDropsPreparedInventory || (TargetDescriptor->InputPayload != EAbilityPortPayload::Origin &&
+                                             TargetDescriptor->InputPayload != Port->Payload)))
             {
                 Errors.Add(EdgeName +
                            TEXT(": payload cannot satisfy destination input; snapshots are not live targets."));
@@ -233,7 +349,10 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
                                        *Nodes[Index].NodeId.ToString(), *EntryNodeId.ToString()));
             continue;
         }
-        if (Depths[Index] > Budget.MaxDepth)
+        const int32 DepthLimit = Nodes[Index].bRuntimeFinite   ? RuntimeFiniteBudget.MaxDepth
+                                 : OriginalProjection.bEnabled ? Limits.MaxDepth
+                                                               : Budget.MaxDepth;
+        if (Depths[Index] > DepthLimit)
         {
             Errors.Add(FString::Printf(TEXT("NodeId %s depth %d exceeds Budget.MaxDepth %d."),
                                        *Nodes[Index].NodeId.ToString(), Depths[Index], Budget.MaxDepth));
@@ -243,7 +362,15 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
         for (const int32 Child : Outgoing[Index])
         {
             PathCounts[Child] = FMath::Min(SaturationLimit, PathCounts[Child] + PathCounts[Index]);
-            Depths[Child] = FMath::Max(Depths[Child], Depths[Index] + 1);
+            const bool bOriginalEntry = OriginalProjection.bEnabled &&
+                                        (Nodes[Child].OriginalRole == EAbilityOriginalNodeRole::Entry ||
+                                         Nodes[Child].OriginalRole == EAbilityOriginalNodeRole::EntryAndLifetime);
+            const bool bFiniteEntry = Nodes[Child].bRuntimeFinite && !Nodes[Index].bRuntimeFinite;
+            const int32 ChildDepth =
+                bFiniteEntry || (bPrototype && (NodeDescriptors[Child]->bPrototypeLogicalEntry || bOriginalEntry))
+                    ? 1
+                    : Depths[Index] + 1;
+            Depths[Child] = FMath::Max(Depths[Child], ChildDepth);
         }
     }
     if (!bStreaming && TotalInvocations > Budget.MaxInvocations)

@@ -1,10 +1,12 @@
 /** GA / graph strategy -> Spawn or SpawnDriven -> driver Start; compatibility Tick or graph Advance -> driver behavior and child admission. This Actor owns only replication, presentation resources and compatibility delegates. */
+// 细节点独立表现：SpawnPresentationOnly -> 冻结 Snapshot/Frame -> 共享 renderer；此模式在 FinishSpawning 前移除 Driver。
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "AbilitySystem/Unified/LegacyAbilityDriverTypes.h"
+#include "AbilitySystem/Unified/AbilityPrototypePresentationService.h"
 #include "PrototypeRuntime.generated.h"
 
 class FActorAbilityDriver;
@@ -77,10 +79,55 @@ public:
         return Driver;
     }
 
+    /** 纯表现工厂；模式必须在 FinishSpawning 前安装，不能复用 SpawnDriven 的业务 Start。 */
+    static APrototypeRuntime* SpawnPresentationOnly(const FAbilitySourceToken& Source, const UAbilityPrototype& Frozen,
+                                                    UAbilityPrototype* StableReference,
+                                                    const FAbilityPrototypePresentationFrame& Frame, FString& Error);
+    /** 与复制通知共用的纯表现入口；允许资源、来源 Owner 和动态帧按不同顺序到达。 */
+    void ApplyPresentationReplica(const FAbilityPrototypeVisualSnapshot& Snapshot,
+                                  const FAbilityPrototypePresentationFrame& Frame);
+    /** 仅更新可视状态；不推进 Driver，不修改业务时钟。 */
+    bool UpdatePresentationOnly(const FAbilityPrototypePresentationFrame& Frame);
+    /** 幂等命中表现；EventId 只用于本宿主的重复通知抑制。 */
+    bool ImpactPresentationOnly(uint32 EventId, const FVector& Position);
+    /** 纯表现终止；不触发原型 OnExpire 或共享 Context 取消。 */
+    bool FinishPresentationOnly(bool bCancelled, bool bRequestedImpactOnFinish);
+    /** 开发面板/联机读回使用冻结的复制半径；快照尚未就绪返回-1，不读取DA或触发更新。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    float GetPresentationRadius() const
+    {
+        return PresentationSnapshot.bReady ? PresentationSnapshot.Radius : -1.f;
+    }
+    /** 开发只读冻结类型；未收到快照返回-1，不回读旧Prototype或暴露表现帧。 */
+    UFUNCTION(BlueprintPure, Category = "Development|RuntimeRecipe")
+    int32 GetPresentationKind() const
+    {
+        return PresentationSnapshot.bReady ? static_cast<int32>(PresentationSnapshot.Kind) : INDEX_NONE;
+    }
+    const FAbilityPrototypePresentationStats& GetPresentationStats() const
+    {
+        return PresentationStats;
+    }
+
 private:
     friend class FActorAbilityDriver;
     TSharedPtr<FActorAbilityDriver> Driver;
     bool bExternallyDriven = false;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    bool bPresentationOnly = false;
+    FAbilitySourceToken PresentationSource;
+    FAbilityPrototypePresentationStats PresentationStats;
+    FAbilityPrototypePresentationLocalState LocalPresentation;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypeVisualSnapshot PresentationSnapshot;
+    UPROPERTY(ReplicatedUsing = OnRep_PresentationState)
+    FAbilityPrototypePresentationFrame PresentationFrame;
+    UFUNCTION()
+    /** 只消费冻结表现快照和动态帧；不回读原资产数值，不进入业务执行器。 */
+    void OnRep_PresentationState();
+    UFUNCTION(NetMulticast, Unreliable)
+    /** 纯表现命中通知；接收端按 EventId 去重，不触发旧 Emit/Hit。 */
+    void MulticastPresentationImpact(uint32 EventId, FVector Position);
     /** Immutable execution snapshot; only the original asset reference is replicated for presentation. */
     UPROPERTY()
     TObjectPtr<UAbilityPrototype> ExecutionPrototype;

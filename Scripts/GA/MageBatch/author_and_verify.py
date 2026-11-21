@@ -9,7 +9,8 @@ from uuid import uuid4
 import unreal as u
 
 
-BASE = '/Game/UnifiedAbilities/MageBatch'
+BASE = os.environ.get('GA_BATCH_BASE', '/Game/UnifiedAbilities/MageBatch')
+NAMESPACE = os.environ.get('GA_BATCH_NAMESPACE', 'Mage')
 CATALOGS = (
     '/Game/BluePrints/AbilitySystem/Data/DA_AbilityInfo',
     '/Game/PureMass/DA_MassAbilityInfo',
@@ -24,7 +25,7 @@ MODE = os.environ.get('MAGE_ASSET_MODE', 'verify')
 assert MODE in ('author', 'author_assets', 'verify', 'verify_assets', 'register', 'update_passives')
 AUTHOR = MODE in ('author', 'author_assets')
 EDIT_CATALOGS = MODE in ('author', 'register')
-SPECS = json.loads((ROOT / 'Scripts/GA/MageBatch/skills.json').read_text(encoding='utf-8-sig'))
+SPECS = json.loads((ROOT / os.environ.get('GA_BATCH_SPECS', 'Scripts/GA/MageBatch/skills.json')).read_text(encoding='utf-8-sig'))
 
 
 def struct(cls, value):
@@ -53,6 +54,10 @@ def klass(path):
     cls = A.load_blueprint_class(path)
     assert cls, path
     return cls
+
+
+def icon_path(spec):
+    return spec.get('icon_path', f'/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__{spec["icon"]:02d}')
 
 
 def save(asset):
@@ -161,6 +166,10 @@ def configure_prototype(obj, params, links):
             continue
         if key.endswith('_vfx'):
             value = load(value)
+        elif key.endswith('_vfx_scale'):
+            value = u.Vector(*value)
+        elif isinstance(value, bool):
+            pass
         elif key != 'count':
             value = float(value)
         set_or_check(obj, key, value)
@@ -247,7 +256,7 @@ def configure_graph(graph, spec, persistent_effect=None):
 def create_skill(spec):
     name = spec['id']
     passive = 'modifiers' in spec
-    identity = f'Abilities.Mage.{name}'
+    identity = f'Abilities.{NAMESPACE}.{name}'
     graph = data_asset(f'DA_{name}_Graph', u.AbilityGraphDefinition)
     persistent = effect(f'GE_{name}', u.GameplayEffectDurationType.INFINITE, spec['modifiers']) if passive else None
     types = configure_graph(graph, spec, persistent)
@@ -260,7 +269,7 @@ def create_skill(spec):
     if not passive:
         cost = effect(f'GE_{name}_Cost', u.GameplayEffectDurationType.INSTANT, {'Mana':-spec['mana']})
         cooldown = effect(f'GE_{name}_Cooldown', u.GameplayEffectDurationType.HAS_DURATION, {},
-                          f'Cooldown.Mage.{name}', spec['cooldown'])
+                          f'Cooldown.{NAMESPACE}.{name}', spec['cooldown'])
         set_or_check(ga, 'target_mode', getattr(u.UnifiedAbilityTargetMode, spec['mode']))
         set_or_check(ga, 'execution_lifetime', u.AbilityExecutionLifetime.INDEPENDENT_CAST_EFFECT)
         set_or_check(ga, 'activation_blocked_tags', tags('Debuff.Stun', 'Effects.HitReact'))
@@ -279,22 +288,28 @@ def verify_catalog(catalog, records):
     changed = False
     for spec in SPECS:
         name = spec['id']
-        identity = f'Abilities.Mage.{name}'
+        identity = f'Abilities.{NAMESPACE}.{name}'
         expected_ability = records[name]['ga']
         matching = [row for row in rows if identity in row.get_editor_property('ability_tag').export_text()]
         assert len(matching) <= 1, identity
         if matching:
             assert matching[0].get_editor_property('ability').get_path_name() == expected_ability
+            required = getattr(u.PlayerProfession, spec.get('profession', 'MAGE'))
+            if EDIT_CATALOGS and matching[0].get_editor_property('required_profession') != required:
+                matching[0].set_editor_property('required_profession', required)
+                changed = True
+            assert matching[0].get_editor_property('required_profession') == required
             continue
         assert EDIT_CATALOGS, identity
         ability_type = 'Passive' if 'modifiers' in spec else 'Offensive'
-        cooldown = '' if 'modifiers' in spec else f'Cooldown.Mage.{name}'
-        icon = load(f'/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__{spec["icon"]:02d}').get_path_name()
+        cooldown = '' if 'modifiers' in spec else f'Cooldown.{NAMESPACE}.{name}'
+        icon = load(icon_path(spec)).get_path_name()
         row = struct(u.MyAbilityInfo,
             f'(AbilityTag=(TagName="{identity}"),CooldownTag=(TagName="{cooldown}"),'
             f'AbilityType=(TagName="Abilities.Type.{ability_type}"),LevelRequirement=1,'
             f'Ability="/Script/Engine.BlueprintGeneratedClass\'{expected_ability}\'",'
             f'Icon="/Script/Engine.Texture2D\'{icon}\'")')
+        row.set_editor_property('required_profession', getattr(u.PlayerProfession, spec.get('profession', 'MAGE')))
         assert row.get_editor_property('ability').get_path_name() == expected_ability
         rows.append(row)
         changed = True
@@ -304,7 +319,7 @@ def verify_catalog(catalog, records):
     saved_rows = list(catalog.get_editor_property('ability_information'))
     assert [row.export_text() for row in saved_rows[:len(original)]] == original
     for spec in SPECS:
-        identity = f'Abilities.Mage.{spec["id"]}'
+        identity = f'Abilities.{NAMESPACE}.{spec["id"]}'
         row = next(row for row in saved_rows if identity in row.get_editor_property('ability_tag').export_text())
         assert row.get_editor_property('level_requirement') == 1
         assert row.get_editor_property('icon')
@@ -316,10 +331,10 @@ OUT.mkdir(parents=True)
 catalogs = [load(path) for path in CATALOGS] if MODE not in ('author_assets', 'verify_assets') else []
 for spec in SPECS:
     name = spec['id']
-    tag(f'Abilities.Mage.{name}')
+    tag(f'Abilities.{NAMESPACE}.{name}')
     if 'mana' in spec:
-        tag(f'Cooldown.Mage.{name}')
-    load(f'/Game/Skill_Icons/Textures/128x128/T_Skill_Icons__{spec["icon"]:02d}')
+        tag(f'Cooldown.{NAMESPACE}.{name}')
+    load(icon_path(spec))
     for node in spec.get('nodes', []):
         for key, value in node.items():
             if key.endswith('_vfx'):

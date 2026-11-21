@@ -34,9 +34,15 @@ public:
 
     void InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS);
 
-    // 属性、装备和技能共用一个窗口，调用方只指定要显示的页面。
+    // 属性、装备、技能和技能组装共用一个窗口，索引依次为 0..3。
     UFUNCTION(BlueprintCallable, Category = "UI")
     void ShowCharacterMenu(int32 PageIndex);
+    /** 读取当前 HUD 持有的唯一窗口，不隐式创建或修改预览。 */
+    UFUNCTION(BlueprintPure, Category = "UI")
+    UCharacterMenuWidget* GetCharacterMenu() const
+    {
+        return CharacterMenu;
+    }
 
 protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

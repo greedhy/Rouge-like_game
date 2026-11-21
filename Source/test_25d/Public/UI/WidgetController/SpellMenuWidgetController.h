@@ -72,7 +72,7 @@ public:
                            const FGameplayTag& PreviousSlot);
 
 private:
-    bool IsSelectedWeaponAbility();
+    bool IsSelectedWeaponAbility(FGameplayTag RequestedAbility = FGameplayTag());
 
     static void ShouldEnableButtons(const FGameplayTag& AbilityStatus, int32 SpellPoints,
                                     bool& bShouldEnableSpellPointsButton, bool& bShouldEnableEquipButton);

@@ -14,6 +14,8 @@ class TEST_25D_API UMyFireBolt : public UMyProjectileSpell
 {
     GENERATED_BODY()
 public:
+    /** 导出本前端真实发射配置；动画通知传入的插槽/俯仰/瞄准数据仍由本次施法提供。 */
+    virtual UAbilityGraphDefinition* BuildRuntimeBaseGraph(UObject* Outer, FString& Error) const override;
     virtual FString GetDescription(int32 Level) override;
     virtual FString GetNextLevelDescription(int32 Level) override;
 

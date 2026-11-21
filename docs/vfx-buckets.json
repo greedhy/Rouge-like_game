@@ -1,0 +1,411 @@
+{
+ "A": [
+  "NS_Blood_Death_Burst",
+  "NS_Blood_Death_Burst_Green",
+  "NS_Blood_Drip_Loop",
+  "NS_Blood_Hit_Heavy",
+  "NS_Blood_Hit_Splash_Green",
+  "NS_Blood_Pool_Small",
+  "NS_Blood_Splat_01_Floor_Once",
+  "NS_Blood_Splat_01_Floor_Rot_Extra_02_Once_Once",
+  "NS_Blood_Splat_01_Floor_Rot_Extra_Once",
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Once",
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Once",
+  "NS_Blood_Splat_01_Floor_Rot_Once",
+  "NS_Blood_Splat_02_Floor_Rot_Once",
+  "NS_Blood_Splat_Directional_01_Floor_Bunch_Once",
+  "NS_Blood_Splat_Directional_01_Floor_Extra_02_Once",
+  "NS_Blood_Splat_Directional_01_Floor_Extra_Once",
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Once",
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Once",
+  "NS_Blood_Splat_Directional_01_Floor_Once",
+  "NS_Blood_Splat_Directional_01_Floor_Rot_Once",
+  "NS_Fire_1",
+  "NS_Fire_2",
+  "NS_Fire_3",
+  "NS_Fire_4",
+  "NS_Glow",
+  "NS_LootDrop",
+  "NS_ManaDrain",
+  "NS_Orb_Frost",
+  "NS_Orb_Lava",
+  "NS_Orb_Mud",
+  "NS_Orb_Toxic",
+  "NS_Orb_Vines",
+  "NS_SolarExplosion",
+  "NS_SolarFireball",
+  "NS_Soul",
+  "NS_SoulPickup",
+  "P_ExecuteBuff_Loop",
+  "P_Execute_Roar_Shockwave",
+  "P_Execute_WeaponClang",
+  "P_Execute_WeaponClangV2",
+  "P_Execute_WeaponEnd",
+  "P_Execute_WeaponLoop",
+  "P_Execute_WeaponStart",
+  "P_GruxUlt_GroundInteraction",
+  "P_GruxUlt_MagmaGroundInteraction",
+  "P_GruxUlt_Roar",
+  "P_Grux_ApplyBleed",
+  "P_Grux_Knockup",
+  "P_Grux_Magma_Dash_CameraLens",
+  "P_Grux_Magma_Melee_Impact",
+  "P_Grux_Magma_Regular_Trail",
+  "P_Grux_Magma_Removal",
+  "P_Grux_Magma_Removal2",
+  "P_Grux_Magma_RipplingS_Cast_inst",
+  "P_Grux_Magma_Spawn",
+  "P_Grux_Magma_StampedLegcyFire",
+  "P_Grux_Magma_StampedTrail",
+  "P_Grux_Magma_Strong_Trail",
+  "P_Grux_Magma_Ult_CameraLens",
+  "P_Grux_Magma_Ult_CameraLensEnd",
+  "P_Grux_Magma_Ultima_WeaponFX",
+  "P_Grux_Magma_Ultima_WpFX_Loop",
+  "P_Grux_Magma_Ultimate_Cast",
+  "P_Grux_Magma_Ultimate_Cast2",
+  "P_Grux_Magma_Ultimate_Clang",
+  "P_Grux_Magma_Ultimate_Trail",
+  "P_Grux_Magma_Whirlwind_Impact",
+  "P_Grux_Magma_Whirlwind_WpFX",
+  "P_Grux_Melee_ShockwaveImpact",
+  "P_Grux_Melee_SucessfulImpact",
+  "P_Grux_RipplingSmash_ImpactedTrails",
+  "P_Hardknocks_AOE",
+  "P_MagmaGruxRoar",
+  "P_MagmaHardknocks_AOE",
+  "P_MagmaSwingMesh",
+  "P_MeleeTrails_Regular",
+  "P_MeleeTrails_Strong",
+  "P_MeleeTrails_Ultimate",
+  "P_RipplingSmash_Aligned_Initial",
+  "P_Stampede_Cast",
+  "P_Stampede_Intro",
+  "P_Stampede_Intro_CameraFX",
+  "P_Stampede_Intro_Flames",
+  "P_Stampede_Step",
+  "P_Stampede_Trail",
+  "P_SwingMesh"
+ ],
+ "B": [
+  "NS_Lava_Status",
+  "NS_SG_HeavyHammer",
+  "NS_SG_Quake",
+  "NS_SG_ShieldBash",
+  "NS_Sh_Burst",
+  "NS_Shroom_Spores",
+  "NS_Toxic_Status",
+  "NS_Vines_Status",
+  "P_ky_aquaStorm",
+  "P_ky_darkStorm",
+  "P_ky_fireStorm",
+  "P_ky_healAura",
+  "P_ky_hit1",
+  "P_ky_laser01",
+  "P_ky_lightning2",
+  "P_ky_lightning3",
+  "P_ky_magicCircle1",
+  "P_ky_shootingStar1",
+  "P_ky_shotShockwave",
+  "P_ky_thunderBall",
+  "P_ky_thunderStorm",
+  "P_ky_waterBall",
+  "NS_Free_Spells_Aura_Air",
+  "NS_Free_Spells_Aura_Mana",
+  "NS_Orb_2_Small",
+  "NS_Orb_3_Small",
+  "NS_Orb_4_Small",
+  "NS_Orb_5_Small",
+  "NS_Aftershock_Ring",
+  "NS_BloodImpact_green",
+  "NS_Blood_Hit_Splash",
+  "NS_Blood_Pool_Large",
+  "NS_CombatTrail",
+  "NS_EarthShockwave",
+  "NS_FireExplosion1",
+  "NS_Frost_Status",
+  "NS_SlingshotImpact",
+  "NS_StarFlameHalo",
+  "NS_Tornado",
+  "P_ky_ThunderBallHit",
+  "P_ky_explosion",
+  "P_ky_waterBallHit",
+  "NE_attack01",
+  "NE_attack03",
+  "NS_Free_Spells_Aura_Soul",
+  "NS_Free_Spells_Shockwave",
+  "NS_Frost_Surface",
+  "NS_Lava_Surface",
+  "NS_Orb_1_Small",
+  "NS_Toxic_Surface",
+  "NS_Vines_Surface",
+  "NS_ElectricBeam",
+  "NS_FireSeed_Field",
+  "NS_FrostFan_Projectile",
+  "NS_HunterSentry_Core",
+  "NS_Ripple_Ring",
+  "NS_StormSeal_Field",
+  "NS_Bramble_Warning",
+  "NS_GroundSummon",
+  "NS_StormSeal_Pulse",
+  "P_ky_fireBall",
+  "P_ky_hit2",
+  "P_ky_lightning1",
+  "NS_GlacialStorm",
+  "NS_StormSeal_Blast",
+  "NS_BloodImpact",
+  "NS_DungeonElectricBeam",
+  "NS_Frost_Impact",
+  "NS_LevelUp",
+  "NS_LifeSiphon",
+  "NS_ManaSiphon",
+  "NS_Sparks",
+  "NS_Stars",
+  "NS_SolarExplosionFlame",
+  "P_ky_storm",
+  "NS_Stars_EnemyStun",
+  "NS_Fireball",
+  "NS_Fire",
+  "NS_FireExplosion",
+  "NS_ArcaneShards",
+  "NS_Halo",
+  "NS_SolarFireballFlame",
+  "NS_CombatImpact"
+ ],
+ "C": {
+  "NE_Refract": {
+   "vfx": 1
+  },
+  "NE_attack02": {
+   "demo_map": 1
+  },
+  "NE_attack04": {
+   "demo_map": 1
+  },
+  "NE_attack05": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_Extra": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_Extra_02": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Black": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Blue": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Green": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Orange": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Pink": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Purple": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_White": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Yellow": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Black": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Blue": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Green": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Orange": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Pink": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Purple": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_White": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Yellow": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_02_Floor_Rot": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_Bunch": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_Extra": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_Extra_02": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Black": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Blue": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Green": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Orange": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Pink": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Purple": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_White": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Yellow": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Black": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Blue": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Green": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Orange": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Pink": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Purple": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_White": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Yellow": {
+   "demo_map": 1
+  },
+  "NS_Blood_Splat_Directional_01_Floor_Rot": {
+   "demo_map": 1
+  },
+  "NS_FireEffect": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Aura_Fire": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Aura_Healing": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Aura_Lightning": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Aura_Notes": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Air": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Fire": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Healing": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Lightning": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Mana": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Notes": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Buff_Soul": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Circle": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_Explosion": {
+   "demo_map": 1
+  },
+  "NS_Free_Spells_LevelUp": {
+   "demo_map": 1
+  },
+  "NS_Orb_1": {
+   "demo_map": 1
+  },
+  "NS_Orb_2": {
+   "demo_map": 1
+  },
+  "NS_Orb_3": {
+   "demo_map": 1
+  },
+  "NS_Orb_4": {
+   "demo_map": 1
+  },
+  "NS_Orb_5": {
+   "demo_map": 1
+  },
+  "NS_Embers": {
+   "vfx": 2
+  },
+  "NE_Orb": {
+   "vfx": 3
+  },
+  "NS_LootDrop_Common": {
+   "demo_map": 4
+  },
+  "NS_LootDrop_Epic": {
+   "demo_map": 4
+  },
+  "NS_LootDrop_Legendary": {
+   "demo_map": 4
+  },
+  "NS_LootDrop_Mythic": {
+   "demo_map": 4
+  },
+  "NS_LootDrop_Rare": {
+   "demo_map": 4
+  },
+  "NS_LootDrop_Uncommon": {
+   "demo_map": 4
+  }
+ }
+}

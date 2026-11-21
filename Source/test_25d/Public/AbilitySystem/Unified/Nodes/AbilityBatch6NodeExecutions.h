@@ -6,6 +6,22 @@ class UNiagaraSystem;
 class UMaterialInterface;
 class FAbilityNodeRegistry;
 struct FBatch6ChainSegment;
+struct FAbilityDamageResult;
+
+/** 原整体策略和细节点共用的实际动作；不拥有计时、队列或另一个GA。 */
+namespace AbilityLightningActions
+{
+    TEST_25D_API TArray<FAbilityTargetToken> FindTargets(const FAbilitySourceToken& Source, FVector Center,
+                                                         FVector From, float Radius,
+                                                         const TSet<FPureMassCombatTarget>& Visited, int32 Limit);
+    /** 保留原闪电关闭Debuff/径向参数和预设forces的合同；不走投射物Prepare或额外RNG。 */
+    TEST_25D_API FAbilityDamageResult ApplyHit(const FAbilitySourceToken& Source, const FAbilityTargetToken& Target,
+                                               const FDamageEffectParams& Params, float Scale);
+    TEST_25D_API FAbilityNodeInput DamagePayload(const FAbilityNodeInput& Input, const FAbilityTargetToken& Target,
+                                                 FVector From, FVector Position, const FAbilityDamageResult& Result);
+    TEST_25D_API void Present(AActor& Caster, FVector Origin, UNiagaraSystem* Beam,
+                              TArray<FBatch6ChainSegment>&& Segments, float Lifetime = 1.5f);
+} // namespace AbilityLightningActions
 
 UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
 class TEST_25D_API UAbilityForkedChainNodeConfig : public UAbilityNodeConfig

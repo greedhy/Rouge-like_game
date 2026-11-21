@@ -1,0 +1,2897 @@
+[
+ {
+  "name": "NS_Blood_Death_Burst",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Death_Burst",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Death_Burst_Green",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Death_Burst_Green",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Drip_Loop",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Drip_Loop",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Hit_Heavy",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Heavy",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Hit_Splash_Green",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash_Green",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Pool_Small",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Pool_Small",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_Extra_02_Once_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_Extra_02_Once_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_Extra_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_Extra_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_01_Floor_Rot_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_02_Floor_Rot_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_02_Floor_Rot_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Bunch_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Bunch_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Extra_02_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Extra_02_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Extra_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Extra_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Rot_Once",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once/NS_Blood_Splat_Directional_01_Floor_Rot_Once",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Once",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Fire_1",
+  "path": "/Game/Assets/Effects/Projectiles/FireBolt/NS_Fire_1",
+  "folder": "/Game/Assets/Effects/Projectiles/FireBolt",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Fire_2",
+  "path": "/Game/Assets/Effects/Projectiles/FireBolt/NS_Fire_2",
+  "folder": "/Game/Assets/Effects/Projectiles/FireBolt",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Fire_3",
+  "path": "/Game/Assets/Effects/Projectiles/FireBolt/NS_Fire_3",
+  "folder": "/Game/Assets/Effects/Projectiles/FireBolt",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Fire_4",
+  "path": "/Game/Assets/Effects/Projectiles/FireBolt/NS_Fire_4",
+  "folder": "/Game/Assets/Effects/Projectiles/FireBolt",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Glow",
+  "path": "/Game/Assets/Effects/Soul/NS_Glow",
+  "folder": "/Game/Assets/Effects/Soul",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop",
+  "path": "/Game/resources/LootDropVFX/Systems/NS_LootDrop",
+  "folder": "/Game/resources/LootDropVFX/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_ManaDrain",
+  "path": "/Game/Assets/Effects/ManaDrain/NS_ManaDrain",
+  "folder": "/Game/Assets/Effects/ManaDrain",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_Frost",
+  "path": "/Game/Art/ElementOrbs/Systems/NS_Orb_Frost",
+  "folder": "/Game/Art/ElementOrbs/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_Lava",
+  "path": "/Game/Art/ElementOrbs/Systems/NS_Orb_Lava",
+  "folder": "/Game/Art/ElementOrbs/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_Mud",
+  "path": "/Game/Art/ElementOrbs/Systems/NS_Orb_Mud",
+  "folder": "/Game/Art/ElementOrbs/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_Toxic",
+  "path": "/Game/Art/ElementOrbs/Systems/NS_Orb_Toxic",
+  "folder": "/Game/Art/ElementOrbs/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_Vines",
+  "path": "/Game/Art/ElementOrbs/Systems/NS_Orb_Vines",
+  "folder": "/Game/Art/ElementOrbs/Systems",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_SolarExplosion",
+  "path": "/Game/CompositionBatch6/NS_SolarExplosion",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_SolarFireball",
+  "path": "/Game/CompositionBatch6/NS_SolarFireball",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Soul",
+  "path": "/Game/Assets/Effects/Soul/NS_Soul",
+  "folder": "/Game/Assets/Effects/Soul",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_SoulPickup",
+  "path": "/Game/Assets/Effects/Soul/NS_SoulPickup",
+  "folder": "/Game/Assets/Effects/Soul",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_ExecuteBuff_Loop",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_ExecuteBuff_Loop",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_Roar_Shockwave",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_Execute_Roar_Shockwave",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_WeaponClang",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_Execute_WeaponClang",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_WeaponClangV2",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_Execute_WeaponClangV2",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_WeaponEnd",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_Execute_WeaponEnd",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_WeaponLoop",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_Execute_WeaponLoop",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Execute_WeaponStart",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework/P_Execute_WeaponStart",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_GruxUlt_GroundInteraction",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework/P_GruxUlt_GroundInteraction",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_GruxUlt_MagmaGroundInteraction",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_GruxUlt_MagmaGroundInteraction",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_GruxUlt_Roar",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework/P_GruxUlt_Roar",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/Rework",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_ApplyBleed",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX/P_Grux_ApplyBleed",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Knockup",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX/P_Grux_Knockup",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Dash_CameraLens",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Dash_CameraLens",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Melee_Impact",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Melee_Impact",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Regular_Trail",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Regular_Trail",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Removal",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Removal",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Removal2",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Removal2",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_RipplingS_Cast_inst",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_RipplingS_Cast_inst",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Spawn",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Spawn",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_StampedLegcyFire",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_StampedLegcyFire",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_StampedTrail",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_StampedTrail",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Strong_Trail",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Strong_Trail",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ult_CameraLens",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ult_CameraLens",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ult_CameraLensEnd",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ult_CameraLensEnd",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultima_WeaponFX",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultima_WeaponFX",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultima_WpFX_Loop",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultima_WpFX_Loop",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultimate_Cast",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultimate_Cast",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultimate_Cast2",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultimate_Cast2",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultimate_Clang",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultimate_Clang",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Ultimate_Trail",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Ultimate_Trail",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Whirlwind_Impact",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Whirlwind_Impact",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Magma_Whirlwind_WpFX",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_Grux_Magma_Whirlwind_WpFX",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Melee_ShockwaveImpact",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX/P_Grux_Melee_ShockwaveImpact",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_Melee_SucessfulImpact",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX/P_Grux_Melee_SucessfulImpact",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Grux_RipplingSmash_ImpactedTrails",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/RipplingSmash/FX/P_Grux_RipplingSmash_ImpactedTrails",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/RipplingSmash/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Hardknocks_AOE",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX/P_Hardknocks_AOE",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MagmaGruxRoar",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_MagmaGruxRoar",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MagmaHardknocks_AOE",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_MagmaHardknocks_AOE",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MagmaSwingMesh",
+  "path": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma/P_MagmaSwingMesh",
+  "folder": "/Game/ParagonGrux/FX/Particles/Skins/Grux_Beetle_Magma",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MeleeTrails_Regular",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX/P_MeleeTrails_Regular",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MeleeTrails_Strong",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX/P_MeleeTrails_Strong",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Primary/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_MeleeTrails_Ultimate",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX/P_MeleeTrails_Ultimate",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Ultimate/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_RipplingSmash_Aligned_Initial",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/RipplingSmash/FX/P_RipplingSmash_Aligned_Initial",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/RipplingSmash/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Cast",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Cast",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Intro",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Intro",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Intro_CameraFX",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Intro_CameraFX",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Intro_Flames",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Intro_Flames",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Step",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Step",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_Stampede_Trail",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX/P_Stampede_Trail",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/Stampede/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "P_SwingMesh",
+  "path": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX/P_SwingMesh",
+  "folder": "/Game/ParagonGrux/FX/Particles/Abilities/HardKnocks/FX",
+  "ref_total": 0,
+  "ref_gameplay": 0,
+  "kinds": {},
+  "gameplay_refs": []
+ },
+ {
+  "name": "NE_Refract",
+  "path": "/Game/Assets/Effects/Combat/Trail/NE_Refract",
+  "folder": "/Game/Assets/Effects/Combat/Trail",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "vfx": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NE_attack02",
+  "path": "/Game/resources/Knife_light/VFX/NE_attack02",
+  "folder": "/Game/resources/Knife_light/VFX",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NE_attack04",
+  "path": "/Game/resources/Knife_light/VFX/NE_attack04",
+  "folder": "/Game/resources/Knife_light/VFX",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NE_attack05",
+  "path": "/Game/resources/Knife_light/VFX/NE_attack05",
+  "folder": "/Game/resources/Knife_light/VFX",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_Extra",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot_Extra",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_Extra_02",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot_Extra_02",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot_GS_Pure",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Black",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Black",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Blue",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Blue",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Green",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Green",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Orange",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Orange",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Pink",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Pink",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Purple",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Purple",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_White",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_White",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Yellow",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_02_Yellow",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Black",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Black",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Blue",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Blue",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Green",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Green",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Orange",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Orange",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Pink",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Pink",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Purple",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Purple",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_White",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_White",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_01_Floor_Rot_GS_Pure_Yellow",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_01_Floor_Rot_GS_Pure_Yellow",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_02_Floor_Rot",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_02_Floor_Rot",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Bunch",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_Bunch",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Extra",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_Extra",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Extra_02",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_Extra_02",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_GS_Pure",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Black",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Black",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Blue",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Blue",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Green",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Green",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Orange",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Orange",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Pink",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Pink",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Purple",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Purple",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_White",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_White",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Yellow",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_02_Yellow",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Black",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Black",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Blue",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Blue",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Green",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Green",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Orange",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Orange",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Pink",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Pink",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Purple",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Purple",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_White",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_White",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_GS_Pure_Yellow",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations/NS_Blood_Splat_Directional_01_Floor_GS_Pure_Yellow",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/Color_Variations",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Blood_Splat_Directional_01_Floor_Rot",
+  "path": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles/NS_Blood_Splat_Directional_01_Floor_Rot",
+  "folder": "/Game/resources/Vefects/VFX_Free_Blood/VFX/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_FireEffect",
+  "path": "/Game/resources/FireEffectVFX/VFX/NS_FireEffect",
+  "folder": "/Game/resources/FireEffectVFX/VFX",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Fire",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Fire",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Healing",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Healing",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Lightning",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Lightning",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Notes",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Notes",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Air",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Air",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Fire",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Fire",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Healing",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Healing",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Lightning",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Lightning",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Mana",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Mana",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Notes",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Notes",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Buff_Soul",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Buff_Soul",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Circle",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Circle",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_Explosion",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Explosion",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Free_Spells_LevelUp",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_LevelUp",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_1",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem/NS_Orb_1",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_2",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/NiagaraSystem/NS_Orb_2",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/NiagaraSystem",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_3",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/NiagaraSystems/NS_Orb_3",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/NiagaraSystems",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_4",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_4/NiagaraSystems/NS_Orb_4",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_4/NiagaraSystems",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Orb_5",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_5/NiagaraSystems/NS_Orb_5",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_5/NiagaraSystems",
+  "ref_total": 1,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 1
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Embers",
+  "path": "/Game/Assets/Effects/Soul/NS_Embers",
+  "folder": "/Game/Assets/Effects/Soul",
+  "ref_total": 2,
+  "ref_gameplay": 0,
+  "kinds": {
+   "vfx": 2
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NE_Orb",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem/NE_Orb",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem",
+  "ref_total": 3,
+  "ref_gameplay": 0,
+  "kinds": {
+   "vfx": 3
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Common",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Common",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Epic",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Epic",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Legendary",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Legendary",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Mythic",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Mythic",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Rare",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Rare",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_LootDrop_Uncommon",
+  "path": "/Game/resources/LootDropVFX/Systems/Rarity/NS_LootDrop_Uncommon",
+  "folder": "/Game/resources/LootDropVFX/Systems/Rarity",
+  "ref_total": 4,
+  "ref_gameplay": 0,
+  "kinds": {
+   "map": 4
+  },
+  "gameplay_refs": []
+ },
+ {
+  "name": "NS_Lava_Status",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Lava_Status",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Lava.uasset"
+  ]
+ },
+ {
+  "name": "NS_SG_HeavyHammer",
+  "path": "/Game/BluePrints/Characters/StoneGolem/NS_SG_HeavyHammer",
+  "folder": "/Game/BluePrints/Characters/StoneGolem",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/StoneGolem/DA_SG_HeavyHammer.uasset"
+  ]
+ },
+ {
+  "name": "NS_SG_Quake",
+  "path": "/Game/BluePrints/Characters/StoneGolem/NS_SG_Quake",
+  "folder": "/Game/BluePrints/Characters/StoneGolem",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/StoneGolem/DA_SG_Quake.uasset"
+  ]
+ },
+ {
+  "name": "NS_SG_ShieldBash",
+  "path": "/Game/BluePrints/Characters/StoneGolem/NS_SG_ShieldBash",
+  "folder": "/Game/BluePrints/Characters/StoneGolem",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/StoneGolem/DA_SG_ShieldBash.uasset"
+  ]
+ },
+ {
+  "name": "NS_Sh_Burst",
+  "path": "/Game/BluePrints/Characters/Goblin/ShamanExpansion/Effects/NS_Sh_Burst",
+  "folder": "/Game/BluePrints/Characters/Goblin/ShamanExpansion/Effects",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Goblin/ShamanExpansion/DA_Sh_Burst.uasset"
+  ]
+ },
+ {
+  "name": "NS_Shroom_Spores",
+  "path": "/Game/BluePrints/Characters/Shroom/Expansion/NS_Shroom_Spores",
+  "folder": "/Game/BluePrints/Characters/Shroom/Expansion",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Shroom/Expansion/DA_Shroom_Spore.uasset"
+  ]
+ },
+ {
+  "name": "NS_Toxic_Status",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Toxic_Status",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Toxic.uasset"
+  ]
+ },
+ {
+  "name": "NS_Vines_Status",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Vines_Status",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Vines.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_aquaStorm",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_aquaStorm",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_aquaStorm.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_darkStorm",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_darkStorm",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_darkStorm.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_fireStorm",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_fireStorm",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_fireStorm.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_healAura",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_healAura",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_healAura.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_hit1",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_hit1",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_hit1.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_laser01",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_laser01",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_laser01.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_lightning2",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_lightning2",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_lightning2.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_lightning3",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_lightning3",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_lightning3.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_magicCircle1",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_magicCircle1",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_magicCircle1.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_shootingStar1",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_shootingStar1",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_shootingStar1.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_shotShockwave",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_shotShockwave",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_fireBall.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_thunderBall",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_thunderBall",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_thunderBall.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_thunderStorm",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_thunderStorm",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_thunderStorm.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_waterBall",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_waterBall",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 1,
+  "ref_gameplay": 1,
+  "kinds": {
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_waterBall.uasset"
+  ]
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Air",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Air",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "map": 1,
+   "ga": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.uasset"
+  ]
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Mana",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Mana",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "map": 1,
+   "ga": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/Defense/PerfectDodge/GA_PerfectDodge.uasset"
+  ]
+ },
+ {
+  "name": "NS_Orb_2_Small",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/NiagaraSystem/NS_Orb_2_Small",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_2/NiagaraSystem",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./resources/MayuOrbs/02_Orbs/Data/DT_Orbs.uasset"
+  ]
+ },
+ {
+  "name": "NS_Orb_3_Small",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/NiagaraSystems/NS_Orb_3_Small",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_3/NiagaraSystems",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./resources/MayuOrbs/02_Orbs/Data/DT_Orbs.uasset"
+  ]
+ },
+ {
+  "name": "NS_Orb_4_Small",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_4/NiagaraSystems/NS_Orb_4_Small",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_4/NiagaraSystems",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./resources/MayuOrbs/02_Orbs/Data/DT_Orbs.uasset"
+  ]
+ },
+ {
+  "name": "NS_Orb_5_Small",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_5/NiagaraSystems/NS_Orb_5_Small",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_5/NiagaraSystems",
+  "ref_total": 2,
+  "ref_gameplay": 1,
+  "kinds": {
+   "data": 1,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./resources/MayuOrbs/02_Orbs/Data/DT_Orbs.uasset"
+  ]
+ },
+ {
+  "name": "NS_Aftershock_Ring",
+  "path": "/Game/Art/CompositionEffects/NS_Aftershock_Ring",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_Aftershock.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_Aftershock_Ring.uasset"
+  ]
+ },
+ {
+  "name": "NS_BloodImpact_green",
+  "path": "/Game/Assets/Effects/Combat/NS_BloodImpact_green",
+  "folder": "/Game/Assets/Effects/Combat",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 1,
+   "bp": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Shroom/Expansion/DA_Shroom_Slam.uasset",
+   "./BluePrints/Characters/BP_EnemyBase.uasset"
+  ]
+ },
+ {
+  "name": "NS_Blood_Hit_Splash",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Hit_Splash",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Eruption.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_Blood_Pool_Large",
+  "path": "/Game/Art/BloodFX/Systems/NS_Blood_Pool_Large",
+  "folder": "/Game/Art/BloodFX/Systems",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_CrimsonEruption_BloodPool.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_CrimsonEruption_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_CombatTrail",
+  "path": "/Game/Assets/Effects/Combat/Trail/NS_CombatTrail",
+  "folder": "/Game/Assets/Effects/Combat/Trail",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "montage": 2
+  },
+  "gameplay_refs": [
+   "./Assets/Enemies/Ghoul/Animations/AM_Ghoul_Attack_L.uasset",
+   "./Assets/Enemies/Ghoul/Animations/AM_Ghoul_Attack_R.uasset"
+  ]
+ },
+ {
+  "name": "NS_EarthShockwave",
+  "path": "/Game/CompositionBatch6/NS_EarthShockwave",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 1,
+   "ge": 1
+  },
+  "gameplay_refs": [
+   "./CompositionBatch6/DA_EarthShockwave.uasset",
+   "./Equipment/Unique/Effects/GE_UniqueFaultlineTreads.uasset"
+  ]
+ },
+ {
+  "name": "NS_FireExplosion1",
+  "path": "/Game/Assets/Effects/Projectiles/FireExplosion/NS_FireExplosion1",
+  "folder": "/Game/Assets/Effects/Projectiles/FireExplosion",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "bp": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Fire/FireBolt/BP_FireBolt.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/PassiveSpell/OrbitingFireBolt/BP_OrbitingFireBolt.uasset"
+  ]
+ },
+ {
+  "name": "NS_Frost_Status",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Frost_Status",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Frost.uasset",
+   "./PrototypeExtensions/Batch5/DA_FrostParasite.uasset"
+  ]
+ },
+ {
+  "name": "NS_SlingshotImpact",
+  "path": "/Game/Assets/Effects/Combat/NS_SlingshotImpact",
+  "folder": "/Game/Assets/Effects/Combat",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "bp": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/LegacyExpansion/BP_SlingRock.uasset",
+   "./BluePrints/AbilitySystem/Enemy/Ability/BP_SlingShotRock.uasset"
+  ]
+ },
+ {
+  "name": "NS_StarFlameHalo",
+  "path": "/Game/CompositionBatch6/NS_StarFlameHalo",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "ge": 1,
+   "data": 1
+  },
+  "gameplay_refs": [
+   "./Equipment/Unique/Effects/GE_UniqueSolarStepBoots.uasset",
+   "./CompositionBatch6/DA_StarFlameHalo.uasset"
+  ]
+ },
+ {
+  "name": "NS_Tornado",
+  "path": "/Game/Assets/Effects/Firenado/NS_Tornado",
+  "folder": "/Game/Assets/Effects/Firenado",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_InfernoVortex_Vortex.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_InfernoVortex_Graph.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_ThunderBallHit",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_ThunderBallHit",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "bp": 2
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_thunderBall.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_ThunderBallHit.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_explosion",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_explosion",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "bp": 2
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_fireBall.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_explosion.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_waterBallHit",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_waterBallHit",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 2,
+  "ref_gameplay": 2,
+  "kinds": {
+   "bp": 2
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_waterBallHit.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_waterBall.uasset"
+  ]
+ },
+ {
+  "name": "NE_attack01",
+  "path": "/Game/resources/Knife_light/VFX/NE_attack01",
+  "folder": "/Game/resources/Knife_light/VFX",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_GhostCleave_Slash.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GhostCleave_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NE_attack03",
+  "path": "/Game/resources/Knife_light/VFX/NE_attack03",
+  "folder": "/Game/resources/Knife_light/VFX",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_GhostCleave_Echo.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GhostCleave_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_Free_Spells_Aura_Soul",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Soul",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Array.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_Free_Spells_Shockwave",
+  "path": "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Shockwave",
+  "folder": "/Game/Free_Spells/VFX_Niagara",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Graph.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GhostMoonArray_Finish.uasset"
+  ]
+ },
+ {
+  "name": "NS_Frost_Surface",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Frost_Surface",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./ThemeSystem/Themes/DA_Theme_Frost.uasset",
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Frost.uasset"
+  ]
+ },
+ {
+  "name": "NS_Lava_Surface",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Lava_Surface",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "map": 1,
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./ThemeSystem/Themes/DA_Theme_Lava.uasset",
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Lava.uasset"
+  ]
+ },
+ {
+  "name": "NS_Orb_1_Small",
+  "path": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem/NS_Orb_1_Small",
+  "folder": "/Game/resources/MayuOrbs/02_Orbs/Orb_1/NiagaraSystem",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 1,
+   "bp": 1,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./resources/MayuOrbs/02_Orbs/Data/DT_Orbs.uasset",
+   "./resources/MayuOrbs/00_Base/FirstPerson/Blueprints/BP_FirstPersonCharacter.uasset"
+  ]
+ },
+ {
+  "name": "NS_Toxic_Surface",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Toxic_Surface",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Toxic.uasset",
+   "./ThemeSystem/Themes/DA_Theme_Toxic.uasset"
+  ]
+ },
+ {
+  "name": "NS_Vines_Surface",
+  "path": "/Game/Art/TerrainSurfaces/Effects/NS_Vines_Surface",
+  "folder": "/Game/Art/TerrainSurfaces/Effects",
+  "ref_total": 3,
+  "ref_gameplay": 2,
+  "kinds": {
+   "data": 2,
+   "map": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Actor/Terrain/Data/DA_Terrain_Vines.uasset",
+   "./ThemeSystem/Themes/DA_Theme_Vines.uasset"
+  ]
+ },
+ {
+  "name": "NS_ElectricBeam",
+  "path": "/Game/Assets/Effects/Shock/NS_ElectricBeam",
+  "folder": "/Game/Assets/Effects/Shock",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 2,
+   "cue": 1
+  },
+  "gameplay_refs": [
+   "./PrototypeExtensions/Batch5/DA_StormBrand_Chain.uasset",
+   "./BluePrints/AbilitySystem/GameplayCueNotify/GC_ShockLoop.uasset",
+   "./PrototypeExtensions/Batch5/DA_StormConvergence.uasset"
+  ]
+ },
+ {
+  "name": "NS_FireSeed_Field",
+  "path": "/Game/Art/CompositionEffects/NS_FireSeed_Field",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 3
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_FireSeed_Field.uasset",
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Cinders.uasset",
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_FrostFan_Projectile",
+  "path": "/Game/Art/CompositionEffects/NS_FrostFan_Projectile",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 3
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_GlacialLance_Lance.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_FrostFan.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GlacialLance_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_HunterSentry_Core",
+  "path": "/Game/Art/CompositionEffects/NS_HunterSentry_Core",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 3
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_HunterSentry.uasset",
+   "./UnifiedAbilities/MageBatch/DA_ArcaneSentry_Graph.uasset",
+   "./UnifiedAbilities/MageBatch/DA_ArcaneSentry_Sentry.uasset"
+  ]
+ },
+ {
+  "name": "NS_Ripple_Ring",
+  "path": "/Game/Art/CompositionEffects/NS_Ripple_Ring",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 3
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_RippleMine_Wave.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_RippleMine.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_RippleMine_Delay.uasset"
+  ]
+ },
+ {
+  "name": "NS_StormSeal_Field",
+  "path": "/Game/Art/CompositionEffects/NS_StormSeal_Field",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 3,
+  "ref_gameplay": 3,
+  "kinds": {
+   "data": 3
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/ArtBatch/DA_ThunderPrison_Seal.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_StormSeal.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_ThunderPrison_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_Bramble_Warning",
+  "path": "/Game/Art/CompositionEffects/NS_Bramble_Warning",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "data": 4
+  },
+  "gameplay_refs": [
+   "./CompositionBatch6/DA_GlacialStorm.uasset",
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Warning.uasset",
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Graph.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_BrambleMine.uasset"
+  ]
+ },
+ {
+  "name": "NS_GroundSummon",
+  "path": "/Game/Assets/Effects/Combat/NS_GroundSummon",
+  "folder": "/Game/Assets/Effects/Combat",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "data": 3,
+   "ga": 1
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Grux/Expansion/DA_Grux_Roar.uasset",
+   "./BluePrints/AbilitySystem/Enemy/Ability/GA_SummonAbility.uasset",
+   "./BluePrints/Characters/Goblin/ShamanExpansion/DA_Sh_Summon.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Field.uasset"
+  ]
+ },
+ {
+  "name": "NS_StormSeal_Pulse",
+  "path": "/Game/Art/CompositionEffects/NS_StormSeal_Pulse",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "data": 3,
+   "ge": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/MageBatch/DA_PiercingTempest_Graph.uasset",
+   "./Equipment/Unique/Effects/GE_UniqueStormforgedHelm.uasset",
+   "./UnifiedAbilities/MageBatch/DA_PiercingTempest_StormOrb.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_StormSeal.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_fireBall",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_fireBall",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "bp": 4
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_thunderBall.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_shotSpawn.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_fireBall.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_waterBall.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_hit2",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_hit2",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "bp": 4
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_waterBallHit.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_explosion.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_ThunderBallHit.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_hit2.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_lightning1",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_lightning1",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 4,
+  "ref_gameplay": 4,
+  "kinds": {
+   "bp": 4
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_lightning2.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_lightning3.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_lightning1.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_hit1.uasset"
+  ]
+ },
+ {
+  "name": "NS_GlacialStorm",
+  "path": "/Game/CompositionBatch6/NS_GlacialStorm",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 5,
+  "ref_gameplay": 5,
+  "kinds": {
+   "data": 3,
+   "ge": 2
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/MageBatch/DA_RimeSigil_Graph.uasset",
+   "./Equipment/Unique/Effects/GE_UniqueRimefangHelm.uasset",
+   "./Equipment/Unique/Effects/GE_UniqueFrostWakeHelm.uasset",
+   "./UnifiedAbilities/MageBatch/DA_RimeSigil_FrostField.uasset",
+   "./CompositionBatch6/DA_FrostField.uasset"
+  ]
+ },
+ {
+  "name": "NS_StormSeal_Blast",
+  "path": "/Game/Art/CompositionEffects/NS_StormSeal_Blast",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 5,
+  "ref_gameplay": 5,
+  "kinds": {
+   "data": 5
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/MageBatch/DA_PiercingTempest_Graph.uasset",
+   "./UnifiedAbilities/MageBatch/DA_PiercingTempest_StormBurst.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_ThunderPrison_Graph.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_ThunderPrison_Release.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_StormSeal_Burst.uasset"
+  ]
+ },
+ {
+  "name": "NS_BloodImpact",
+  "path": "/Game/Assets/Effects/Combat/NS_BloodImpact",
+  "folder": "/Game/Assets/Effects/Combat",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "bp": 6
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/BP_ExtensionPlayer.uasset",
+   "./BluePrints/Characters/SwordShield/BP_SwordShieldPlayer.uasset",
+   "./BluePrints/Characters/Player/BP_Player.uasset"
+  ]
+ },
+ {
+  "name": "NS_DungeonElectricBeam",
+  "path": "/Game/PureMass/Effects/NS_DungeonElectricBeam",
+  "folder": "/Game/PureMass/Effects",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "data": 4,
+   "ga": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Chain.uasset",
+   "./CompositionBatch6/GA_FissionChain.uasset",
+   "./UnifiedAbilities/MageBatch/DA_ArcaneSentry_Graph.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Beam.uasset",
+   "./CompositionBatch6/GA_SequentialChain.uasset",
+   "./UnifiedAbilities/MageBatch/DA_ArcaneSentry_SentryBeam.uasset"
+  ]
+ },
+ {
+  "name": "NS_Frost_Impact",
+  "path": "/Game/Art/CompositionEffects/NS_Frost_Impact",
+  "folder": "/Game/Art/CompositionEffects",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "data": 6
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/MageBatch/DA_RimeSigil_Graph.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_FrostFan.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_FrostFault.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GlacialLance_Shatter.uasset",
+   "./UnifiedAbilities/MageBatch/DA_RimeSigil_FrostBurst.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_GlacialLance_Graph.uasset"
+  ]
+ },
+ {
+  "name": "NS_LevelUp",
+  "path": "/Game/Assets/Effects/LevelUp/NS_LevelUp",
+  "folder": "/Game/Assets/Effects/LevelUp",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "bp": 6
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/BP_ExtensionPlayer.uasset",
+   "./BluePrints/Characters/SwordShield/BP_SwordShieldPlayer.uasset",
+   "./BluePrints/Characters/Player/BP_Player.uasset"
+  ]
+ },
+ {
+  "name": "NS_LifeSiphon",
+  "path": "/Game/Assets/Effects/Stun/NS_LifeSiphon",
+  "folder": "/Game/Assets/Effects/Stun",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "bp": 6
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/BP_ExtensionPlayer.uasset",
+   "./BluePrints/Characters/SwordShield/BP_SwordShieldPlayer.uasset",
+   "./BluePrints/Characters/Player/BP_Player.uasset"
+  ]
+ },
+ {
+  "name": "NS_ManaSiphon",
+  "path": "/Game/Assets/Effects/Stun/NS_ManaSiphon",
+  "folder": "/Game/Assets/Effects/Stun",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "bp": 6
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/BP_ExtensionPlayer.uasset",
+   "./BluePrints/Characters/SwordShield/BP_SwordShieldPlayer.uasset",
+   "./BluePrints/Characters/Player/BP_Player.uasset"
+  ]
+ },
+ {
+  "name": "NS_Sparks",
+  "path": "/Game/Assets/Effects/Shock/NS_Sparks",
+  "folder": "/Game/Assets/Effects/Shock",
+  "ref_total": 6,
+  "ref_gameplay": 6,
+  "kinds": {
+   "data": 6
+  },
+  "gameplay_refs": [
+   "./PrototypeExtensions/Batch5/DA_StormBrand.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_RippleMine_Wave.uasset",
+   "./PrototypeExtensions/Batch5/DA_StormBrand_Chain.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Wave.uasset",
+   "./PrototypeExtensions/Batch5/DA_StormConvergence.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Line.uasset"
+  ]
+ },
+ {
+  "name": "NS_Stars",
+  "path": "/Game/Assets/Effects/Stun/NS_Stars",
+  "folder": "/Game/Assets/Effects/Stun",
+  "ref_total": 9,
+  "ref_gameplay": 6,
+  "kinds": {
+   "bp": 6,
+   "vfx": 3
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/BP_ExtensionPlayer.uasset",
+   "./BluePrints/Characters/SwordShield/BP_SwordShieldPlayer.uasset",
+   "./BluePrints/Characters/Player/BP_Player.uasset"
+  ]
+ },
+ {
+  "name": "NS_SolarExplosionFlame",
+  "path": "/Game/CompositionBatch6/NS_SolarExplosionFlame",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 7,
+  "ref_gameplay": 7,
+  "kinds": {
+   "data": 6,
+   "ge": 1
+  },
+  "gameplay_refs": [
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Meteor.uasset",
+   "./CompositionBatch6/DA_SolarBlast.uasset",
+   "./Equipment/Unique/Effects/GE_UniqueCinderOathBoots.uasset",
+   "./UnifiedAbilities/MageBatch/DA_MeteorCinders_Graph.uasset",
+   "./CompositionBatch6/DA_SolarExplosion.uasset",
+   "./UnifiedAbilities/ArtBatch/DA_InfernoVortex_Graph.uasset"
+  ]
+ },
+ {
+  "name": "P_ky_storm",
+  "path": "/Game/resources/FXVarietyPack/Particles/P_ky_storm",
+  "folder": "/Game/resources/FXVarietyPack/Particles",
+  "ref_total": 7,
+  "ref_gameplay": 7,
+  "kinds": {
+   "bp": 7
+  },
+  "gameplay_refs": [
+   "./resources/FXVarietyPack/Blueprints/BP_ky_healAura.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_storm.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_thunderStorm.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_fireStorm.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_aquaStorm.uasset",
+   "./resources/FXVarietyPack/Blueprints/BP_ky_magicCircle1.uasset"
+  ]
+ },
+ {
+  "name": "NS_Stars_EnemyStun",
+  "path": "/Game/BluePrints/Characters/Effects/NS_Stars_EnemyStun",
+  "folder": "/Game/BluePrints/Characters/Effects",
+  "ref_total": 11,
+  "ref_gameplay": 11,
+  "kinds": {
+   "bp": 9,
+   "data": 2
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Shroom/Expansion/BP_Shroom.uasset",
+   "./BluePrints/Characters/Grux/Expansion/BP_GruxBoss.uasset",
+   "./BluePrints/Characters/LegacyExpansion/BP_Ghoul.uasset",
+   "./PureMass/DA_MassQAGoblin.uasset",
+   "./BluePrints/Characters/BP_EnemyBase.uasset",
+   "./BluePrints/Characters/LegacyExpansion/BP_GoblinSlinger.uasset"
+  ]
+ },
+ {
+  "name": "NS_Fireball",
+  "path": "/Game/Assets/Effects/Projectiles/FireBolt/NS_Fireball",
+  "folder": "/Game/Assets/Effects/Projectiles/FireBolt",
+  "ref_total": 12,
+  "ref_gameplay": 12,
+  "kinds": {
+   "data": 12
+  },
+  "gameplay_refs": [
+   "./PrototypeExtensions/Batch5/DA_Prototype_Stack.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_HunterSentry_Shot.uasset",
+   "./PureMass/Abilities/DA_MassOrbit.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Projectile.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Homing.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Piercing.uasset"
+  ]
+ },
+ {
+  "name": "NS_Fire",
+  "path": "/Game/Assets/Effects/Fire/NS_Fire",
+  "folder": "/Game/Assets/Effects/Fire",
+  "ref_total": 23,
+  "ref_gameplay": 12,
+  "kinds": {
+   "bp": 12,
+   "map": 6,
+   "vfx": 5
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/PassiveSpell/OrbitingFireBolt/BP_OrbitingFireBolt.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Fire/FireBolt/BP_FireBolt.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./BluePrints/Actor/Area/BP_FireArea.uasset"
+  ]
+ },
+ {
+  "name": "NS_FireExplosion",
+  "path": "/Game/Assets/Effects/Projectiles/FireExplosion/NS_FireExplosion",
+  "folder": "/Game/Assets/Effects/Projectiles/FireExplosion",
+  "ref_total": 14,
+  "ref_gameplay": 13,
+  "kinds": {
+   "data": 12,
+   "bp": 1,
+   "vfx": 1
+  },
+  "gameplay_refs": [
+   "./PrototypeExtensions/Batch5/DA_Prototype_Stack.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Fire/FireBolt/BP_FireBolt.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Projectile.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Homing.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Piercing.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_EmitterShot.uasset"
+  ]
+ },
+ {
+  "name": "NS_ArcaneShards",
+  "path": "/Game/Assets/Effects/ArcaneShards/NS_ArcaneShards",
+  "folder": "/Game/Assets/Effects/ArcaneShards",
+  "ref_total": 15,
+  "ref_gameplay": 15,
+  "kinds": {
+   "cue": 2,
+   "data": 13
+  },
+  "gameplay_refs": [
+   "./BluePrints/AbilitySystem/GameplayCueNotify/GC_ArcaneNova.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_DelayBurst.uasset",
+   "./PrototypeExtensions/Batch5/DA_BrambleRepulse.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Compositions/DA_HunterSentry_Burst.uasset",
+   "./PrototypeExtensions/Batch5/DA_Attach_Pulse.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Trap.uasset"
+  ]
+ },
+ {
+  "name": "NS_Halo",
+  "path": "/Game/Assets/Effects/Stun/NS_Halo",
+  "folder": "/Game/Assets/Effects/Stun",
+  "ref_total": 17,
+  "ref_gameplay": 17,
+  "kinds": {
+   "bp": 6,
+   "data": 11
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/BP_StanderPlayer.uasset",
+   "./PrototypeExtensions/Batch5/DA_GravityWell.uasset",
+   "./RoguelikeGeneration/Gameplay/BP_DungeonPlayer.uasset",
+   "./BluePrints/AbilitySystem/Player/Ability/Prototypes/DA_Prototype_Ring.uasset",
+   "./PureMass/BP_MassPlayer.uasset",
+   "./PrototypeExtensions/Batch5/DA_Prototype_Attach.uasset"
+  ]
+ },
+ {
+  "name": "NS_SolarFireballFlame",
+  "path": "/Game/CompositionBatch6/NS_SolarFireballFlame",
+  "folder": "/Game/CompositionBatch6",
+  "ref_total": 59,
+  "ref_gameplay": 59,
+  "kinds": {
+   "data": 59
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/Weapons/Staff/DA_Attack3.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Magic/DA_JumpAttack3.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Bow/DA_JumpAttack1.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Staff/DA_Skill2_Slow.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Bow/DA_Skill7_Around.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Bow/DA_Skill2_Slow.uasset"
+  ]
+ },
+ {
+  "name": "NS_CombatImpact",
+  "path": "/Game/Assets/Effects/Combat/NS_CombatImpact",
+  "folder": "/Game/Assets/Effects/Combat",
+  "ref_total": 110,
+  "ref_gameplay": 110,
+  "kinds": {
+   "data": 110
+  },
+  "gameplay_refs": [
+   "./BluePrints/Characters/Stander/Weapons/DualBlades/DA_JumpAttack2.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Rapier/DA_Skill3.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Rapier/DA_Attack1.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Spear/DA_JumpAttack3.uasset",
+   "./BluePrints/Characters/Stander/Weapons/DoubleBlades/DA_Attack1.uasset",
+   "./BluePrints/Characters/Stander/Weapons/Fighter/DA_Skill4_Push.uasset"
+  ]
+ }
+]

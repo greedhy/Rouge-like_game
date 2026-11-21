@@ -11,6 +11,10 @@
 #include "NavigationPath.h"
 #include "NiagaraFunctionLibrary.h"
 #include "AbilitySystem/MyAbilitySystemComponent.h"
+#include "AbilitySystem/Unified/AbilityRuntimeRecipeDeveloperComponent.h"
+#include "UI/Widget/AbilityRuntimeRecipePanel.h"
+#include "UI/Widget/CharacterMenuWidget.h"
+#include "UI/HUD/MyHUD.h"
 #include "Components/SplineComponent.h"
 #include "Input/MyInputComponent.h"
 #include "GameFramework/Character.h"
@@ -53,8 +57,7 @@ namespace
     class FGameplayMenuKeyboardRouting final : public IInputProcessor
     {
     public:
-        FGameplayMenuKeyboardRouting(AMyPlayerController& InOwner,
-                                     const TArray<TWeakObjectPtr<UUserWidget>>& InMenus)
+        FGameplayMenuKeyboardRouting(AMyPlayerController& InOwner, const TArray<TWeakObjectPtr<UUserWidget>>& InMenus)
             : Owner(&InOwner), Menus(InMenus)
         {
         }
@@ -97,8 +100,15 @@ namespace
                 if (Menu && Menu->IsInViewport() && Menu->IsVisible() &&
                     Focus.ContainsWidget(Menu->GetCachedWidget().Get()))
                 {
+                    const auto* CharacterMenu = Cast<UCharacterMenuWidget>(Menu);
+                    if (Menu->IsA<UAbilityRuntimeRecipePanel>() ||
+                        (CharacterMenu && CharacterMenu->GetActivePage() == 3))
+                    {
+                        // 开发面板有数值输入框；保持 Slate 编辑键，不能转成正式数字技能输入。
+                        return false;
+                    }
                     Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, Event.GetInputDeviceId(), Key, Type,
-                                                         Event.GetEventTimestamp()));
+                                                          Event.GetEventTimestamp()));
                     return true;
                 }
             }
@@ -108,11 +118,35 @@ namespace
         TWeakObjectPtr<AMyPlayerController> Owner;
         const TArray<TWeakObjectPtr<UUserWidget>>& Menus;
     };
-}
+} // namespace
 
 // 只拦 Slate 未消费的左右键按下。已进入 PlayerInput 的按键仍允许松开。
 bool AMyPlayerController::InputKey(const FInputKeyEventArgs& Params)
 {
+#if !UE_BUILD_SHIPPING
+    if (Params.Key == EKeys::T)
+    {
+        if (Params.Event == IE_Released && bDeveloperRecipeKeyHeld)
+        {
+            ReleaseRecipeInput();
+            return true;
+        }
+        const auto* Developer = GetRecipeDeveloper();
+        if (Developer && Developer->GetDeveloperState().bPreviewActive && !IsGameplayMenuVisible() &&
+            (Params.Event == IE_Pressed || Params.Event == IE_Repeat))
+        {
+            const auto Tag = FMyGameplayTags::Get().InputTag_DeveloperRecipe;
+            if (Params.Event == IE_Pressed)
+            {
+                bDeveloperRecipeKeyHeld = true;
+                AbilityInputTagPressed(Tag);
+            }
+            // 与正式键盘技能一样，按下后进入 ASC Held 激活；后续帧继续由 PlayerTick 转发。
+            AbilityInputTagHeld(Tag);
+            return true;
+        }
+    }
+#endif
     if (IsMenuMouseButton(Params.Key) && Params.Event != IE_Released && IsGameplayMenuVisible())
     {
         return true;
@@ -120,14 +154,54 @@ bool AMyPlayerController::InputKey(const FInputKeyEventArgs& Params)
     return Super::InputKey(Params);
 }
 
+UAbilityRuntimeRecipeDeveloperComponent* AMyPlayerController::GetRecipeDeveloper() const
+{
+    const auto* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetPawn());
+    AActor* RecipeOwner = ASC ? ASC->GetOwnerActor() : nullptr;
+    return IsValid(RecipeOwner) ? RecipeOwner->FindComponentByClass<UAbilityRuntimeRecipeDeveloperComponent>()
+                                : nullptr;
+}
+
+void AMyPlayerController::ReleaseRecipeInput()
+{
+    if (bDeveloperRecipeKeyHeld)
+    {
+        bDeveloperRecipeKeyHeld = false;
+        AbilityInputTagReleased(FMyGameplayTags::Get().InputTag_DeveloperRecipe);
+    }
+}
+
+void AMyPlayerController::RuntimeRecipe()
+{
+#if !UE_BUILD_SHIPPING
+    if (!IsLocalController() || !GetPawn())
+    {
+        return;
+    }
+    auto* HUD = GetHUD<AMyHUD>();
+    if (!HUD)
+    {
+        return;
+    }
+    auto* Menu = HUD->GetCharacterMenu();
+    if (Menu && Menu->IsInViewport() && Menu->IsVisible() && Menu->GetActivePage() == 3)
+    {
+        Menu->RequestCloseMenu();
+        return;
+    }
+    ReleaseRecipeInput();
+    HUD->ShowCharacterMenu(3);
+#endif
+}
+
 bool AMyPlayerController::IsGameplayMenuVisible() const
 {
     return bBackpackUIOpen || GameplayMenus.ContainsByPredicate(
-        [](const TWeakObjectPtr<UUserWidget>& Entry)
-        {
-            const UUserWidget* Menu = Entry.Get();
-            return Menu && Menu->IsInViewport() && Menu->IsVisible();
-        });
+                                  [](const TWeakObjectPtr<UUserWidget>& Entry)
+                                  {
+                                      const UUserWidget* Menu = Entry.Get();
+                                      return Menu && Menu->IsInViewport() && Menu->IsVisible();
+                                  });
 }
 
 bool AMyPlayerController::IsMenuMouseAbility(FGameplayTag InputTag) const
@@ -152,6 +226,7 @@ void AMyPlayerController::RegisterGameplayMenu(UUserWidget* Menu)
     }
     if (bFirstMenu)
     {
+        ReleaseRecipeInput();
         ReleaseGameplayMouseButtons();
         ApplyGameplayInputMode();
         if (ULocalPlayer* LocalPlayer = GetLocalPlayer(); LocalPlayer && FSlateApplication::IsInitialized())
@@ -200,6 +275,7 @@ void AMyPlayerController::RemoveMenuKeyboardRouting()
 
 void AMyPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    ReleaseRecipeInput();
     if (ObservedBackpack.IsValid())
     {
         ObservedBackpack->OnSlotClicked.Remove(BackpackClickHandle);
@@ -237,6 +313,20 @@ AMyPlayerController::AMyPlayerController()
 void AMyPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
+#if !UE_BUILD_SHIPPING
+    if (IsLocalController() && bDeveloperRecipeKeyHeld)
+    {
+        const auto* Developer = GetRecipeDeveloper();
+        if (!Developer || !Developer->GetDeveloperState().bPreviewActive)
+        {
+            ReleaseRecipeInput();
+        }
+        else if (!IsGameplayMenuVisible())
+        {
+            AbilityInputTagHeld(FMyGameplayTags::Get().InputTag_DeveloperRecipe);
+        }
+    }
+#endif
     if (IsLocalController())
     {
         if (bBackpackUIOpen && BackpackWidget && !BackpackWidget->IsInViewport())
@@ -372,7 +462,8 @@ void AMyPlayerController::OpenBackpackUI()
                 ObservedBackpack->OnSlotClicked.Remove(BackpackClickHandle);
             }
             ObservedBackpack = Bag->InventoryVM;
-            BackpackClickHandle = Bag->InventoryVM->OnSlotClicked.AddUObject(this, &ThisClass::ShowSelectedBackpackEquipment);
+            BackpackClickHandle =
+                Bag->InventoryVM->OnSlotClicked.AddUObject(this, &ThisClass::ShowSelectedBackpackEquipment);
         }
     }
     bBackpackUIOpen = true;
@@ -472,6 +563,7 @@ void AMyPlayerController::ReceivedPlayer()
 // 切换受控角色时清除能力与光标缓存，再初始化本地输入。
 void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
+    ReleaseRecipeInput();
     Super::AcknowledgePossession(P);
     MyAbilitySystemComponent = nullptr;
     LastActor = nullptr;

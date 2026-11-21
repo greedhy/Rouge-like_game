@@ -17,6 +17,8 @@
 #include "Roguelike/DungeonRunDirector.h"
 #include "Equipment/EquipmentAbilityModifiers.h"
 #include "MyGameplayTags.h"
+#include "AbilitySystem/Unified/AbilityBehaviorPrimitives.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace
 {
@@ -48,10 +50,72 @@ namespace
 
 void UAbilityElectrocuteContext::RequestCompletion()
 {
-    if (auto* Active = Execution.Get())
+    const TStrongObjectPtr<UAbilityElectrocuteContext> SelfGuard(this);
+    const auto Hosts = ActiveExecutions;
+    for (const auto& WeakHost : Hosts)
     {
-        Active->CompleteChannel();
+        if (auto* Active = WeakHost.Get())
+        {
+            const TStrongObjectPtr<UAbilityElectrocuteNodeExecution> HostGuard(Active);
+            Active->CompleteChannel();
+        }
     }
+}
+
+void UAbilityElectrocuteContext::AttachExecution(UAbilityElectrocuteNodeExecution* Host)
+{
+    ActiveExecutions.RemoveAll(
+        [](const auto& Item)
+        {
+            return !Item.IsValid();
+        });
+    ActiveExecutions.AddUnique(Host);
+    Execution = Host;
+}
+
+void UAbilityElectrocuteContext::DetachExecution(UAbilityElectrocuteNodeExecution* Host)
+{
+    ActiveExecutions.RemoveAll(
+        [Host](const auto& Item)
+        {
+            return !Item.IsValid() || Item.Get() == Host;
+        });
+    if (Execution.Get() == Host || !Execution.IsValid())
+    {
+        Execution = ActiveExecutions.IsEmpty() ? nullptr : ActiveExecutions.Last().Get();
+    }
+}
+
+bool UAbilityElectrocuteContext::HasOtherSourcePresentation(const UAbilityElectrocuteNodeExecution* Host) const
+{
+    return ActiveExecutions.ContainsByPredicate(
+        [Host](const auto& Item)
+        {
+            const auto* Other = Item.Get();
+            return Other && Other != Host && !Other->bStopped && !Other->bCleaned &&
+                   Other->bSourcePresentationStarted &&
+                   Other->Input.SourceToken.World == Host->Input.SourceToken.World &&
+                   Other->Input.SourceToken.Avatar == Host->Input.SourceToken.Avatar &&
+                   Other->Input.SourceToken.ASC == Host->Input.SourceToken.ASC &&
+                   Other->Input.SourceToken.DungeonRunId == Host->Input.SourceToken.DungeonRunId &&
+                   Other->Input.SourceToken.EnemyLease == Host->Input.SourceToken.EnemyLease;
+        });
+}
+
+bool UAbilityElectrocuteContext::HasOtherTargetPresentation(const UAbilityElectrocuteNodeExecution* Host,
+                                                            const FAbilityTargetToken& Target) const
+{
+    return ActiveExecutions.ContainsByPredicate(
+        [Host, &Target](const auto& Item)
+        {
+            const auto* Other = Item.Get();
+            return Other && Other != Host && !Other->bStopped && !Other->bCleaned &&
+                   Other->Targets.ContainsByPredicate(
+                       [&Target](const auto& Record)
+                       {
+                           return !Record.bReleased && AbilityBehaviorPrimitives::SameTargetLife(Record.Life, Target);
+                       });
+        });
 }
 
 bool UAbilityElectrocuteNodeConfig::Validate(FString& Error) const
@@ -100,7 +164,7 @@ bool UAbilityElectrocuteNodeExecution::Start(UAbilityGraphInstance& Owner, const
     TimerWorld = Avatar->GetWorld();
     if (Binding)
     {
-        Binding->Execution = this;
+        Binding->AttachExecution(this);
     }
     AActor* Target = Input.LiveTargetToken.IsSet() ? Input.LiveTargetToken->Target.Actor.Get()
                      : Binding                     ? Binding->AimActor.Get()
@@ -133,7 +197,7 @@ bool UAbilityElectrocuteNodeExecution::Start(UAbilityGraphInstance& Owner, const
         // 先算 GA 原有等级/数据上限，再允许装备额外连锁，最后维护整体预算。
         const int32 BaseTargets = FMath::Min(FMath::FloorToInt(Input.Level) + 1, Settings->MaxAdditionalTargets);
         UMyAbilitySystemLibrary::GetClosestTargets(FMath::Min(BaseTargets + ExtraChainTargets, 64), Candidates, Closest,
-                                                 Target->GetActorLocation());
+                                                   Target->GetActorLocation());
         for (AActor* Additional : Closest)
         {
             if (bStopped)
@@ -213,8 +277,9 @@ bool UAbilityElectrocuteNodeExecution::AddTarget(AActor* Actor, USceneComponent*
 
 void UAbilityElectrocuteNodeExecution::Period()
 {
+    const TStrongObjectPtr<UAbilityElectrocuteNodeExecution> SelfGuard(this);
     auto* Owner = GraphOwner.Get();
-    if (bStopped || bCompleting || !Owner)
+    if (bStopped || bCompleting || IsPeriodPending() || !Owner)
     {
         return;
     }
@@ -230,6 +295,32 @@ void UAbilityElectrocuteNodeExecution::Period()
         return;
     }
     ++PeriodSequence;
+    BeginPeriodEffects();
+}
+
+bool UAbilityElectrocuteNodeExecution::IsPeriodPending() const
+{
+    return false;
+}
+
+void UAbilityElectrocuteNodeExecution::BeginPeriodEffects()
+{
+    WalkPeriodTargets(
+        [this](AActor* Actor, const FAbilityTargetToken& Life, FVector Location)
+        {
+            ApplyPeriodDamage(Actor, Life, Location);
+        });
+    EndPeriodEffects();
+}
+
+void UAbilityElectrocuteNodeExecution::WalkPeriodTargets(
+    TFunctionRef<void(AActor*, const FAbilityTargetToken&, FVector)> Action)
+{
+    AActor* Avatar = nullptr;
+    if (bStopped || bCompleting || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Avatar))
+    {
+        return;
+    }
     for (auto& Target : Targets)
     {
         if (bStopped || bCompleting)
@@ -251,7 +342,7 @@ void UAbilityElectrocuteNodeExecution::Period()
             }
             continue;
         }
-        ApplyPeriodDamage(Target.Life.Target.Actor.Get(), Target.Life, Location);
+        Action(Target.Life.Target.Actor.Get(), Target.Life, Location);
     }
     if (!bStopped && !bCompleting && !PrimaryActor.IsValid() && Targets.IsEmpty())
     {
@@ -261,11 +352,18 @@ void UAbilityElectrocuteNodeExecution::Period()
         SelfSnapshot.Target = FPureMassCombatTarget::FromActor(Avatar);
         SelfSnapshot.ActorLease = Input.SourceToken.EnemyLease;
         SelfSnapshot.DungeonRunId = Input.SourceToken.DungeonRunId;
-        ApplyPeriodDamage(Avatar, SelfSnapshot, Avatar->GetActorLocation());
+        Action(Avatar, SelfSnapshot, Avatar->GetActorLocation());
     }
+}
+
+void UAbilityElectrocuteNodeExecution::EndPeriodEffects()
+{
     if (!bStopped && !bCompleting)
     {
-        Owner->Publish(InvocationId, TEXT("PeriodElapsed"), Input);
+        if (auto* Owner = GraphOwner.Get())
+        {
+            Owner->Publish(InvocationId, TEXT("PeriodElapsed"), Input);
+        }
     }
 }
 
@@ -281,21 +379,12 @@ void UAbilityElectrocuteNodeExecution::ApplyPeriodDamage(AActor* Actor, const FA
         }
         return;
     }
-    auto* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
-    if (!TargetASC || !Input.DamageParams.DamageGameplayEffectClass)
+    const auto Result = AbilityElectrocuteNodes::ApplyPeriod(Input.SourceToken, Life, Location, ResolvedDamage,
+                                                             Input.Level, Actor == Avatar);
+    if (!Result.bAttempted)
     {
         return;
     }
-    // 保留原 ApplyDamageToActor：目标 ASC 创建上下文及 Spec，固定 Damage.Thunder，不套用最终命中的额外参数。
-    auto Spec = TargetASC->MakeOutgoingSpec(Input.DamageParams.DamageGameplayEffectClass, Input.Level,
-                                            TargetASC->MakeEffectContext());
-    if (!Spec.IsValid())
-    {
-        return;
-    }
-    Spec.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(TEXT("Damage.Thunder")),
-                                       ResolvedDamage.BaseDamage);
-    TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
     if (bStopped || bCompleting || !GraphOwner.IsValid())
     {
         return;
@@ -306,8 +395,7 @@ void UAbilityElectrocuteNodeExecution::ApplyPeriodDamage(AActor* Actor, const FA
     Payload.Impact = FAbilityImpactSnapshot{Location, Input.Direction, Life, PeriodSequence};
     Payload.bHasDamageResult = true;
     Payload.bDamageAttempted = true;
-    Payload.bKilled =
-        IsValid(Actor) && Actor->Implements<UCombatInterface>() && ICombatInterface::Execute_IsDead(Actor);
+    Payload.bKilled = Result.bKilled;
     GraphOwner->Publish(InvocationId, TEXT("DamageResolved"), Payload);
 }
 
@@ -364,7 +452,7 @@ void UAbilityElectrocuteNodeExecution::ReleaseTarget(FAbilityElectrocuteTarget& 
     {
         return;
     }
-    if (Actor->Implements<UCombatInterface>())
+    if (Actor->Implements<UCombatInterface>() && (!Binding || !Binding->HasOtherTargetPresentation(this, Target.Life)))
     {
         ICombatInterface::Execute_SetIsBeingShocked(Actor, false);
     }
@@ -381,12 +469,13 @@ void UAbilityElectrocuteNodeExecution::ReleaseTarget(FAbilityElectrocuteTarget& 
         {
             return;
         }
-        auto Params = ResolvedDamage;
-        const FVector Direction = (TargetLocation - Avatar->GetActorLocation()).GetSafeNormal();
-        Params.DeathImpulse = Direction * Params.DeathImpulseMagnitude;
-        Params.KnockbackForce = Direction * Params.KnockbackForceMagnitude;
-        AbilityDamageService::Apply(Input.SourceToken, Target.Life, Params);
+        EmitFinalDamage(Target.Life, TargetLocation);
     }
+}
+
+void UAbilityElectrocuteNodeExecution::EmitFinalDamage(const FAbilityTargetToken& Life, FVector)
+{
+    AbilityElectrocuteNodes::ApplyFinal(Input.SourceToken, Life, ResolvedDamage);
 }
 
 void UAbilityElectrocuteNodeExecution::Cleanup(bool bFinalDamage)
@@ -402,16 +491,17 @@ void UAbilityElectrocuteNodeExecution::Cleanup(bool bFinalDamage)
     }
     if (Binding)
     {
-        Binding->Execution.Reset();
+        Binding->DetachExecution(this);
     }
     AActor* Avatar = Input.SourceToken.Avatar.Get();
     if (SourceStillCurrent())
     {
-        if (bSourcePresentationStarted && Avatar->Implements<UCombatInterface>())
+        const bool bLastSourceHost = !Binding || !Binding->HasOtherSourcePresentation(this);
+        if (bSourcePresentationStarted && bLastSourceHost && Avatar->Implements<UCombatInterface>())
         {
             ICombatInterface::Execute_SetInShockLoop(Avatar, false);
         }
-        if (auto* Character = Cast<ACharacter>(Avatar); bSourcePresentationStarted && Character)
+        if (auto* Character = Cast<ACharacter>(Avatar); bSourcePresentationStarted && bLastSourceHost && Character)
         {
             Character->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
         }
@@ -424,16 +514,11 @@ void UAbilityElectrocuteNodeExecution::Cleanup(bool bFinalDamage)
     {
         ReleaseTarget(Target, bFinalDamage && !bStopped);
     }
-    AActor* ValidSource = nullptr;
-    if (bFinalDamage && Binding && Binding->CommitEndCooldown &&
-        AbilityExecutionIdentity::ResolveSource(Input.SourceToken, ValidSource))
-    {
-        Binding->CommitEndCooldown();
-    }
 }
 
 void UAbilityElectrocuteNodeExecution::CompleteChannel()
 {
+    const TStrongObjectPtr<UAbilityElectrocuteNodeExecution> SelfGuard(this);
     if (bStopped || bCompleting || !GraphOwner.IsValid())
     {
         return;
@@ -446,10 +531,84 @@ void UAbilityElectrocuteNodeExecution::CompleteChannel()
         return;
     }
     Cleanup(true);
+    FinishCompletion();
+}
+
+void UAbilityElectrocuteNodeExecution::FinishCompletion()
+{
+    AActor* ValidSource = nullptr;
+    if (!bStopped && Binding && Binding->CommitEndCooldown &&
+        AbilityExecutionIdentity::ResolveSource(Input.SourceToken, ValidSource))
+    {
+        Binding->CommitEndCooldown();
+    }
     if (!bStopped && GraphOwner.IsValid())
     {
         GraphOwner->Publish(InvocationId, TEXT("Completed"), Input);
     }
+}
+
+FAbilityDamageResult AbilityElectrocuteNodes::ApplyPeriod(const FAbilitySourceToken& Source,
+                                                          const FAbilityTargetToken& Target, FVector Location,
+                                                          const FDamageEffectParams& Params, float Level,
+                                                          bool bSourceSelf)
+{
+    FAbilityDamageResult Result;
+    AActor* Avatar = nullptr;
+    FVector CurrentLocation;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Avatar) || !Params.DamageGameplayEffectClass ||
+        !FMath::IsFinite(Level) || !FMath::IsFinite(Params.BaseDamage) || Params.BaseDamage < 0.f)
+    {
+        return Result;
+    }
+    AActor* Actor = Target.Target.Actor.Get();
+    if (bSourceSelf)
+    {
+        if (Actor != Avatar || Target.World != Source.World || Target.ActorLease != Source.EnemyLease ||
+            Target.DungeonRunId != Source.DungeonRunId)
+        {
+            return Result;
+        }
+    }
+    else if (!AbilityExecutionIdentity::ResolveTarget(Source, Target, CurrentLocation))
+    {
+        return Result;
+    }
+    auto* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
+    if (!TargetASC)
+    {
+        return Result;
+    }
+    // 原ApplyDamageToActor由目标创建上下文；周期仅设置Thunder，不暗中带入Final的debuff/force参数。
+    auto Spec = TargetASC->MakeOutgoingSpec(Params.DamageGameplayEffectClass, Level, TargetASC->MakeEffectContext());
+    if (!Spec.IsValid())
+    {
+        return Result;
+    }
+    Spec.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(TEXT("Damage.Thunder")), Params.BaseDamage);
+    Result.ImpactLocation = Location;
+    Result.bAttempted = true;
+    TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+    Result.bKilled = IsValid(Actor) && Actor->Implements<UCombatInterface>() && ICombatInterface::Execute_IsDead(Actor);
+    return Result;
+}
+
+FAbilityDamageResult AbilityElectrocuteNodes::ApplyFinal(const FAbilitySourceToken& Source,
+                                                         const FAbilityTargetToken& Target,
+                                                         const FDamageEffectParams& Parameters)
+{
+    AActor* Avatar = nullptr;
+    FVector Location;
+    if (!AbilityExecutionIdentity::ResolveSource(Source, Avatar) ||
+        !AbilityExecutionIdentity::ResolveTarget(Source, Target, Location))
+    {
+        return {};
+    }
+    auto Params = Parameters;
+    const FVector Direction = (Location - Avatar->GetActorLocation()).GetSafeNormal();
+    Params.DeathImpulse = Direction * Params.DeathImpulseMagnitude;
+    Params.KnockbackForce = Direction * Params.KnockbackForceMagnitude;
+    return AbilityDamageService::Apply(Source, Target, Params);
 }
 
 void UAbilityElectrocuteNodeExecution::Stop(EAbilityGraphEndReason Reason)
@@ -462,6 +621,11 @@ void UAbilityElectrocuteNodeExecution::Stop(EAbilityGraphEndReason Reason)
     Cleanup(false);
     Binding = nullptr;
     // 回调可在施加 GE 时同步取消；保留数组直至对象回收，避免外层 Period/Cleanup 的迭代引用失效。
+}
+
+bool UAbilityElectrocuteNodeConfig::SupportsSustainedRoot(FString& Error) const
+{
+    return Validate(Error);
 }
 
 void AbilityElectrocuteNodes::Register(FAbilityNodeRegistry& Registry)
@@ -477,6 +641,9 @@ void AbilityElectrocuteNodes::Register(FAbilityNodeRegistry& Registry)
     Descriptor.InputPayload = EAbilityPortPayload::Origin;
     Descriptor.bSupportsActorTargets = Descriptor.bSupportsSnapshotTargets = true;
     Descriptor.bIsAsync = true;
+    Descriptor.bSustainedRoot = true;
+    Descriptor.bSustainedSafe = true;
+    Descriptor.PotentiallyUnboundedOutputPorts = {TEXT("DamageResolved"), TEXT("PeriodElapsed")};
     Descriptor.Ports = {{TEXT("DamageResolved"), EAbilityPortPayload::DamageResult, false},
                         {TEXT("PeriodElapsed"), EAbilityPortPayload::Origin, false},
                         {TEXT("Completed"), EAbilityPortPayload::Origin, true},

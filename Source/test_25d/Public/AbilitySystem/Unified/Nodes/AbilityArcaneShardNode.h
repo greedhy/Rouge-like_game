@@ -8,6 +8,13 @@ class APointCollection;
 class FAbilityNodeRegistry;
 struct FAbilityDamageResult;
 
+/** 单个地面点一次查询捕获的原生命；旧友方Actor身份只交给碎片专用GE入口。 */
+struct TEST_25D_API FAbilityArcaneShardHit
+{
+    FAbilityTargetToken Token;
+    TOptional<FAbilitySourceToken> LegacyActorLife;
+};
+
 /** GA 在动画前冻结地面点；独立图也可由策略自行生成。所有权只属于本次施法。 */
 UCLASS(Transient)
 class TEST_25D_API UAbilityArcaneShardContext : public UObject
@@ -66,6 +73,18 @@ public:
     static UAbilityArcaneShardContext* PreparePoints(UObject* Outer, const FAbilityNodeInput& Input,
                                                      const UAbilityArcaneShardNodeConfig& Config, FString& Error);
 
+protected:
+    /** 共用原时钟/清理；细Clock覆写此函数只发布Point，不执行旧宏的任何效果。 */
+    virtual void EmitPoint(FVector Location, uint64 Sequence);
+    const UAbilityArcaneShardNodeConfig* GetResolvedSettings() const
+    {
+        return Settings;
+    }
+    const FDamageEffectParams& GetResolvedDamage() const
+    {
+        return ResolvedDamage;
+    }
+
 private:
     /** 定时回调先核对来源生命，再发布本点事件和原伤害通路。 */
     void SpawnNext();
@@ -88,4 +107,21 @@ namespace AbilityArcaneShardNodes
     TEST_25D_API FAbilityDamageResult ApplyLegacyActor(const FAbilitySourceToken& Source,
                                                        const FAbilitySourceToken& TargetLife,
                                                        const FDamageEffectParams& Parameters);
+    /** 保留原cue入口；调用者仍须在同步回调后复核取消与来源生命。 */
+    TEST_25D_API void ExecuteCue(const FAbilitySourceToken& Source, FVector Location,
+                                 const UAbilityArcaneShardNodeConfig& Settings);
+    /** 在任何GE之前冻结本点所有Actor/Mass原生命；不会把LegacyFriendly授予通用目标权限。 */
+    TEST_25D_API TArray<FAbilityArcaneShardHit> CaptureHits(const FAbilitySourceToken& Source, FVector Location,
+                                                            const UAbilityArcaneShardNodeConfig& Settings);
+    /** 失效生命在执行前跳过，不为已经复用的旧查询发布虚构伤害事件。 */
+    TEST_25D_API bool ResolveHitLocation(const FAbilitySourceToken& Source, const FAbilityArcaneShardHit& Hit,
+                                         FVector& Location);
+    /** 原确定性15度冲量/径向原点与同一GE/Mass入口；累计倍率只作用于本次局部参数。 */
+    TEST_25D_API FAbilityDamageResult ApplyHit(const FAbilitySourceToken& Source, const FAbilityArcaneShardHit& Hit,
+                                               const FDamageEffectParams& Parameters, FVector Location,
+                                               float DamageScale = 1.f, float DebuffDamageScale = 1.f);
+    /** 原伤害结果快照不携带LiveTarget授权；旧宏与细批节点发布同一格式。 */
+    TEST_25D_API FAbilityNodeInput DamagePayload(const FAbilityNodeInput& Input, FVector Location,
+                                                 const FAbilityArcaneShardHit& Hit, const FAbilityDamageResult& Result,
+                                                 uint64 Sequence);
 } // namespace AbilityArcaneShardNodes
