@@ -2,6 +2,7 @@
 #include "Terrain/TerrainStatusComponent.h"
 #include "Terrain/TerrainSurface.h"
 #include "Terrain/TerrainStatusEffects.h"
+#include "AbilitySystem/Unified/Nodes/AbilityWorkshopTerrainNodes.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Character/BaseCharacter.h"
@@ -36,8 +37,11 @@ void UTerrainStatusComponent::RefreshContact(ATerrainSurface* Surface)
         {
             return Item.Surface == Surface;
         });
-    if (!Contact)
+    const bool bNewContact = Contact == nullptr;
+    if (bNewContact)
+    {
         Contact = &Contacts.AddDefaulted_GetRef();
+    }
     Contact->Surface = Surface;
     Contact->Config = Surface->Config;
     // One scan interval of grace prevents flicker at adjoining tile boundaries.
@@ -45,6 +49,12 @@ void UTerrainStatusComponent::RefreshContact(ATerrainSurface* Surface)
                                     ? 0.f
                                     : FMath::Max(0.f, Surface->Config->ExitDuration));
     UpdateEffects();
+    // 水地由元素服务结算，聚合的四类地形 GE 保持原来的槽位和复制格式。
+    if (IsValid(Surface))
+    {
+        UAbilityWorkshopTerrainLease::ApplyElementalContact(*Surface, FPureMassCombatTarget::FromActor(Character),
+                                                          bNewContact);
+    }
 }
 
 // 死亡时清理；服务器推进接触、束缚和恢复计时并重算效果。

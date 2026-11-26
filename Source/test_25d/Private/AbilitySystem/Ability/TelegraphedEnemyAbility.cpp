@@ -94,7 +94,7 @@ void UTelegraphedEnemyAbility::ApplyCooldown(FGameplayAbilitySpecHandle, const F
     auto Spec = ASC->MakeOutgoingSpec(UStoneGolemCooldownEffect::StaticClass(), 1, ASC->MakeEffectContext());
     if (Spec.IsValid())
     {
-        Spec.Data->SetDuration(Snapshot.Cooldown, true);
+        Spec.Data->SetDuration(Snapshot.Cooldown / AttackRate, true);
         Spec.Data->DynamicGrantedTags.AddTag(CooldownIdentity);
         ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
     }
@@ -124,8 +124,7 @@ void UTelegraphedEnemyAbility::ActivateAbility(FGameplayAbilitySpecHandle Handle
     SnapshotDamageType =
         AttackConfig->DamageType.IsValid() ? AttackConfig->DamageType : FMyGameplayTags::Get().Damage_Physics;
     Lease = Golem->GetDungeonPoolLease();
-    Started = GetWorld()->GetTimeSeconds();
-    LastWarning = Started;
+    ResetAttackClock();
     if (!UpdateAim() || !CommitAbility(Handle, Info, Activation))
     {
         Abort();
@@ -183,18 +182,43 @@ bool UTelegraphedEnemyAbility::UpdateAim()
     Golem->SetActorRotation(FRotator(0, Yaw, 0));
     return true;
 }
+void UTelegraphedEnemyAbility::ResetAttackClock()
+{
+    LastWarning = LastAttackSample = GetWorld()->GetTimeSeconds();
+    AttackElapsed = 0.f;
+    AttackRate = Golem->GetIceAttackRate();
+}
+
+// 先结算上一采样段，再同步新速度；始终用蒙太奇位置判定接触帧，避免在命中前后跳帧。
+float UTelegraphedEnemyAbility::SampleAttackClock(double Now)
+{
+    AttackElapsed += (Now - LastAttackSample) * AttackRate;
+    LastAttackSample = Now;
+    const float NewRate = Golem->GetIceAttackRate();
+    if (NewRate != AttackRate)
+    {
+        AttackRate = NewRate;
+        auto* ASC = CurrentActorInfo->AbilitySystemComponent.Get();
+        if (bMontageStarted && ASC && ASC->GetAnimatingAbility() == this)
+        {
+            ASC->CurrentMontageSetPlayRate(Snapshot.PlayRate * AttackRate);
+        }
+    }
+    return AttackElapsed;
+}
+
 // 检查攻击归属，推进锁定、动画、唯一命中窗口与后摇结束。
 void UTelegraphedEnemyAbility::Advance()
 {
     if (!IsActive())
         return;
-    if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease) || Golem->bIsStunned)
+    if (!Golem.IsValid() || !Golem->IsAttackCurrent(Serial, Lease) || Golem->bIsStunned || Golem->IsIceFrozen())
     {
         Abort();
         return;
     }
     const double Now = GetWorld()->GetTimeSeconds();
-    const float Elapsed = Now - Started;
+    const float Elapsed = SampleAttackClock(Now);
     // 锁定之前同步预警；锁定时保存地表三角形，命中沿用同一范围。
     if (!bLocked)
     {
@@ -217,7 +241,7 @@ void UTelegraphedEnemyAbility::Advance()
     {
         bMontageStarted = true;
         if (CurrentActorInfo->AbilitySystemComponent->PlayMontage(this, CurrentActivationInfo, Snapshot.Montage,
-                                                                  Snapshot.PlayRate) <= 0)
+                                                                  Snapshot.PlayRate * AttackRate) <= 0)
         {
             Abort();
             return;

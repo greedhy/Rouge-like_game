@@ -21,6 +21,8 @@ struct FAbilitySelectedCandidate
 
 namespace AbilityTargetSelectionService
 {
+    /** 读取统一Actor ASC / Mass快照的有效血量比例；未知属性返回未设置。 */
+    TEST_25D_API TOptional<float> ReadHealthRatio(const FAbilityTargetToken& Target);
     /** 服务器同步选择至多64个目标；候选超过4096则失败，不能用截断前缀冒充最低血/最远。 */
     TEST_25D_API bool Select(const FAbilitySourceToken& Source, FVector Center, float Radius, int32 MaxTargets,
                              EAbilityTargetSelectionPolicy Policy,

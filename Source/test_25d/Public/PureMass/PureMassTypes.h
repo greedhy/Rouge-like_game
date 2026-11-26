@@ -1,4 +1,5 @@
 #pragma once
+#include "AbilitySystem/Unified/AbilityElementalExposure.h"
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
@@ -108,6 +109,9 @@ struct TEST_25D_API FPureMassView
     bool bPetrified = false;
     UPROPERTY(BlueprintReadOnly)
     bool bStunned = false;
+    /** 权威快照记录冰系行动状态，FastArray 将同一值送到远端。 */
+    UPROPERTY(BlueprintReadOnly)
+    EAbilityExposure IceExposure = EAbilityExposure::None;
     UPROPERTY(BlueprintReadOnly)
     TObjectPtr<UPureMassMonsterType> Type;
 };
@@ -140,6 +144,8 @@ USTRUCT()
 struct TEST_25D_API FPureMassFragment : public FMassFragment
 {
     GENERATED_BODY()
+    /** 随当前实体创建/销毁，直接伤害计算时按世界时间读取。 */
+    FAbilityElementalExposure ElementalExposure;
     int32 Id = INDEX_NONE;
     // 每个实体的等级，房间覆盖不会修改共享 MonsterType 资产。
     int32 Level = 1;

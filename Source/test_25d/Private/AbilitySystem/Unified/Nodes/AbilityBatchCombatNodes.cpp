@@ -179,7 +179,7 @@ bool UAbilityDamageBatchNodeExecution::Start(UAbilityGraphInstance& Owner, const
             return false;
         }
         Params.BaseDamage = Settings->Damage + Settings->DamagePerLevel * FMath::Clamp(Input.Level - 1.f, 0.f, 99.f);
-        Params.DamageType = Settings->DamageType;
+        Params.DamageType = Settings->ResolveDamageType();
         ActionProfile = Settings->Profile;
     }
     if (!Input.TargetSet.IsValid())

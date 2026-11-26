@@ -70,6 +70,22 @@
 		{
 			"Name": "MassGameplay",
 			"Enabled": true
+		},
+		{
+			"Name": "UnLua",
+			"Enabled": true
+		},
+		{
+			"Name": "LuaProtobuf",
+			"Enabled": false
+		},
+		{
+			"Name": "LuaRapidjson",
+			"Enabled": false
+		},
+		{
+			"Name": "LuaSocket",
+			"Enabled": false
 		}
 	]
 }

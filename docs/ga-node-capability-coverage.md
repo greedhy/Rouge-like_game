@@ -2,7 +2,7 @@
 
 本表由真实注册表和实际法师目录只读审计生成。完整节点、具体配置、逐节点参数及端口见[机器表](ga-node-capability-coverage.json)。
 
-审计时间（UTC）：`2026-11-21T18:20:20.013Z`。共 168 个注册类型、86 个目录条目，其中 82 个可选；实际默认图观察到 61 种节点。
+审计时间（UTC）：`2026-11-21T19:26:46.895Z`。共 175 个注册类型、86 个目录条目，其中 82 个可选；实际默认图观察到 61 种节点。
 
 登记了逻辑不等于允许任意连接。运行时仍需配置校验、真实端口载荷、目标原生命、有限/持续合同及共享预算。表中0表示本次目录未观察到，不能据此断言策略不可用。
 
@@ -15,9 +15,10 @@
 - `Query.SelectTargets`：Origin → TargetFound/NoTarget/Completed；半径(0,3000]、数量1..16，最近/最远/最低生命比例。
 - `Condition.Killed`：真实DamageResult → Passed或Rejected；0表示未击杀，1表示击杀。输出仅位置，不恢复目标权限。
 - `Condition.Chance`：Origin → Passed或Rejected；概率[0,1]由服务器每次调用决定。
+- 有限时序、目标筛选、元素状态条件、命中计数、限频与资源反馈见[元素组装指南](ga-elemental-composition.md)。
 - 新规则以 Append.Registered 追加后可以继续选节点调参、选输出口追加。新查询/条件不提供 Insert.Registered，防止分支拒绝时仍无条件续接原线。
 
-可信追加片段：`Target.Petrify`、`Area.Petrify`、`Target.Slow`、`Query.SelectTargets`、`Condition.Killed`、`Condition.Chance`。
+可信追加片段：`Target.Petrify`、`Area.Petrify`、`Target.Slow`、`Query.SelectTargets`、`Condition.Killed`、`Condition.Chance`、`Control.DelayOrigin`、`Control.Repeat`、`Query.WaitForTarget`、`Spatial.Wavefront`、`Condition.HealthBelow`、`Condition.ElementalStatus`、`Condition.DamageApplied`、`Control.EveryNthDamage`、`Control.DamageTriggerLimit`、`Effect.RestoreMana`、`Effect.RestoreHealth`。
 
 实际操作、生命周期和本轮验证见[扩展指南](ga-graph-gameplay-expansion.md)。全表的“有限/纯”是注册声明，实际配置及入边仍需二次检查；Actor/Mass列也不代表逐类型联机视觉验收。
 
@@ -31,10 +32,15 @@
 | `Combat.CharacterStrike` | 0 | Origin → DamageResolved:DamageResult, Completed:Origin* | 1/1 | 0/0 | 未观察到 |
 | `Combat.TelegraphedContact` | 0 | Origin → DamageResolved:DamageResult, Completed:Origin* | 1/0 | 0/0 | 未观察到 |
 | `Condition.Chance` | 0 | Origin → Passed:Origin*, Rejected:Origin* | 1/1 | 1/1 | 未观察到 |
+| `Condition.DamageApplied` | 0 | DamageResult → Passed:DamageResult*, Rejected:DamageResult* | 1/1 | 1/1 | 未观察到 |
+| `Condition.ElementalStatus` | 0 | LiveTarget → Passed:LiveTarget*, Rejected:LiveTarget* | 1/1 | 1/1 | 未观察到 |
+| `Condition.HealthBelow` | 0 | LiveTarget → Passed:LiveTarget*, Rejected:LiveTarget* | 1/1 | 1/1 | 未观察到 |
 | `Condition.Killed` | 0 | DamageResult → Passed:Origin*, Rejected:Origin* | 1/1 | 1/1 | 未观察到 |
+| `Control.DamageTriggerLimit` | 0 | DamageResult → Passed:DamageResult*, Rejected:DamageResult* | 1/1 | 1/0 | 未观察到 |
 | `Control.Delay` | 0 | LiveTarget → Completed:LiveTarget*, Cancelled:LiveTarget*, Failed:LiveTarget* | 1/1 | 1/0 | 未观察到 |
 | `Control.DelayOrigin` | 0 | Origin → Completed:Origin*, Cancelled:Origin*, Failed:Origin* | 1/1 | 1/0 | 未观察到 |
 | `Control.Emitter` | 0 | Origin → Launch:LiveTarget, Completed:Origin* | 1/1 | 1/0 | 未观察到 |
+| `Control.EveryNthDamage` | 0 | DamageResult → Passed:DamageResult*, Rejected:DamageResult* | 1/1 | 1/0 | 未观察到 |
 | `Control.ExtensionBurst` | 7 | Origin → Action:Origin, Period:Origin, Expired:Origin, Completed:Origin* | 1/1 | 0/0 | 未观察到 |
 | `Control.ExtensionContactEnd` | 4 | Origin → Completed:Origin* | 1/1 | 0/0 | 未观察到 |
 | `Control.ExtensionDelay` | 1 | Origin → Action:Origin, Period:Origin, Expired:Origin, Completed:Origin* | 1/1 | 0/0 | 未观察到 |
@@ -73,10 +79,12 @@
 | `Effect.ElectrocutePeriod` | 1 | TargetSet → Completed:TargetSet* | 1/0 | 0/0 | Replace.Status.Petrify, Scale.Damage |
 | `Effect.GameplayEffect` | 0 | Origin → Applied:Origin* | 1/0 | 0/0 | 未观察到 |
 | `Effect.GameplayEffectTarget` | 0 | LiveTarget → Applied:Origin* | 1/0 | 0/0 | 未观察到 |
-| `Effect.InputDamage` | 4 | LiveTarget → DamageResolved:DamageResult, Completed:DamageResult* | 1/1 | 1/0 | Append.Status.Petrify, Replace.Status.Petrify, Scale.Damage |
+| `Effect.InputDamage` | 4 | LiveTarget → DamageResolved:DamageResult, Completed:DamageResult* | 1/1 | 1/0 | Append.Status.Petrify, Replace.Status.Petrify, Scale.Damage, Set.ElementConversion |
 | `Effect.LightningDamageBatch` | 2 | TargetSet → Completed:Origin* | 1/1 | 0/0 | Replace.Status.Petrify, Scale.Damage |
 | `Effect.NovaDamage` | 1 | TargetSet → DamageResolved:DamageResult, Completed:Origin* | 1/1 | 0/0 | Append.Status.Petrify, Replace.Status.Petrify, Scale.Damage |
 | `Effect.PrototypeDamageBatch` | 89 | TargetSet → Contact:DamageResult, DamageResolved:DamageResult, Completed:Origin* | 1/1 | 1/0 | Append.Status.Petrify, Replace.Status.Petrify |
+| `Effect.RestoreHealth` | 0 | DamageResult → Passed:DamageResult*, Rejected:DamageResult* | 1/1 | 1/0 | 未观察到 |
+| `Effect.RestoreMana` | 0 | DamageResult → Passed:DamageResult*, Rejected:DamageResult* | 1/1 | 1/0 | 未观察到 |
 | `Effect.ShardDamageBatch` | 1 | TargetSet → DamageResolved:DamageResult, Completed:TargetSet* | 1/1 | 0/0 | Append.Status.Petrify, Replace.Status.Petrify, Scale.Damage |
 | `Event.ImpactFact` | 0 | DamageResult → Completed:ConfirmedImpact* | 1/1 | 1/0 | 未观察到 |
 | `Event.OrderedCompletion` | 0 | Origin → Expired:Origin, Completed:Origin* | 1/1 | 1/0 | 未观察到 |

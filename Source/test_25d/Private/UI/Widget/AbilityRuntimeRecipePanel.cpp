@@ -6,9 +6,12 @@
 #include "AbilitySystem/Unified/AbilityGraphDefinition.h"
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
 #include "AbilitySystem/Unified/AbilityRuntimeModifierTemplates.h"
+#include "AbilitySystem/Unified/Nodes/AbilityGameplayRuleNodes.h"
 #include "AbilitySystem/Unified/Nodes/AbilityPrototypeParameterNodes.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "Blueprint/WidgetTree.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Brushes/SlateColorBrush.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
@@ -232,28 +235,115 @@ void UAbilityRuntimeRecipePanel::NativeDestruct()
     Super::NativeDestruct();
 }
 
+void UAbilityRuntimeRecipePanel::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+    Super::NativeTick(MyGeometry, InDeltaTime);
+    UpdatePageSize();
+}
+
+void UAbilityRuntimeRecipePanel::UpdatePageSize()
+{
+    if (!PageBounds)
+    {
+        return;
+    }
+    const auto* Controller = GetOwningPlayer();
+    const auto* LocalPlayer = Controller ? Controller->GetLocalPlayer() : nullptr;
+    const auto* Viewport = LocalPlayer ? LocalPlayer->ViewportClient.Get() : nullptr;
+    if (!Viewport)
+    {
+        return;
+    }
+    FVector2D Pixels;
+    Viewport->GetViewportSize(Pixels);
+    const float Scale = UWidgetLayoutLibrary::GetViewportScale(this);
+    if (Pixels.X <= 0.f || Pixels.Y <= 0.f || Scale <= 0.f)
+    {
+        return;
+    }
+    // 使用布局单位，让系统 DPI 只缩放一次。为人物窗口页签和四周边框留出空间。
+    const FVector2D Available = Pixels / Scale;
+    const float Width = FMath::Clamp(Available.X - 64.f, 320.f, 1400.f);
+    const float Height = FMath::Clamp(Available.Y - 140.f, 240.f, 940.f);
+    if (!FMath::IsNearlyEqual(PageBounds->GetWidthOverride(), Width) ||
+        !FMath::IsNearlyEqual(PageBounds->GetHeightOverride(), Height))
+    {
+        PageBounds->SetWidthOverride(Width);
+        PageBounds->SetHeightOverride(Height);
+    }
+    const float ListHeight = FMath::Clamp(Height * .55f, 160.f, 480.f);
+    if (DefinitionSelector && !FMath::IsNearlyEqual(DefinitionSelector->GetMaxListHeight(), ListHeight))
+    {
+        DefinitionSelector->SetMaxListHeight(ListHeight);
+    }
+}
+
+void UAbilityRuntimeRecipePanel::ConfigureSelector(UComboBoxString* Selector)
+{
+    const FLinearColor Text(.035f, .05f, .075f);
+    const FSlateColorBrush Normal(FLinearColor(.72f, .78f, .84f));
+    const FSlateColorBrush Hovered(FLinearColor(.87f, .92f, .97f));
+    const FSlateColorBrush Selected(FLinearColor(.40f, .69f, .86f));
+    auto Style = Selector->GetWidgetStyle();
+    auto& Button = Style.ComboButtonStyle.ButtonStyle;
+    Button.SetNormal(Normal).SetHovered(Hovered).SetPressed(Selected);
+    Style.ComboButtonStyle.SetMenuBorderBrush(Normal).SetMenuBorderPadding(FMargin(3.f));
+    Selector->SetWidgetStyle(Style);
+
+    auto Rows = Selector->GetItemStyle();
+    Rows.SetEvenRowBackgroundBrush(Normal)
+        .SetOddRowBackgroundBrush(FSlateColorBrush(FLinearColor(.78f, .83f, .88f)))
+        .SetEvenRowBackgroundHoveredBrush(Hovered)
+        .SetOddRowBackgroundHoveredBrush(Hovered)
+        .SetActiveBrush(Selected)
+        .SetActiveHoveredBrush(Hovered)
+        .SetInactiveBrush(Selected)
+        .SetInactiveHoveredBrush(Hovered)
+        .SetTextColor(Text)
+        .SetSelectedTextColor(Text);
+    Selector->SetItemStyle(Rows);
+    Selector->SetContentPadding(FMargin(14.f, 10.f));
+    Selector->SetMaxListHeight(420.f);
+    Selector->OnGenerateWidgetEvent.BindDynamic(this, &ThisClass::GenerateSelectorOption);
+}
+
+UWidget* UAbilityRuntimeRecipePanel::GenerateSelectorOption(FString Option)
+{
+    auto* Text = WidgetTree->ConstructWidget<UTextBlock>();
+    Text->SetText(FText::FromString(Option));
+    auto Font = Text->GetFont();
+    Font.Size = 18;
+    Text->SetFont(Font);
+    Text->SetColorAndOpacity(FSlateColor(FLinearColor(.035f, .05f, .075f)));
+    Text->SetMargin(FMargin(4.f, 7.f));
+    Text->SetAutoWrapText(true);
+    return Text;
+}
+
 void UAbilityRuntimeRecipePanel::BuildTree()
 {
-    auto* Bounds = WidgetTree->ConstructWidget<USizeBox>();
-    Bounds->SetWidthOverride(1000.f);
-    Bounds->SetHeightOverride(760.f);
-    WidgetTree->RootWidget = Bounds;
+    PageBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("RecipePageBounds"));
+    PageBounds->SetWidthOverride(1000.f);
+    PageBounds->SetHeightOverride(760.f);
+    WidgetTree->RootWidget = PageBounds;
     auto* Border = WidgetTree->ConstructWidget<UBorder>();
     Border->SetBrushColor(FLinearColor(.025f, .035f, .055f, .97f));
     Border->SetPadding(FMargin(20.f));
-    Bounds->SetContent(Border);
+    PageBounds->SetContent(Border);
+    UpdatePageSize();
     auto* Column = WidgetTree->ConstructWidget<UVerticalBox>();
     auto* ContentScroll = WidgetTree->ConstructWidget<UScrollBox>();
     Border->SetContent(ContentScroll);
     ContentScroll->AddChild(Column);
     auto* Title = WidgetTree->ConstructWidget<UTextBlock>();
-    Title->SetText(FText::FromString(TEXT("法师技能图工作台 · 免费测试")));
+    Title->SetText(FText::FromString(bEmbeddedPage ? TEXT("技能改装") : TEXT("法师技能图工作台 · 免费测试")));
     auto TitleFont = Title->GetFont();
     TitleFont.Size = 21;
     Title->SetFont(TitleFont);
     Column->AddChildToVerticalBox(Title)->SetPadding(FMargin(0, 0, 0, 7));
     DefinitionSelector =
         WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("RecipeDefinition"));
+    ConfigureSelector(DefinitionSelector);
     Column->AddChildToVerticalBox(DefinitionSelector)->SetPadding(FMargin(0, 4));
     DefinitionSelector->OnSelectionChanged.AddDynamic(this, &ThisClass::DefinitionChanged);
     auto* SessionActions = WidgetTree->ConstructWidget<UHorizontalBox>();
@@ -270,6 +360,11 @@ void UAbilityRuntimeRecipePanel::BuildTree()
     StatusText->SetAutoWrapText(true);
     StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, .35f, .3f)));
     Column->AddChildToVerticalBox(StatusText)->SetPadding(FMargin(0, 6));
+    if (bEmbeddedPage)
+    {
+        BuildCardPage(Column);
+        return;
+    }
     auto* UsageHint = WidgetTree->ConstructWidget<UTextBlock>();
     UsageHint->SetText(
         FText::FromString(TEXT("选择法师 GA → 开始测试 → 点击图中的节点/端口/连线 → 预览画布编辑 → 应用草稿。"
@@ -303,8 +398,9 @@ void UAbilityRuntimeRecipePanel::BuildTree()
 
     auto* Templates = WidgetTree->ConstructWidget<UHorizontalBox>();
     Column->AddChildToVerticalBox(Templates)->SetPadding(FMargin(0, 4));
-    const auto AddEditSelector = [&Templates](UComboBoxString* Selector)
+    const auto AddEditSelector = [this, &Templates](UComboBoxString* Selector)
     {
+        ConfigureSelector(Selector);
         auto* Slot = Templates->AddChildToHorizontalBox(Selector);
         Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Slot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
@@ -353,6 +449,7 @@ void UAbilityRuntimeRecipePanel::BuildTree()
     Column->AddChildToVerticalBox(HistoryLabel)->SetPadding(FMargin(0, 6, 0, 2));
     SourceSelector =
         WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("RecipeGraphSource"));
+    ConfigureSelector(SourceSelector);
     Column->AddChildToVerticalBox(SourceSelector);
     auto* HistoryActions = WidgetTree->ConstructWidget<UHorizontalBox>();
     Column->AddChildToVerticalBox(HistoryActions);
@@ -366,9 +463,11 @@ void UAbilityRuntimeRecipePanel::BuildTree()
     AddButton(Column, TEXT("切换到基础节点编辑 · 兼容入口"), TEXT("RecipeBaseMode"))
         ->OnClicked.AddDynamic(this, &ThisClass::UseBaseNode);
     NodeSelector = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("RecipeNode"));
+    ConfigureSelector(NodeSelector);
     NodeSelector->OnSelectionChanged.AddDynamic(this, &ThisClass::NodeChanged);
     Column->AddChildToVerticalBox(NodeSelector)->SetPadding(FMargin(0, 4));
     PortSelector = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("RecipePort"));
+    ConfigureSelector(PortSelector);
     Column->AddChildToVerticalBox(PortSelector)->SetPadding(FMargin(0, 4));
     auto* LegacyActions = WidgetTree->ConstructWidget<UHorizontalBox>();
     Column->AddChildToVerticalBox(LegacyActions);
@@ -396,6 +495,10 @@ UButton* UAbilityRuntimeRecipePanel::AddButton(UPanelWidget* Container, const FS
     auto* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), WidgetName);
     auto* Text = WidgetTree->ConstructWidget<UTextBlock>();
     Text->SetText(FText::FromString(Label));
+    auto Font = Text->GetFont();
+    Font.Size = 18;
+    Text->SetFont(Font);
+    Text->SetMargin(FMargin(10.f, 8.f));
     Button->SetContent(Text);
     if (WidgetName == TEXT("RecipeBegin") || WidgetName == TEXT("RecipePreviewEdit"))
     {
@@ -596,6 +699,15 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
     const bool bQuery = bRegistered && Fragment == TEXT("Query.SelectTargets");
     const bool bKilled = bRegistered && Fragment == TEXT("Condition.Killed");
     const bool bChance = bRegistered && Fragment == TEXT("Condition.Chance");
+    const bool bRepeat = bRegistered && Fragment == TEXT("Control.Repeat");
+    const bool bWait = bRegistered && Fragment == TEXT("Query.WaitForTarget");
+    const bool bWave = bRegistered && Fragment == TEXT("Spatial.Wavefront");
+    const bool bDelay = bRegistered && Fragment == TEXT("Control.DelayOrigin");
+    const auto CombatRule =
+        bRegistered ? AbilityGameplayRuleNodes::FindCombatRule(Fragment) : TOptional<EAbilityCombatRule>{};
+    const bool bDamageApplied = CombatRule.IsSet() && CombatRule.GetValue() == EAbilityCombatRule::DamageApplied;
+    const bool bShowRadius =
+        bPropagation || bQuery || bWait || bWave || (bRegistered && Fragment == TEXT("Area.Petrify"));
     const bool bBeam =
         bRegistered && FragmentSelector && FragmentSelector->GetSelectedOption() == TEXT("Prototype.Beam");
     const bool bStatus =
@@ -610,7 +722,7 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
                                                         : TEXT("数值倍率")));
         ValueLabel->SetVisibility(bPropagation ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
         ValueInput->SetVisibility(bPropagation ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
-        if (bQuery)
+        if (bQuery || bDamageApplied)
         {
             ValueLabel->SetVisibility(ESlateVisibility::Collapsed);
             ValueInput->SetVisibility(ESlateVisibility::Collapsed);
@@ -622,6 +734,34 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
             ValueInput->SetDelta(bKilled ? 1.f : .05f);
             ValueLabel->SetText(
                 FText::FromString(bKilled ? TEXT("通过条件：0未击杀 / 1击杀") : TEXT("通过概率（0..1）")));
+        }
+        if (bDelay || bRepeat || bWave || bWait)
+        {
+            ValueLabel->SetText(FText::FromString(bDelay ? TEXT("等待时间（秒）") : TEXT("片段最长持续时间（秒）")));
+        }
+        if (CombatRule.IsSet() && !bDamageApplied)
+        {
+            using R = EAbilityCombatRule;
+            const auto Rule = CombatRule.GetValue();
+            if (Rule == R::EveryNthDamage || Rule == R::DamageTriggerLimit)
+            {
+                ValueInput->SetMinValue(1.f);
+                ValueInput->SetMaxValue(20.f);
+                ValueInput->SetDelta(1.f);
+                ValueLabel->SetText(FText::FromString(Rule == R::EveryNthDamage ? TEXT("每几次有效伤害触发（1..20）")
+                                                                                : TEXT("每次施法触发上限（1..20）")));
+            }
+            else
+            {
+                const auto Id = Rule == R::HealthBelow       ? TEXT("Set.HealthThreshold")
+                                : Rule == R::ElementalStatus ? TEXT("Set.ElementalStatus")
+                                                             : TEXT("Set.ResourceAmount");
+                const auto* Parameter = AbilityRuntimeModifierTemplates::FindParameterTemplate(Id);
+                ValueInput->SetMinValue(Parameter->Minimum);
+                ValueInput->SetMaxValue(Parameter->Maximum);
+                ValueInput->SetDelta(Parameter->Step);
+                ValueLabel->SetText(FText::FromString(Parameter->Label));
+            }
         }
         if (const auto* Parameter = AbilityRuntimeModifierTemplates::FindParameterTemplate(FName(*Selection)))
         {
@@ -646,15 +786,14 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
     }
     if (PropagationInputs)
     {
-        PropagationInputs->SetVisibility(bPropagation || (bRegistered && !bKilled && !bChance)
-                                             ? ESlateVisibility::Visible
-                                             : ESlateVisibility::Collapsed);
+        PropagationInputs->SetVisibility(bShowRadius || bRepeat || bBeam ? ESlateVisibility::Visible
+                                                                         : ESlateVisibility::Collapsed);
         for (auto* Input : {CountInput.Get(), IntervalInput.Get(), FalloffInput.Get()})
         {
             if (Input && Input->GetParent())
             {
-                Input->GetParent()->SetVisibility(bPropagation || (bQuery && Input == CountInput.Get()) ||
-                                                          (bBeam && Input == IntervalInput.Get())
+                Input->GetParent()->SetVisibility(bPropagation || ((bQuery || bRepeat) && Input == CountInput.Get()) ||
+                                                          ((bBeam || bRepeat || bWait) && Input == IntervalInput.Get())
                                                       ? ESlateVisibility::Visible
                                                       : ESlateVisibility::Collapsed);
             }
@@ -662,12 +801,13 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
         if (RadiusCaption)
         {
             RadiusCaption->SetText(
-                FText::FromString(bRegistered ? TEXT("区域半径（cm，仅区域片段消费）") : TEXT("下一目标半径（cm）")));
+                FText::FromString(bPropagation ? TEXT("下一目标半径（cm）") : TEXT("搜索半径（cm）")));
         }
         if (CountCaption)
         {
-            CountCaption->SetText(
-                FText::FromString(bQuery ? TEXT("查询目标数上限（1..16）") : TEXT("总投递数（含首击）")));
+            CountCaption->SetText(FText::FromString(bQuery    ? TEXT("查询目标数上限（1..16）")
+                                                    : bRepeat ? TEXT("脉冲次数")
+                                                              : TEXT("总投递数（含首击）")));
         }
         if (CountInput)
         {
@@ -675,11 +815,15 @@ void UAbilityRuntimeRecipePanel::RefreshMode()
         }
         if (RadiusInput && RadiusInput->GetParent())
         {
-            RadiusInput->GetParent()->SetVisibility(bBeam ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+            RadiusInput->GetParent()->SetVisibility(bShowRadius ? ESlateVisibility::Visible
+                                                                : ESlateVisibility::Collapsed);
         }
         if (IntervalCaption)
         {
-            IntervalCaption->SetText(FText::FromString(bBeam ? TEXT("Beam真实周期（秒）") : TEXT("命中后等待（秒）")));
+            IntervalCaption->SetText(FText::FromString(bBeam     ? TEXT("Beam周期（秒）")
+                                                       : bRepeat ? TEXT("脉冲周期（秒）")
+                                                       : bWait   ? TEXT("布防等待（秒）")
+                                                                 : TEXT("命中后等待（秒）")));
         }
     }
     if (PreviewEditButton)
@@ -702,6 +846,11 @@ void UAbilityRuntimeRecipePanel::RefreshCatalog()
     if (Component->GetDefinitions().IsEmpty() && !Component->InitializeCatalog(nullptr, Error))
     {
         StatusText->SetText(FText::FromString(Error));
+        return;
+    }
+    if (bEmbeddedPage)
+    {
+        RefreshCardCatalog();
         return;
     }
     DefinitionSelector->ClearOptions();
@@ -728,6 +877,11 @@ void UAbilityRuntimeRecipePanel::RefreshState()
         return;
     }
     const auto& State = Component->GetDeveloperState();
+    if (bEmbeddedPage)
+    {
+        RefreshCardPage(State);
+        return;
+    }
     // 旧入口可以先启动预览，再构建面板。只在尚未绑定时接管这个旧会话的精确身份，
     // 已由另一工作台发起的会话仍须使用发起面板持有的 nonce。
     if (!RequestedSessionId.IsValid() && State.bPreviewActive && !State.bGraphPanelSession &&
@@ -1065,6 +1219,20 @@ void UAbilityRuntimeRecipePanel::BeginClicked()
         return;
     }
     const int32 Index = DefinitionSelector->GetSelectedIndex();
+    if (bEmbeddedPage)
+    {
+        if (CardDefinitionIds.IsValidIndex(Index) && !PendingCloseRequest.IsValid())
+        {
+            const auto& State = Component->GetDeveloperState();
+            if (!RequestedSessionId.IsValid() || (bOwnSessionWasActive && !State.bPreviewActive))
+            {
+                RequestedSessionId = FGuid::NewGuid();
+                bOwnSessionWasActive = false;
+            }
+            Component->ServerBeginCardPreview(CardDefinitionIds[Index], RequestedSessionId);
+        }
+        return;
+    }
     if (Component->GetDefinitions().IsValidIndex(Index))
     {
         if (PendingCloseRequest.IsValid())

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 调用链：角色初始化 Overlay → HUD 创建主界面及计分板 → EndPlay 移除 HUD 自有组件。
 
 #pragma once
 
@@ -11,6 +11,7 @@
 
 class USpellMenuWidgetController;
 class UCharacterMenuWidget;
+class UPlayerKillScoreWidget;
 struct FWidgetControllerParams;
 /**
  * 
@@ -48,6 +49,12 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+    /** 为常规地图创建独立计分板，地下城使用局内面板提供的同一组件。 */
+    void InitKillScoreboard(APlayerController* PC);
+
+    UPROPERTY(Transient)
+    TObjectPtr<UPlayerKillScoreWidget> KillScoreboard;
+
     UFUNCTION()
     void ShowAttributes();
 

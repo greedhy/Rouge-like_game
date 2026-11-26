@@ -62,6 +62,12 @@ public:
     // 外部伤害入口：校验来源房间、合并状态，再计算并结算生命变化。
     UFUNCTION(BlueprintCallable)
     float ApplyDamage(int32 Id, const FPureMassDamage& Damage);
+    /** 只读权威实体的元素状态，不在客户端查询快照上计算战斗。 */
+    EAbilityExposure GetElementalExposure(int32 Id) const;
+    /** 接受已复核目标的零伤害元素施加，仍在本子系统检查实体、生命和房间。 */
+    bool ApplyElementalExposure(int32 Id, AActor* Source, EAbilityElement Element, float DurationScale);
+    /** 精确消耗匹配的元素状态，同时核对捕获到的实体代次。 */
+    bool ConsumeElementalExposure(int32 Id, FMassEntityHandle ExpectedEntity, AActor* Source, EAbilityExposure Expected);
     // 按实体标识输出当前快照，供群体表现和复制使用。
     UFUNCTION(BlueprintPure)
     TArray<FPureMassView> GetSnapshots() const;
@@ -108,6 +114,11 @@ private:
     FVector ConstrainToRoom(FName Room, FVector Location, float Radius) const;
     // 把存活实体片段同步到查询快照和空间索引。
     void Publish(const FPureMassFragment& Fragment);
+    /** 伤害与零伤害施加共用冻结后的攻击取消，并沿用原群体发布时机。 */
+    void CommitElementalExposure(FPureMassFragment& Fragment, const FAbilityElementalReaction& Reaction,
+                                 float DurationScale);
+    /** 在游戏线程查找当前房间内的权威活实体，供元素槽位的直接操作使用。 */
+    FPureMassFragment* FindElementalExposureTarget(int32 Id, const AActor* Source);
     // 扣除生命并汇总伤害数字；致死时先移除查询身份，再发放经验。
     float DamageFragment(FPureMassFragment& Fragment, float Amount, AActor* Source, bool bBlocked = false,
                          bool bCritical = false, FVector DeathImpulse = FVector::ZeroVector);

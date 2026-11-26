@@ -64,6 +64,9 @@ public:
     float Speed = 600.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Duration = 2.f;
+    /** 零保留原波形的目标数量规则；有限法术可显式限制本次成功发布的目标数。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0", ClampMax = "16"))
+    int32 MaxTargets = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EAbilityWaveQueryProfile Profile = EAbilityWaveQueryProfile::ActorFront3D;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -74,7 +77,7 @@ public:
     bool bRequireVisibility = true;
     /** 校验显式 profile 与正有限半径/速度，配置不决定伤害或状态。 */
     virtual bool Validate(FString& Error) const override;
-    /** 只配置空间推进实际消费的半径、速度和时长，不改profile或payload。 */
+    /** 调整实际半径、速度、时长和正数目标上限；不改 profile 或载荷。 */
     virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
 };
 
@@ -133,7 +136,7 @@ class TEST_25D_API UAbilityWavefrontNodeExecution : public UAbilityNodeExecution
 {
     GENERATED_BODY()
 public:
-    /** 初始化波形、已观察原生命与访问历史，不隐式伤害。 */
+    /** 初始化波形与原生命历史，存在后继时发布位置及最大实际可达半径。 */
     virtual bool Start(UAbilityGraphInstance& Owner, const FGuid& Id, const UAbilityNodeConfig& Config,
                        const FAbilityNodeInput& InInput, FString& Error) override;
     /** 按 profile 推进波形，每个符合几何的原生命最多发布一次。 */

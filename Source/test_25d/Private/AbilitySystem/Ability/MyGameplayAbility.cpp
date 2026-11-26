@@ -2,6 +2,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AbilitySystem/Ability/MyGameplayAbility.h"
+#include "Character/EnemyCharacter.h"
 
 #include "AbilitySystem/MyAttributeSet.h"
 #include "AbilitySystem/Unified/AbilityExecutionIdentity.h"
@@ -156,6 +157,11 @@ bool UMyGameplayAbility::CanActivateAbility(FGameplayAbilitySpecHandle Handle,
                                             const FGameplayTagContainer* TargetTags,
                                             FGameplayTagContainer* OptionalRelevantTags) const
 {
+    const auto* Enemy = ActorInfo ? Cast<AEnemyCharacter>(ActorInfo->AvatarActor.Get()) : nullptr;
+    if (Enemy && Enemy->IsIceFrozen())
+    {
+        return false;
+    }
     if (ActorInfo && ActorInfo->IsNetAuthority() && ActorInfo->AbilitySystemComponent.IsValid())
     {
         const auto* Spec = ActorInfo->AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);

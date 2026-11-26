@@ -46,6 +46,20 @@
 | 前四批 Actor / Mixed 18 种 Kind | `Legacy.Actor.*` / `Legacy.Mixed.*` | 原 GA/DA 路径保留，运行时编译后使用提取的 Driver |
 | 第五批 | `Legacy.Extension.*` | 原 Behavior 和扩展子连接编译为图边；共享 CastContext 支持跨族组合 |
 | 第六批连锁/石化 | `Delivery.ForkedChain`、`Status.PetrifyArea`、`Status.Petrify` | 保留分叉 BFS、状态服务及真实 Actor/Mass 目标生命 |
+| 改装工作台护盾 | `Status.Barrier`、`Status.BarrierOnDamage` | 自施放消费 `Origin`，伤后反馈消费 `DamageResult` 并读取实际生命伤害，每次施法只授予一次。两者都将护盾交给当前玩家 Avatar。 |
+| 改装工作台元素 | `Status.ApplyExposure`、`Presentation.ElementPulse` | 前者消费 `LiveTarget` 并调用共享元素反应；后者使用圆形查询完成端的 `Origin` 和实际半径。变更状态元素、伤害元素或半径各自使用独立的配置轴。 |
+| 改装工作台地表 | `World.ElementSurface`、`World.IgniteSurface` | 接收 `Origin`。世界接触由短寿命地形 Actor 承担，来源租约独立于试装技能。成功端口输出实际地块位置。 |
+| 改装工作台元素反应 | `World.DispelSurface`、`Status.ConsumeExposure`、`Spatial.TargetOrigin` | 分别移除自身地表、消耗同一原生命匹配的元素状态、从当前活目标导出位置。类型化出边只在实际动作成功时发布。 |
+| 改装工作台地表转换 | `World.ConvertSurface` | 从 `Origin` 查找施法者当前生命所属的同层临时地块。原种类、结果种类和半径独立校验。转化保留原位置、尺寸和到期时间，成功后才发出 `Transformed:Origin`。 |
+| 改装工作台自身动作 | `Effect.RestoreSelf`、`Status.ClearSelfExposure` | 复核 `Origin` 携带的施法者身份，然后由服务器写 GAS 属性或消耗匹配元素状态。成功端口与常规完成端口分开。恢复按技能配置选择生命或法力，可由图实例限制为每次施法一次。 |
+| 改装工作台多点投递 | `Control.StaggeredPoints` | 从 `Origin` 确定首次落点和分布，按间隔发出有限个 `Point:Origin`。每个落点由后继重新查询活目标，节点结束或取消时停止发出新落点。 |
+| 改装工作台接触地表 | `World.ElementSurface` → 潮地或通电地 | 水、雷接触分别复用 Actor/Mass 元素服务。地块由服务器租约控制，到期与来源换代会清理；客户端从复制的地块类及地块大小恢复表现。 |
+| 改装工作台地表回收 | `World.DispelSurface.Removed` → 护盾或有限恢复 | 只有经过同层、原生命、归属校验并实际移除地块，才启动收益分支。收益沿用原护盾或属性服务的寿命。 |
+| 改装工作台条件分流 | `Condition.ElementalStatus.Passed/Rejected` | 每个查询结果只进入一条伤害边，两路使用独立配置。画布按真实端口选择每一分支，改装卡分别定位两路。 |
+| 改装工作台地面位移 | `Movement.Character.Landed` → `World.ElementSurface` | 地面目标冲刺使用原胶囊扫掠、脚下探测和房间检查。只有实际移动后才发布落点。取消不会生成新的地块，已生成地块交给自己的租约。 |
+| 改装工作台云层 | `World.ConvertSurface`、`World.DispelSurface` | 兼容地面默认合同，显式开放云层的配置可处理雾云和通电云。Actor 与 Mass 从同一云体积规则取身体中心。云层转换继承原地面锚点、尺寸和截止时间。 |
+| 改装工作台地表供能 | `Control.Repeat.Pulse` → `World.FindOwnedSurface.Found` | 每跳只读当前活跃的自有地面租约，成功才传递实际中心。地块可在跳跃间失效或切换，下一跳独立重新选择。 |
+| 改装工作台消耗连锁 | `Status.ConsumeExposure.Consumed` → `Spatial.TargetOrigin` | 消耗成功才锁定中心位置。可选记忆原载体用于后续排除；后继查询仍捕获和验证实际新命中生命。 |
 | 叉状闪电与逐跳闪电链 | `Delivery.ForkedVolley`、`Delivery.SequentialChain` | 旧 `GA_FissionChain` 一次选取主目标及附近敌人，光束均从施法者发出；新 `GA_SequentialChain` 从上一命中位置逐跳传播，默认间隔 0.1 秒、最多 6 个目标。两者共用伤害与复制表现，旧图节点 `Delivery.ForkedChain` 保留广度优先语义。 |
 | 通用查询/伤害 | `Query.Shape`、`Effect.Damage` | 查询输出 LiveTarget，伤害输出历史 DamageResult |
 | 传统投射物/召唤 | `Delivery.ActorProjectiles`、`Spawn.Summon` | 原投射物类、散射/追踪和召唤点/间隔共用实现 |
@@ -111,6 +125,7 @@ Mass 的 `ApplyDamage` 返回实际移除生命；飘字显示包含过量部分
 ## 生命周期与重入
 
 - 共享 DA/CDO 只读。图启动时复制节点配置，旧编译器冻结所有可达参数（含循环引用）；施法中修改编辑器资产只影响下次激活。
+- 玩家护盾由服务器在图节点授权后创建于当前 Avatar，`MyAttributeSet::HandleIncomingDamage` 扣血前消费，耗尽、到期、死亡时清零，EndPlay 释放定时器与死亡委托。服务器授予和消费后复制剩余值，客户端只据此更新附着 Niagara。
 - 图通过 UPROPERTY 保活执行对象、参数和队列资源；世界、ASC、角色和目标使用弱身份。回调期间使用强局部保护，避免同步取消或 GC 使正在执行的对象失效。
 - 绑定 GA 的图在 GA 结束时取消。独立效果由 `UAbilityGraphWorldSubsystem` 持有并推进，GA 正常结束可保留；来源失效、换图或世界退出仍关闭。
 - 取消先封闭事件入口，再 Stop 策略、清计时器、解绑委托、撤销所属 GE、销毁所属表现/Actor。重复停止无副作用，取消不补发业务 OnExpire/Completed。

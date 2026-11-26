@@ -1,4 +1,4 @@
-// 测试链：实际三目录并集 -> 每个真实类的运行时默认定义 -> 宏残留清单；本测试不替代逐资产玩法验收。
+// 测试链：实际三目录与原生试装目录 -> 每个真实类的默认图 -> 宏残留清单。
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "AbilityGraphTestFixture.h"
@@ -19,13 +19,14 @@ bool FRuntimeFineCatalogCensus::RunTest(const FString&)
     FAbilityGraphTestFixture F;
     TArray<FAbilityRuntimeBaseDefinition> Definitions;
     TArray<FString> Diagnostics;
-    if (!TestTrue(TEXT("Actual three mage catalogs load independently of documentation"),
+    if (!TestTrue(TEXT("Actual mage asset catalogs and native trials load independently of documentation"),
                   AbilityRuntimeRecipeCatalog::CollectBaseDefinitions(F.World, nullptr, Definitions, Diagnostics)))
     {
         AddInfo(FString::Join(Diagnostics, TEXT("\n")));
         return false;
     }
-    TestEqual(TEXT("Reviewed class-variant denominator has no silently skipped identities"), Definitions.Num(), 86);
+    // 86 个资产目录版本，加 37 个原生试装。
+    TestEqual(TEXT("Reviewed class-variant denominator has no silently skipped identities"), Definitions.Num(), 123);
     const TSet<FName> WholeActions = {
         TEXT("Shape.ArcaneNova"),          TEXT("Shape.ArcaneShards"),        TEXT("Channel.Electrocute"),
         TEXT("Channel.OrbitingFireBolts"), TEXT("Delivery.ActorProjectiles"), TEXT("Delivery.ForkedChain"),

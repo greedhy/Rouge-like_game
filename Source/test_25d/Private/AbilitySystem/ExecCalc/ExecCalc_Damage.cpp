@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Actor GAS伤害GE → 抗性/格挡/护甲/暴击 → IncomingDamage → 属性集结算元素反应和实际扣血。
 
 #include "AbilitySystem/ExecCalc/ExecCalc_Damage.h"
 #include "AbilitySystemComponent.h"
@@ -180,6 +180,8 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
 
     //添加标签和属性快照对应的数据
     bool bPure = false;
+    FGameplayTag SingleDamageType;
+    int32 DamageTypeCount = 0;
 
     for (const auto& DamageTypeTag : FMyGameplayTags::Get().DamageTypesToResistance)
     {
@@ -191,6 +193,8 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
         float DamageTypeValue = Spec.GetSetByCallerMagnitude(DamageType, false, 0);
         if (DamageTypeValue <= 0.f)
             continue;
+        SingleDamageType = DamageType;
+        ++DamageTypeCount;
         if (UMyAbilitySystemLibrary::IsRadialDamage(EffectContextHandle))
         {
             FDelegateHandle RadialHandle;
@@ -229,6 +233,12 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
         {
             Damage += DamageTypeValue;
         }
+    }
+
+    // 传统GA可直接创建GE。单一伤害类型才有明确的一次元素入射，多类型GE保留各分量结算。
+    if (auto* Context = FMyGameplayEffectContext::GetMutable(EffectContextHandle))
+    {
+        Context->DirectDamageType = DamageTypeCount == 1 ? SingleDamageType : FGameplayTag();
     }
 
     //capture block chance ,block does half damage

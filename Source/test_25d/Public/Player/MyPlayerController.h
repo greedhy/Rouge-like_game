@@ -21,6 +21,7 @@ class AMagicCircle;
 class UUserWidget;
 class IInputProcessor;
 class UAbilityRuntimeRecipeDeveloperComponent;
+class UAbilityRuntimeRecipePanel;
 
 /**
  * 
@@ -112,6 +113,8 @@ public:
 
 protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    /** 完成旅行并取得目标世界的玩家状态后，切换击杀统计的世界作用域。 */
+    virtual void PostSeamlessTravel() override;
     bool IsGameplayMenuVisible() const;
     bool IsMenuMouseAbility(FGameplayTag InputTag) const;
     // 开始游戏后尝试初始化本地输入。
@@ -129,6 +132,8 @@ private:
     UAbilityRuntimeRecipeDeveloperComponent* GetRecipeDeveloper() const;
     /** 启停预览或换 Pawn 时明确转发松键，防止旧引导保持 InputPressed。 */
     void ReleaseRecipeInput();
+    /** 开发画布单独驻留在本地视口，关闭或切世界后释放。 */
+    TWeakObjectPtr<UAbilityRuntimeRecipePanel> RecipeDebugPanel;
     bool bDeveloperRecipeKeyHeld = false;
     void RemoveMenuKeyboardRouting();
     void ShowSelectedBackpackEquipment();

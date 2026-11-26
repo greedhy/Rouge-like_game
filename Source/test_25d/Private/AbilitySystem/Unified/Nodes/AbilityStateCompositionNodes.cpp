@@ -231,6 +231,16 @@ bool UAbilityTargetDisplaceNodeConfig::TrySetRecipeParameter(EAbilityConfigParam
     return true;
 }
 
+bool UAbilityTargetDisplaceNodeConfig::TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier)
+{
+    if (Parameter != EAbilityConfigScalar::Duration || !Settings || !FMath::IsFinite(Multiplier) || Multiplier <= 0.f)
+    {
+        return false;
+    }
+    FString Error;
+    return TrySetRecipeParameter(EAbilityConfigParameter::Duration, Settings->Duration * Multiplier, Error);
+}
+
 bool UAbilityAttachNodeConfig::Validate(FString& Error) const
 {
     Error.Reset();
@@ -619,6 +629,10 @@ bool UAbilityTargetDisplaceNodeConfig::Validate(FString& Error) const
     {
         Error = TEXT("Target displacement needs one valid Displace configuration without embedded payload children.");
     }
+    else if (bUseCastDirection && Settings->bPull)
+    {
+        Error = TEXT("Directional displacement requires a push configuration.");
+    }
     return Error.IsEmpty();
 }
 
@@ -639,6 +653,8 @@ bool UAbilityTargetDisplaceNodeExecution::Start(UAbilityGraphInstance& Owner, co
     }
     Context = MakeContext(this, Owner, Input, Error);
     bUsePrototypeFrame = Config.IsA<UAbilityPrototypeDisplaceNodeConfig>();
+    const auto* ExplicitSettings =
+        bUsePrototypeFrame ? nullptr : CastChecked<UAbilityTargetDisplaceNodeConfig>(&Config);
     if (bUsePrototypeFrame)
     {
         const auto* Frame = AbilityPrototypeParameterNodes::ResolveFrame(Owner, Input, Error);
@@ -656,7 +672,7 @@ bool UAbilityTargetDisplaceNodeExecution::Start(UAbilityGraphInstance& Owner, co
     }
     else
     {
-        Settings = DuplicateObject(CastChecked<UAbilityTargetDisplaceNodeConfig>(&Config)->Settings.Get(), this);
+        Settings = DuplicateObject(ExplicitSettings->Settings.Get(), this);
     }
     WorldState =
         Input.SourceToken.World.IsValid() ? Input.SourceToken.World->GetSubsystem<UExtensionWorldSubsystem>() : nullptr;
@@ -673,7 +689,10 @@ bool UAbilityTargetDisplaceNodeExecution::Start(UAbilityGraphInstance& Owner, co
         }
     }
     const auto StateOwner = WorldState;
-    const FVector Center = Config.IsA<UAbilityPrototypeDisplaceNodeConfig>() ? Input.EventCenter : Input.Origin;
+    // 以刚复核的目标位置作为中心时，原移动服务自然使用传入施法方向。
+    const FVector Center = bUsePrototypeFrame                    ? Input.EventCenter
+                           : ExplicitSettings->bUseCastDirection ? LastPosition
+                                                                 : Input.Origin;
     const auto Lease = StateOwner->RequestDisplacement(Context, Settings, TargetLife.Target, Center, Input.Direction);
     if (bStopped || Owner.IsFinished())
     {
@@ -692,6 +711,10 @@ bool UAbilityTargetDisplaceNodeExecution::Start(UAbilityGraphInstance& Owner, co
             CloseFrameVisual(&Owner, Input, PrototypeVisual, EAbilityGraphEndReason::Cancelled);
             PrototypeVisual = nullptr;
             return Owner.Publish(Id, TEXT("Rejected"), Input);
+        }
+        if (ExplicitSettings->bContinueOnRejected)
+        {
+            return Owner.Publish(Id, TEXT("Rejected"), AtPosition(Input, LastPosition));
         }
         Error = TEXT("Original displacement policy rejected geometry, immunity or movement capacity.");
         return false;
@@ -910,6 +933,7 @@ void AbilityStateCompositionNodes::Register(FAbilityNodeRegistry& Registry)
     // 只申请已有位移服务的精确命令，不生成Actor或内部完整GA。
     Move.bRuntimeFiniteSafe = true;
     Move.Ports = {{TEXT("Completed"), EAbilityPortPayload::Origin, true},
+                  {TEXT("Rejected"), EAbilityPortPayload::Origin, true},
                   {TEXT("Replaced"), EAbilityPortPayload::Origin, true},
                   {TEXT("TargetLost"), EAbilityPortPayload::Origin, true}};
     Add(Move);

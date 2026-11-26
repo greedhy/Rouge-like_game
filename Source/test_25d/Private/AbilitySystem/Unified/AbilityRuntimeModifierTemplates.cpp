@@ -12,10 +12,45 @@
 #include "AbilitySystem/Unified/AbilityRuntimePrototypeFragmentFactory.h"
 #include "AbilitySystem/Unified/Nodes/AbilityGraphPassThroughNodes.h"
 #include "AbilitySystem/Unified/Nodes/AbilityGameplayRuleNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityElementalNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityWorkshopTerrainNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityStateCompositionNodes.h"
+#include "AbilitySystem/Unified/WorkshopDispelAbilities.h"
+#include "AbilitySystem/Unified/WorkshopEmberAbilities.h"
+#include "AbilitySystem/Unified/WorkshopShatterAbilities.h"
+#include "AbilitySystem/Unified/WorkshopRejuvenationAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSpatialStormAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSurfaceConversionAbilities.h"
+#include "AbilitySystem/Unified/WorkshopTerrainCatalystAbilities.h"
+#include "AbilitySystem/Unified/Nodes/AbilityTemporalNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 
 namespace
 {
     const FAbilityRuntimeParameterTemplate ParameterTemplates[] = {
+        {TEXT("Set.TargetFilter"), EAbilityConfigParameter::TargetFilter,
+         TEXT("筛选：0全部 / 1 Actor / 2 Mass / 3低血 / 4灼热 / 5潮湿 / 6感电 / 7奥术 / 8蒸汽 / 9导电 / 10冻僵 / 11冻结"),
+         0.f, 11.f, 1.f},
+        {TEXT("Set.HealthThreshold"), EAbilityConfigParameter::HealthThreshold, TEXT("低于生命比例（0..1）"), 0.f, 1.f,
+         .05f},
+        {TEXT("Set.ElementalStatus"), EAbilityConfigParameter::ElementalStatus,
+         TEXT("状态：1灼热 / 2潮湿 / 3感电 / 4奥术 / 5蒸汽 / 6导电 / 7冻僵 / 8冻结"), 1.f, 8.f, 1.f},
+        {TEXT("Set.TriggerCooldown"), EAbilityConfigParameter::TriggerCooldown, TEXT("同次施法的触发间隔（秒）"), 0.f,
+         5.f, .05f},
+        {TEXT("Set.ResourceAmount"), EAbilityConfigParameter::ResourceAmount, TEXT("每个恢复节点的资源量"), 1.f, 20.f,
+         1.f},
+        {TEXT("Set.BarrierCapacity"), EAbilityConfigParameter::BarrierCapacity, TEXT("护盾容量"), 1.f, 250.f, 1.f},
+        {TEXT("Set.ElementConversion"), EAbilityConfigParameter::ElementConversion,
+         TEXT("结算元素：0原样 / 1火 / 2水 / 3雷 / 4奥术 / 5冰"), 0.f, 5.f, 1.f},
+        {TEXT("Set.ExposureElement"), EAbilityConfigParameter::ExposureElement,
+         TEXT("状态元素：1火 / 2水 / 3雷 / 4奥术 / 5冰"), 1.f, 5.f, 1.f},
+        {TEXT("Set.TerrainSurfaceKind"), EAbilityConfigParameter::TerrainSurfaceKind,
+         TEXT("区域类型：0熔岩 / 1霜地 / 2毒地 / 3藤蔓 / 4潮地 / 5通电地 / 6雾云 / 7通电云"), 0.f, 7.f, 1.f},
+        {TEXT("Set.TerrainInputKind"), EAbilityConfigParameter::TerrainInputKind,
+         TEXT("来源类型：0熔岩 / 1霜地 / 2毒地 / 3藤蔓 / 4潮地 / 5通电地 / 6雾云 / 7通电云"), 0.f, 7.f, 1.f},
+        {TEXT("Set.TerrainLayer"), EAbilityConfigParameter::TerrainLayer, TEXT("作用层：0地面 / 1云层"), 0.f, 1.f, 1.f},
+        {TEXT("Set.QueryGeometry"), EAbilityConfigParameter::QueryGeometry,
+         TEXT("查询形状：0圆形 / 1扇形 / 2圆环 / 3直线"), 0.f, 3.f, 1.f},
         {TEXT("Set.MaxTargets"), EAbilityConfigParameter::PropagationMaxTargets, TEXT("传播总投递上限（含首击）"), 1.f,
          64.f, 1.f},
         {TEXT("Set.JumpDelay"), EAbilityConfigParameter::PropagationDelay, TEXT("每个父命中后的等待（秒）"), .01f, 5.f,
@@ -70,7 +105,7 @@ namespace
          .1f},
         {TEXT("Set.DetonationDelay"), EAbilityConfigParameter::DetonationDelay, TEXT("叠层触发延迟（秒）"), 0.f, 60.f,
          .1f},
-        {TEXT("Set.MoveDistance"), EAbilityConfigParameter::MoveDistance, TEXT("实际目标位移距离（cm）"), 0.f, 10000.f,
+        {TEXT("Set.MoveDistance"), EAbilityConfigParameter::MoveDistance, TEXT("实际位移距离（cm）"), 0.f, 10000.f,
          10.f},
         {TEXT("Set.SafeDistance"), EAbilityConfigParameter::SafeDistance, TEXT("拉近保留安全距离（cm）"), 0.f, 10000.f,
          10.f},
@@ -86,6 +121,66 @@ namespace
             return false;
         }
         return true;
+    }
+
+    /** 这些有限时序片段接收位置，应用后继续从各自真实端口连接。 */
+    bool IsTemporalFragment(FName Id)
+    {
+        return Id == TEXT("Control.DelayOrigin") || Id == TEXT("Control.Repeat") || Id == TEXT("Query.WaitForTarget") ||
+               Id == TEXT("Spatial.Wavefront") || Id == TEXT("Control.StaggeredPoints");
+    }
+
+    /** 地表模块只接收位置，活目标与历史命中不能直接授权世界动作。 */
+    bool IsWorkshopTerrainFragment(FName Id)
+    {
+        return Id == TEXT("World.ElementSurface") || Id == TEXT("World.IgniteSurface") ||
+               Id == TEXT("World.DispelSurface") || Id == TEXT("World.ConvertSurface") ||
+               Id == TEXT("World.FindOwnedSurface");
+    }
+
+    /** 自身资源和状态动作从 Origin 读取施法者身份，无需活目标。 */
+    bool IsSelfEffectFragment(FName Id)
+    {
+        return Id == TEXT("Effect.RestoreSelf") || Id == TEXT("Status.ClearSelfExposure");
+    }
+
+    /** 只构造已注册类的私有配置，既有节点负责实际时钟及波前。 */
+    UAbilityNodeConfig* BuildTemporalFragment(UAbilityGraphDefinition* Graph, const FAbilityRuntimeDeveloperEdit& Edit)
+    {
+        if (Edit.FragmentId == TEXT("Control.DelayOrigin"))
+        {
+            auto* Config = NewObject<UAbilityDelayNodeConfig>(Graph);
+            Config->DelaySeconds = Edit.Value;
+            return Config;
+        }
+        if (Edit.FragmentId == TEXT("Control.Repeat"))
+        {
+            auto* Config = NewObject<UAbilityRepeatNodeConfig>(Graph);
+            Config->Duration = Edit.Value;
+            Config->Period = Edit.Interval;
+            Config->Count = Edit.Count;
+            return Config;
+        }
+        if (Edit.FragmentId == TEXT("Query.WaitForTarget"))
+        {
+            auto* Config = NewObject<UAbilityWaitTargetNodeConfig>(Graph);
+            Config->Duration = Edit.Value;
+            Config->ArmDelay = Edit.Interval;
+            Config->Radius = Edit.Radius;
+            return Config;
+        }
+        if (Edit.FragmentId == TEXT("Control.StaggeredPoints"))
+        {
+            auto* Config = NewObject<UAbilityStaggeredPointsNodeConfig>(Graph);
+            Config->Count = Edit.Count;
+            Config->Radius = Edit.Radius;
+            Config->Period = Edit.Interval;
+            return Config;
+        }
+        auto* Config = NewObject<UAbilityWavefrontNodeConfig>(Graph);
+        Config->Duration = Edit.Value;
+        Config->Radius = Edit.Radius;
+        return Config;
     }
 } // namespace
 
@@ -121,19 +216,42 @@ const FAbilityRuntimeParameterTemplate* AbilityRuntimeModifierTemplates::FindPar
 
 const TArray<FName>& AbilityRuntimeModifierTemplates::GetFragmentIds()
 {
-    static const TArray<FName> Ids = {TEXT("Target.Petrify"),      TEXT("Area.Petrify"),     TEXT("Target.Slow"),
-                                      TEXT("Query.SelectTargets"), TEXT("Condition.Killed"), TEXT("Condition.Chance")};
+    static const TArray<FName> Ids = {
+        TEXT("Target.Petrify"),          TEXT("Area.Petrify"),           TEXT("Target.Slow"),
+        TEXT("Query.SelectTargets"),     TEXT("Condition.Killed"),       TEXT("Condition.Chance"),
+        TEXT("Control.DelayOrigin"),     TEXT("Control.Repeat"),         TEXT("Query.WaitForTarget"),
+        TEXT("Spatial.Wavefront"),       TEXT("Condition.HealthBelow"),  TEXT("Condition.ElementalStatus"),
+        TEXT("Condition.DamageApplied"), TEXT("Control.EveryNthDamage"), TEXT("Control.DamageTriggerLimit"),
+        TEXT("Effect.RestoreMana"),      TEXT("Effect.RestoreHealth"),   TEXT("Status.ApplyExposure"),
+        TEXT("World.ElementSurface"),   TEXT("World.IgniteSurface"),    TEXT("World.DispelSurface"),
+        TEXT("Status.ConsumeExposure"), TEXT("Spatial.TargetOrigin"),  TEXT("World.ConvertSurface"),
+        TEXT("Control.StaggeredPoints"), TEXT("Effect.RestoreSelf"),    TEXT("Status.ClearSelfExposure"),
+        TEXT("World.FindOwnedSurface")};
     return Ids;
 }
 
 bool AbilityRuntimeModifierTemplates::IsRuleFragment(FName Id)
 {
-    return Id == TEXT("Query.SelectTargets") || Id == TEXT("Condition.Killed") || Id == TEXT("Condition.Chance");
+    return Id == TEXT("Query.SelectTargets") || Id == TEXT("Condition.Killed") || Id == TEXT("Condition.Chance") ||
+           IsTemporalFragment(Id) || IsSelfEffectFragment(Id) || AbilityGameplayRuleNodes::FindCombatRule(Id).IsSet();
 }
 
 bool AbilityRuntimeModifierTemplates::SupportsFragmentPayload(FName Id, EAbilityPortPayload Payload)
 {
-    if (Id == TEXT("Area.Petrify") || Id == TEXT("Query.SelectTargets") || Id == TEXT("Condition.Chance"))
+    if (Id == TEXT("Status.ApplyExposure") || Id == TEXT("Status.ConsumeExposure") || Id == TEXT("Spatial.TargetOrigin"))
+    {
+        return Payload == EAbilityPortPayload::LiveTarget;
+    }
+    if (IsWorkshopTerrainFragment(Id))
+    {
+        return Payload == EAbilityPortPayload::Origin;
+    }
+    if (const auto Rule = AbilityGameplayRuleNodes::FindCombatRule(Id); Rule.IsSet())
+    {
+        return Payload == AbilityGameplayRuleNodes::GetCombatRuleInput(Rule.GetValue());
+    }
+    if (Id == TEXT("Area.Petrify") || Id == TEXT("Query.SelectTargets") || Id == TEXT("Condition.Chance") ||
+        IsTemporalFragment(Id) || IsSelfEffectFragment(Id))
     {
         return Payload == EAbilityPortPayload::Origin;
     }
@@ -189,6 +307,18 @@ bool AbilityRuntimeModifierTemplates::CanPublishConfiguredPort(const FAbilityGra
         // 当前Forked策略只投递外部payload并发布Hit/Completed；兼容描述中的可选名字不代表事实。
         // 类型/配置类已经在上方准确核对，不能按父配置或所有异步策略一概禁止伤害回执。
         Error = TEXT("This external-only Forked strategy publishes Hit and Completed, not DamageResolved.");
+        return false;
+    }
+    if (Node.TypeId == TEXT("Movement.TargetDisplace") && Port == TEXT("Rejected") &&
+        !CastChecked<UAbilityTargetDisplaceNodeConfig>(Node.Config)->bContinueOnRejected)
+    {
+        Error = TEXT("This strict movement node fails the graph on rejection and cannot publish Rejected.");
+        return false;
+    }
+    if (Node.TypeId == TEXT("Movement.Character") && Port == TEXT("Landed") &&
+        !CastChecked<UAbilityCharacterMoveNodeConfig>(Node.Config)->UsesGroundTarget())
+    {
+        Error = TEXT("Only the ground-targeted dash can publish a real Landed position.");
         return false;
     }
     // Completed、Expired等真实终态仍可连接；不能因投递异步就丢弃合法正常收尾。
@@ -302,6 +432,102 @@ bool AbilityRuntimeModifierTemplates::BuildPatch(UObject* Outer, const FAbilityG
         {
             return false;
         }
+        if (IsWorkshopTerrainFragment(Edit.FragmentId))
+        {
+            if (!SupportsFragmentPayload(Edit.FragmentId, Port->Payload))
+            {
+                Error = TEXT("A terrain fragment requires an explicit Origin output port.");
+                return false;
+            }
+            auto* Branch = NewObject<UAbilityGraphDefinition>(Outer);
+            UAbilityNodeConfig* Surface = nullptr;
+            if (Edit.FragmentId == TEXT("World.ElementSurface"))
+            {
+                auto* Create = NewObject<UAbilityElementSurfaceNodeConfig>(Branch);
+                Create->Radius = Edit.Radius;
+                Create->Duration = Edit.Value;
+                Surface = Create;
+            }
+            else if (Edit.FragmentId == TEXT("World.IgniteSurface"))
+            {
+                auto* Ignite = NewObject<UAbilityIgniteSurfaceNodeConfig>(Branch);
+                Ignite->Radius = Edit.Radius;
+                Surface = Ignite;
+            }
+            else if (Edit.FragmentId == TEXT("World.ConvertSurface"))
+            {
+                auto* Convert = NewObject<UAbilityConvertSurfaceNodeConfig>(Branch);
+                Convert->Radius = Edit.Radius;
+                Convert->bAllowCloud = true;
+                Surface = Convert;
+            }
+            else if (Edit.FragmentId == TEXT("World.FindOwnedSurface"))
+            {
+                auto* Select = NewObject<UAbilityFindOwnedSurfaceNodeConfig>(Branch);
+                Select->Radius = Edit.Radius;
+                Surface = Select;
+            }
+            else
+            {
+                auto* Dispel = NewObject<UAbilityDispelSurfaceNodeConfig>(Branch);
+                Dispel->Radius = Edit.Radius;
+                Dispel->MaxTargets = Edit.Count;
+                Surface = Dispel;
+            }
+            if (!Surface->Validate(Error))
+            {
+                return false;
+            }
+            Branch->SchemaVersion = 2;
+            Branch->CompatibilityProfile = TEXT("UnifiedV2");
+            Branch->EntryNodeId = FGuid::NewGuid();
+            Branch->Nodes.Add({Branch->EntryNodeId, Edit.FragmentId, Surface});
+            OutPatch.Operation = EAbilityRecipePatchOperation::AppendBranch;
+            OutPatch.OutputPort = Edit.OutputPortId;
+            OutPatch.BranchGraph = Branch;
+            return true;
+        }
+        if (Edit.FragmentId == TEXT("Status.ApplyExposure") || Edit.FragmentId == TEXT("Status.ConsumeExposure") ||
+            Edit.FragmentId == TEXT("Spatial.TargetOrigin"))
+        {
+            if (!SupportsFragmentPayload(Edit.FragmentId, Port->Payload))
+            {
+                Error = TEXT("This fragment requires a live target; resolve historical impacts first.");
+                return false;
+            }
+            auto* Branch = NewObject<UAbilityGraphDefinition>(Outer);
+            UAbilityNodeConfig* Config = nullptr;
+            if (Edit.FragmentId == TEXT("Status.ApplyExposure"))
+            {
+                auto* Exposure = NewObject<UAbilityApplyExposureConfig>(Branch);
+                if (!Exposure->TrySetRecipeParameter(EAbilityConfigParameter::ExposureElement, Edit.Value, Error))
+                {
+                    return false;
+                }
+                Config = Exposure;
+            }
+            else if (Edit.FragmentId == TEXT("Status.ConsumeExposure"))
+            {
+                auto* Consume = NewObject<UAbilityConsumeExposureNodeConfig>(Branch);
+                if (!Consume->TrySetRecipeParameter(EAbilityConfigParameter::ElementalStatus, Edit.Value, Error))
+                {
+                    return false;
+                }
+                Config = Consume;
+            }
+            else
+            {
+                Config = NewObject<UAbilityTargetOriginConfig>(Branch);
+            }
+            Branch->SchemaVersion = 2;
+            Branch->CompatibilityProfile = TEXT("UnifiedV2");
+            Branch->EntryNodeId = FGuid::NewGuid();
+            Branch->Nodes.Add({Branch->EntryNodeId, Edit.FragmentId, Config});
+            OutPatch.Operation = EAbilityRecipePatchOperation::AppendBranch;
+            OutPatch.OutputPort = Edit.OutputPortId;
+            OutPatch.BranchGraph = Branch;
+            return true;
+        }
         if (IsRuleFragment(Edit.FragmentId))
         {
             if (!SupportsFragmentPayload(Edit.FragmentId, Port->Payload))
@@ -313,7 +539,38 @@ bool AbilityRuntimeModifierTemplates::BuildPatch(UObject* Outer, const FAbilityG
             Branch->SchemaVersion = 2;
             Branch->CompatibilityProfile = TEXT("UnifiedV2");
             UAbilityNodeConfig* Config = nullptr;
-            if (Edit.FragmentId == TEXT("Query.SelectTargets"))
+            if (IsTemporalFragment(Edit.FragmentId))
+            {
+                if (Edit.FragmentId != TEXT("Control.StaggeredPoints") && !ValidStatusDuration(Edit.Value, Error))
+                {
+                    return false;
+                }
+                Config = BuildTemporalFragment(Branch, Edit);
+            }
+            else if (Edit.FragmentId == TEXT("Effect.RestoreSelf"))
+            {
+                auto* Restore = NewObject<UAbilityRestoreSelfNodeConfig>(Branch);
+                Restore->bOncePerCast = true;
+                Restore->Amount = Edit.Value;
+                Config = Restore;
+            }
+            else if (Edit.FragmentId == TEXT("Status.ClearSelfExposure"))
+            {
+                auto* Clear = NewObject<UAbilityClearSelfExposureNodeConfig>(Branch);
+                if (!Clear->TrySetRecipeParameter(EAbilityConfigParameter::ElementalStatus, Edit.Value, Error))
+                {
+                    return false;
+                }
+                Config = Clear;
+            }
+            else if (const auto Rule = AbilityGameplayRuleNodes::FindCombatRule(Edit.FragmentId); Rule.IsSet())
+            {
+                auto* Settings = NewObject<UAbilityCombatRuleConfig>(Branch);
+                Settings->Rule = Rule.GetValue();
+                Settings->Value = Settings->Rule == EAbilityCombatRule::DamageApplied ? 0.f : Edit.Value;
+                Config = Settings;
+            }
+            else if (Edit.FragmentId == TEXT("Query.SelectTargets"))
             {
                 auto* Query = NewObject<UAbilitySelectTargetsConfig>(Branch);
                 Query->Radius = Edit.Radius;
@@ -434,7 +691,15 @@ bool AbilityRuntimeModifierTemplates::BuildPatch(UObject* Outer, const FAbilityG
                               Parameter->Parameter == EAbilityConfigParameter::ForkBranches ||
                               Parameter->Parameter == EAbilityConfigParameter::ForkConcurrent ||
                               Parameter->Parameter == EAbilityConfigParameter::TargetSelection ||
-                              Parameter->Parameter == EAbilityConfigParameter::ConditionOutcome;
+                              Parameter->Parameter == EAbilityConfigParameter::ConditionOutcome ||
+                              Parameter->Parameter == EAbilityConfigParameter::TargetFilter ||
+                              Parameter->Parameter == EAbilityConfigParameter::ElementalStatus ||
+                              Parameter->Parameter == EAbilityConfigParameter::ElementConversion ||
+                              Parameter->Parameter == EAbilityConfigParameter::ExposureElement ||
+                              Parameter->Parameter == EAbilityConfigParameter::TerrainSurfaceKind ||
+                              Parameter->Parameter == EAbilityConfigParameter::TerrainInputKind ||
+                              Parameter->Parameter == EAbilityConfigParameter::TerrainLayer ||
+                              Parameter->Parameter == EAbilityConfigParameter::QueryGeometry;
         if (!FMath::IsFinite(Edit.Value) || Edit.Value < Parameter->Minimum || Edit.Value > Parameter->Maximum ||
             (bInteger && Edit.Value != FMath::RoundToFloat(Edit.Value)))
         {

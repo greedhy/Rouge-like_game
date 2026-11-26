@@ -50,6 +50,9 @@ protected:
 protected:
     // 检查攻击归属，推进锁定、动画、唯一命中窗口与后摇结束。
     virtual void Advance();
+    /** 预警、锁定和恢复共用可变速时钟。每一段攻击独立开始。 */
+    void ResetAttackClock();
+    float SampleAttackClock(double Now);
     // 将异常、中断或失效统一转入取消收尾。
     void Abort();
     // 锁定前更新朝向与地面中心；地面目标使用激活时选定的目标。
@@ -68,7 +71,9 @@ protected:
     FTimerHandle UpdateTimer;
     FGuid DodgeAttackId;
     int32 Serial = 0, Lease = 0;
-    double Started = 0, LastWarning = 0;
+    double LastAttackSample = 0, LastWarning = 0;
+    float AttackElapsed = 0.f;
+    float AttackRate = 1.f;
     FVector Center = FVector::ZeroVector;
     float Yaw = 0, SnapshotDamage = 0;
     TArray<FVector> LockedSurface;

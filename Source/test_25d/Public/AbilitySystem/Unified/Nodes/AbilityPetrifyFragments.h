@@ -15,12 +15,17 @@ class TEST_25D_API UAbilityPetrifyAreaQueryConfig : public UAbilityNodeConfig
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Radius = 650.f;
+    /** 大于零时在原有合法候选内按生命比例选该数量。零保留旧资产的完整目标集合。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0", ClampMax = "16"))
+    int32 FocusedTargetCount = 0;
     virtual bool Validate(FString& Error) const override;
     /** 重复端口只准入同调度器内的有界同步查询；库存责任不能降级为位置。 */
     virtual bool SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
                                             FString& Error) const override;
     /** 半径是本配置的唯一可缩放量；持续时间由后继状态配置独占。 */
     virtual bool TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier) override;
+    /** 工作台只设置经过校验的整数目标上限。 */
+    virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
 };
 
 /** 原状态效果可作为任何完整 TargetSet 查询的后继，不重新查询或截取命中前缀。 */

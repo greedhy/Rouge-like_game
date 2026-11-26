@@ -6,40 +6,38 @@
 #include "PureMass/PureMassCombatTarget.h"
 #include "PureMass/PureMassSubsystem.h"
 
-namespace
+TOptional<float> AbilityTargetSelectionService::ReadHealthRatio(const FAbilityTargetToken& Target)
 {
-    /** 未提供真实生命属性的Actor排在已知生命之后，不把未知值猜成低血。 */
-    double HealthRatio(const FAbilityTargetToken& Target, UWorld* World)
+    float Health = 0.f;
+    float Maximum = 0.f;
+    if (Target.Target.IsActor())
     {
-        float Health = 0.f;
-        float Maximum = 0.f;
-        if (Target.Target.IsActor())
+        const auto* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target.Target.Actor.Get());
+        if (!ASC || !ASC->HasAttributeSetForAttribute(UMyAttributeSet::GetHealthAttribute()) ||
+            !ASC->HasAttributeSetForAttribute(UMyAttributeSet::GetMaxHealthAttribute()))
         {
-            const auto* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target.Target.Actor.Get());
-            if (!ASC || !ASC->HasAttributeSetForAttribute(UMyAttributeSet::GetHealthAttribute()) ||
-                !ASC->HasAttributeSetForAttribute(UMyAttributeSet::GetMaxHealthAttribute()))
-            {
-                return TNumericLimits<double>::Max();
-            }
-            Health = ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute());
-            Maximum = ASC->GetNumericAttribute(UMyAttributeSet::GetMaxHealthAttribute());
+            return {};
         }
-        else
-        {
-            FPureMassView View;
-            const auto* Mass = World ? World->GetSubsystem<UPureMassSubsystem>() : nullptr;
-            if (!Mass || !Mass->Resolve(Target.Target.EntityId, View))
-            {
-                return TNumericLimits<double>::Max();
-            }
-            Health = View.Health;
-            Maximum = View.MaxHealth;
-        }
-        return FMath::IsFinite(Health) && FMath::IsFinite(Maximum) && Maximum > 0.f
-                   ? FMath::Clamp(static_cast<double>(Health / Maximum), 0., 1.)
-                   : TNumericLimits<double>::Max();
+        Health = ASC->GetNumericAttribute(UMyAttributeSet::GetHealthAttribute());
+        Maximum = ASC->GetNumericAttribute(UMyAttributeSet::GetMaxHealthAttribute());
     }
-} // namespace
+    else
+    {
+        FPureMassView View;
+        const auto* Mass = Target.World.IsValid() ? Target.World->GetSubsystem<UPureMassSubsystem>() : nullptr;
+        if (!Mass || !Mass->Resolve(Target.Target.EntityId, View))
+        {
+            return {};
+        }
+        Health = View.Health;
+        Maximum = View.MaxHealth;
+    }
+    if (!FMath::IsFinite(Health) || !FMath::IsFinite(Maximum) || Maximum <= 0.f)
+    {
+        return {};
+    }
+    return FMath::Clamp(Health / Maximum, 0.f, 1.f);
+}
 
 bool AbilityTargetSelectionService::Select(const FAbilitySourceToken& Source, FVector Center, float Radius,
                                            int32 MaxTargets, EAbilityTargetSelectionPolicy Policy,
@@ -83,11 +81,12 @@ bool AbilityTargetSelectionService::Select(const FAbilitySourceToken& Source, FV
         {
             continue;
         }
-        Candidates.Add(
-            {{Token, Position},
-             FVector::DistSquared(Center, Position),
-             Policy == EAbilityTargetSelectionPolicy::LowestHealthRatio ? HealthRatio(Token, Source.World.Get()) : 0.,
-             Candidates.Num()});
+        Candidates.Add({{Token, Position},
+                        FVector::DistSquared(Center, Position),
+                        Policy == EAbilityTargetSelectionPolicy::LowestHealthRatio
+                            ? ReadHealthRatio(Token).Get(TNumericLimits<float>::Max())
+                            : 0.,
+                        Candidates.Num()});
     }
     if (Policy != EAbilityTargetSelectionPolicy::Original)
     {

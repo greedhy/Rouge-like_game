@@ -53,6 +53,7 @@ FPureMassView FPureMassNetEntity::ToView() const
     View.MaxHealth = MaxHealth;
     View.bPetrified = bPetrified;
     View.bStunned = bStunned;
+    View.IceExposure = IceExposure;
     View.State = State;
     View.Type = Type;
     return View;
@@ -64,7 +65,8 @@ bool FPureMassNetEntity::SetFromView(const FPureMassView& View)
     const FVector NewVelocity = QuantizeVector(View.Velocity);
     const bool bChanged = Id != View.Id || Location != NewLocation || Velocity != NewVelocity ||
                           Health != View.Health || MaxHealth != View.MaxHealth || State != View.State ||
-                          bPetrified != View.bPetrified || bStunned != View.bStunned || Type != View.Type;
+                          bPetrified != View.bPetrified || bStunned != View.bStunned ||
+                          IceExposure != View.IceExposure || Type != View.Type;
     Id = View.Id;
     Location = NewLocation;
     Velocity = NewVelocity;
@@ -72,6 +74,7 @@ bool FPureMassNetEntity::SetFromView(const FPureMassView& View)
     MaxHealth = View.MaxHealth;
     bPetrified = View.bPetrified;
     bStunned = View.bStunned;
+    IceExposure = View.IceExposure;
     State = View.State;
     Type = View.Type;
     return bChanged;
@@ -315,25 +318,48 @@ int32 APureMassCrowd::FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrif
     return RenderBatches.Add(Batch);
 }
 
-void APureMassCrowd::SetAnimation(FPureMassRenderInstance& Instance, uint8 State)
+void APureMassCrowd::SetAnimation(FPureMassRenderInstance& Instance, uint8 State, EAbilityExposure IceExposure)
 {
-    if (Instance.State == State)
-        return;
     const FPureMassRenderBatch& Batch = RenderBatches[Instance.BatchIndex];
-    const bool bWindupClip = Batch.Type->AttackContactTime > 0.f && Batch.Type->AttackWindupSeconds > 0.f;
-    // The warning and impact are phases of one clip, not two animation restarts.
-    if (bWindupClip && Instance.State == 4 && State == 2)
+    const auto PreviousIce = Instance.IceExposure;
+    Instance.IceExposure = IceExposure;
+    if (IceExposure == EAbilityExposure::Frozen && Instance.State != 255)
     {
+        if (PreviousIce != IceExposure)
+        {
+            FAnimSequenceTrackManualData Pose;
+            Pose.SequenceIndex = Batch.Playback->GetSequenceIndex(Instance.Track, 0);
+            Pose.Position = Batch.Playback->GetPosition(Instance.Track, 0).TargetPosition;
+            Pose.LoopMode = Batch.Playback->GetLoopMode(Instance.Track, 0);
+            Batch.Playback->SetManualData(Instance.Track, 0, Pose);
+        }
+        return;
+    }
+    if (PreviousIce == EAbilityExposure::Frozen)
+    {
+        Instance.State = 255;
+    }
+    const bool bWindupClip = Batch.Type->AttackContactTime > 0.f && Batch.Type->AttackWindupSeconds > 0.f;
+    const bool bAttack = State == 2 || (State == 4 && bWindupClip);
+    const float NormalRate = bAttack ? Batch.Type->AttackPlayRate() : 1.f;
+    const float ChillRate = bAttack && IceExposure == EAbilityExposure::Chilled ? AbilityElements::ChillAttackRate : 1.f;
+    const float PlayRate = Batch.bPetrified || IceExposure == EAbilityExposure::Frozen ? 0.f : NormalRate * ChillRate;
+    // The warning and impact are phases of one clip, not two animation restarts.
+    if (Instance.State == State || (bWindupClip && Instance.State == 4 && State == 2))
+    {
+        if (PreviousIce != IceExposure)
+        {
+            Batch.Playback->SetPlayRate(Instance.Track, 0, PlayRate);
+        }
         Instance.State = State;
         return;
     }
-    const bool bAttack = State == 2 || (State == 4 && bWindupClip);
     FAnimSequenceTrackAutoPlayData Play;
     Play.SequenceIndex = bAttack      ? Batch.Type->AttackAnimation
                          : State == 1 ? Batch.Type->RunAnimation
                                       : Batch.Type->IdleAnimation;
     Play.Position = State == 2 && bWindupClip ? Batch.Type->AttackContactTime : 0.f;
-    Play.PlayRate = Batch.bPetrified ? 0.f : bAttack ? Batch.Type->AttackPlayRate() : 1.f;
+    Play.PlayRate = PlayRate;
     Play.BlendTime = Instance.State == 255 ? 0.f : 0.1f;
     Play.LoopMode = bAttack ? EAnimSequenceTrackLoopMode::Clamp : EAnimSequenceTrackLoopMode::Loop;
     Batch.Playback->SetAutoPlayData(Instance.Track, 0, Play);
@@ -376,7 +402,7 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
             if (!View.Velocity.IsNearlyZero())
                 NewInstance.Facing = FRotator(0.f, View.Velocity.Rotation().Yaw, 0.f).Quaternion();
             NewInstance.TargetFacing = NewInstance.Facing;
-            SetAnimation(NewInstance, View.State);
+            SetAnimation(NewInstance, View.State, View.IceExposure);
             const FTransform WorldTransform = View.Type->MeshOffset * FTransform(NewInstance.Facing, View.Location);
             NewInstance.Instance =
                 RenderBatches[BatchIndex].Component->AddInstance(WorldTransform, NewInstance.Track, true);
@@ -397,7 +423,28 @@ void APureMassCrowd::ReconcileInstances(const TArray<FPureMassView>& Views)
         Existing->InterpolationAge = 0.f;
         if (View.Velocity.SizeSquared2D() > FMath::Square(10.f))
             Existing->TargetFacing = FRotator(0.f, View.Velocity.Rotation().Yaw, 0.f).Quaternion();
-        SetAnimation(*Existing, View.State);
+        SetAnimation(*Existing, View.State, View.IceExposure);
+        if (View.IceExposure != EAbilityExposure::None)
+        {
+            if (!Existing->IceVisual.IsValid())
+            {
+                if (auto* System = AbilityElements::GetFrostVisual())
+                {
+                    Existing->IceVisual = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                        System, RootComponent, NAME_None, Existing->DisplayLocation, FRotator::ZeroRotator,
+                        EAttachLocation::KeepWorldPosition, false);
+                }
+            }
+            if (auto* Visual = Existing->IceVisual.Get())
+            {
+                Visual->SetWorldScale3D(FVector(View.IceExposure == EAbilityExposure::Frozen ? 1.5f : 1.f));
+            }
+        }
+        else if (auto* Visual = Existing->IceVisual.Get())
+        {
+            Visual->DestroyComponent();
+            Existing->IceVisual.Reset();
+        }
         // 同一快照同时携带眩晕状态；客户端不另启计时器，也不为单个实体生成 Actor。
         if (View.bStunned && View.Type->StunSystem && !Existing->StunStars.IsValid())
         {
@@ -478,7 +525,11 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
                                                                                   Batch.Type->Radius);
             Instance.StunStars->SetWorldLocation(Instance.DisplayLocation + Placement.GetLocation());
         }
-        if (Instance.State == 4 && !Batch.bPetrified)
+        if (auto* Visual = Instance.IceVisual.Get())
+        {
+            Visual->SetWorldLocation(Instance.DisplayLocation);
+        }
+        if (Instance.State == 4 && !Batch.bPetrified && Instance.IceExposure != EAbilityExposure::Frozen)
         {
             if (!WarningInstances)
             {
@@ -501,6 +552,11 @@ void APureMassCrowd::UpdateTransforms(float DeltaSeconds)
 
 void APureMassCrowd::RemoveRenderInstance(FPureMassRenderInstance& Instance)
 {
+    if (auto* Visual = Instance.IceVisual.Get())
+    {
+        Visual->DestroyComponent();
+        Instance.IceVisual.Reset();
+    }
     // 死亡、移除、切换渲染批次和 EndPlay 共用此出口，循环粒子不能留在旧位置。
     if (Instance.StunStars.IsValid())
     {

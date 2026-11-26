@@ -25,6 +25,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystem/MyAttributeSet.h"
 #include "AbilitySystem/MyAbilitySystemLibrary.h"
+#include "AbilitySystem/Unified/Nodes/AbilityWorkshopTerrainNodes.h"
 #include "AbilitySystem/Data/CharacterClassInfo.h"
 #include "Interface/CombatInterface.h"
 #include "MyGameplayTags.h"
@@ -38,6 +39,7 @@
 #include "NavigationData.h"
 #include "NavigationPath.h"
 #include "Terrain/TerrainSurface.h"
+#include "Player/PlayerKillScore.h"
 
 namespace
 {
@@ -168,6 +170,9 @@ void UPureMassSubsystem::Publish(const FPureMassFragment& Fragment)
     View.MaxHealth = Fragment.MaxHealth;
     View.bPetrified = Fragment.PetrifyRemaining > 0;
     View.bStunned = Fragment.StunRemaining > 0;
+    const auto Exposure = Fragment.ElementalExposure.Get(GetWorld()->GetTimeSeconds());
+    View.IceExposure = Exposure == EAbilityExposure::Chilled || Exposure == EAbilityExposure::Frozen
+                           ? Exposure : EAbilityExposure::None;
     View.State = Fragment.State;
     View.Type = Fragment.Type.Get();
     Grid.Update(Fragment.Id, Fragment.Location, Fragment.Room);
@@ -284,9 +289,19 @@ float UPureMassSubsystem::EvaluateDamage(const FPureMassFragment& Fragment, cons
                                   : 1;
     float Value = FinitePositive(Damage.Amount);
     // Mirrors existing damage order: resistance, block, crit, effective armour. Pure bypasses resistance only.
-    if (Damage.DamageType != FMyGameplayTags::Get().Damage_Pure)
-        if (const float* Resistance = Type->Resistances.Find(Damage.DamageType))
+    const auto& Tags = FMyGameplayTags::Get();
+    if (Damage.DamageType != Tags.Damage_Pure)
+    {
+        const float* Resistance = Type->Resistances.Find(Damage.DamageType);
+        if (!Resistance && Damage.DamageType == Tags.Damage_Ice)
+        {
+            Resistance = Type->Resistances.Find(Tags.Damage_Water);
+        }
+        if (Resistance)
+        {
             Value *= 1.f - FMath::Clamp(FinitePositive(*Resistance), 0.f, 100.f) * .01f;
+        }
+    }
     bBlocked = FMath::FRand() * 100.f < FMath::Clamp(FinitePositive(Type->BlockChance), 0.f, 100.f);
     if (bBlocked)
         Value *= .5f;
@@ -339,8 +354,13 @@ float UPureMassSubsystem::DamageFragment(FPureMassFragment& Fragment, float Amou
     Fragment.State = 3;
     Fragment.Velocity = FVector::ZeroVector;
     const int32 Id = Fragment.Id;
+    const FName VictimRoom = Fragment.Room;
     const int32 XP = Fragment.Type.IsValid() ? FMath::Max(0, Fragment.Type->XPReward) : 0;
-    RemoveMonsterInternal(Id, EPureMassRemovalReason::Killed, DeathImpulse);
+    if (RemoveMonsterInternal(Id, EPureMassRemovalReason::Killed, DeathImpulse))
+    {
+        // 现有 PureMass 类型是普通怪，精英和首领由地下城导演走 Actor 路径。
+        PlayerKillScore::Credit(Source, GetWorld(), VictimRoom, false);
+    }
     // Removal tombstones the target before callbacks or XP; reentrant damage cannot award twice.
     if (IsValid(Source) && XP > 0 && UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Source))
     {
@@ -373,8 +393,8 @@ bool UPureMassSubsystem::ApplyPetrify(int32 Id, float Duration, AActor* Source)
 // 仅对捕获的实体生命叠加真实眩晕，立即关闭预警/攻击且不使用石化表现。
 bool UPureMassSubsystem::ApplyStun(int32 Id, FMassEntityHandle ExpectedEntity, float Duration, AActor* Source)
 {
-    if (!bEnabled || !IsAuthority() || !Mass || !FMath::IsFinite(Duration) || Duration <= 0 ||
-        !Views.Contains(Id) || !ExpectedEntity.IsSet() || GetEntity(Id) != ExpectedEntity)
+    if (!bEnabled || !IsAuthority() || !Mass || !FMath::IsFinite(Duration) || Duration <= 0 || !Views.Contains(Id) ||
+        !ExpectedEntity.IsSet() || GetEntity(Id) != ExpectedEntity)
     {
         return false;
     }
@@ -447,8 +467,105 @@ float UPureMassSubsystem::ApplyDamage(int32 Id, const FPureMassDamage& Damage)
             Fragment.RootRemaining = FMath::Max(Fragment.RootRemaining, Damage.StatusDuration);
     }
     bool bBlocked = false, bCritical = false;
-    const float Evaluated = EvaluateDamage(Fragment, Damage, bBlocked, bCritical);
+    float Evaluated = EvaluateDamage(Fragment, Damage, bBlocked, bCritical);
+    const auto Element = AbilityElements::FromDamageTag(Damage.DamageType);
+    if (Element != EAbilityElement::Original && Evaluated > 0.f && Fragment.Health > 0.f)
+    {
+        const double Now = GetWorld()->GetTimeSeconds();
+        const auto Reaction = AbilityElements::Evaluate(Fragment.ElementalExposure.Get(Now), Element);
+        Evaluated *= Reaction.DamageMultiplier;
+        if (Evaluated < Fragment.Health && !Reaction.bKeepCurrent)
+        {
+            CommitElementalExposure(Fragment, Reaction, 1.f);
+        }
+    }
     return DamageFragment(Fragment, Evaluated, Damage.Source.Get(), bBlocked, bCritical, Damage.DeathImpulse);
+}
+
+EAbilityExposure UPureMassSubsystem::GetElementalExposure(int32 Id) const
+{
+    if (!IsAuthority() || !Mass || !Views.Contains(Id))
+    {
+        return EAbilityExposure::None;
+    }
+    const auto Handle = GetEntity(Id);
+    const auto& Manager = Mass->GetEntityManager();
+    return Manager.IsEntityValid(Handle)
+               ? Manager.GetFragmentDataChecked<FPureMassFragment>(Handle).ElementalExposure.Get(
+                     GetWorld()->GetTimeSeconds())
+               : EAbilityExposure::None;
+}
+
+bool UPureMassSubsystem::ApplyElementalExposure(int32 Id, AActor* Source, EAbilityElement Element, float DurationScale)
+{
+    auto* Fragment =
+        AbilityElements::CanApply(Element, DurationScale) ? FindElementalExposureTarget(Id, Source) : nullptr;
+    if (!Fragment)
+    {
+        return false;
+    }
+    const auto Reaction =
+        AbilityElements::Evaluate(Fragment->ElementalExposure.Get(GetWorld()->GetTimeSeconds()), Element);
+    if (Reaction.bKeepCurrent)
+    {
+        return false;
+    }
+    CommitElementalExposure(*Fragment, Reaction, DurationScale);
+    return true;
+}
+
+bool UPureMassSubsystem::ConsumeElementalExposure(int32 Id, FMassEntityHandle ExpectedEntity, AActor* Source,
+                                                  EAbilityExposure Expected)
+{
+    check(IsInGameThread());
+    if (Expected == EAbilityExposure::None || GetEntity(Id) != ExpectedEntity)
+    {
+        return false;
+    }
+    auto* Fragment = FindElementalExposureTarget(Id, Source);
+    if (!Fragment || Fragment->ElementalExposure.Get(GetWorld()->GetTimeSeconds()) != Expected)
+    {
+        return false;
+    }
+    Fragment->ElementalExposure = {};
+    // 立即更新冰系快照。下一帧的正常更新决定移动和攻击，不恢复冻结前取消的攻击。
+    if (Expected == EAbilityExposure::Chilled || Expected == EAbilityExposure::Frozen)
+    {
+        Publish(*Fragment);
+    }
+    return true;
+}
+
+FPureMassFragment* UPureMassSubsystem::FindElementalExposureTarget(int32 Id, const AActor* Source)
+{
+    check(IsInGameThread());
+    if (!bEnabled || !IsAuthority() || !Mass || !Views.Contains(Id) || !IsValid(Source))
+    {
+        return nullptr;
+    }
+    const auto Entity = GetEntity(Id);
+    auto& Manager = Mass->GetMutableEntityManager();
+    if (!Manager.IsEntityValid(Entity))
+    {
+        return nullptr;
+    }
+    auto& Fragment = Manager.GetFragmentDataChecked<FPureMassFragment>(Entity);
+    return Fragment.Health > 0.f && IsRoomDamageSourceAllowed(Fragment.Room, Source) ? &Fragment : nullptr;
+}
+
+void UPureMassSubsystem::CommitElementalExposure(FPureMassFragment& Fragment, const FAbilityElementalReaction& Reaction,
+                                                 float DurationScale)
+{
+    Fragment.ElementalExposure = {Reaction.Next, GetWorld()->GetTimeSeconds() + Reaction.Duration * DurationScale};
+    if (Reaction.Next == EAbilityExposure::Frozen)
+    {
+        // 本次应用时已经取消预警和待命中目标，下一帧不会补发被冻结的攻击。
+        Fragment.PendingAttackTarget.Reset();
+        Fragment.AttackWindupRemaining = 0.f;
+        Fragment.AttackVisualRemaining = 0.f;
+        Fragment.State = 0;
+        Fragment.Velocity = FVector::ZeroVector;
+    }
 }
 
 // 处理器每帧更新前收集存活玩家、设置寻路预算并定期刷新地表列表。
@@ -494,35 +611,55 @@ float UPureMassSubsystem::UpdateTerrain(FPureMassFragment& Fragment)
             if (Surface->bOnlyAffectCasterEnemies &&
                 (!Surface->GetOwner() || !Surface->GetOwner()->ActorHasTag(TEXT("Player"))))
                 continue;
-            const FVector Feet = Fragment.Location - FVector(0, 0, Type->HalfHeight);
-            const FVector Local = Surface->GetActorTransform().InverseTransformPosition(Feet);
-            const FVector Scale = Surface->GetActorScale3D().GetAbs();
-            if (Scale.GetMin() < UE_SMALL_NUMBER)
-                continue;
-            if (FMath::Abs(Local.X) > Surface->SurfaceSize.X * .5 + Type->Radius / Scale.X ||
-                FMath::Abs(Local.Y) > Surface->SurfaceSize.Y * .5 + Type->Radius / Scale.Y ||
-                FMath::Abs(Local.Z) * Scale.Z > Surface->ContactHeight + 12.f)
-                continue;
-            if (Surface->bRequireGrounded)
+            if (TerrainSurfaceTypes::IsCloud(Surface->Config->SurfaceType))
             {
-                FHitResult Ground;
-                FCollisionQueryParams GroundParams(SCENE_QUERY_STAT(PureMassTerrainGround), false);
-                if (!GetWorld()->LineTraceSingleByChannel(Ground, Feet + FVector(0, 0, 8), Feet - FVector(0, 0, 16),
-                                                          ECC_WorldStatic, GroundParams) ||
-                    Ground.Normal.Z < .65f)
+                // 云层不要求站在地上。使用与带 ASC 角色一致的身体中心和体积。
+                if (!Surface->ContainsCloudSample(Fragment.Location))
+                {
                     continue;
+                }
+            }
+            else
+            {
+                const FVector Feet = Fragment.Location - FVector(0, 0, Type->HalfHeight);
+                const FVector Local = Surface->GetActorTransform().InverseTransformPosition(Feet);
+                const FVector Scale = Surface->GetActorScale3D().GetAbs();
+                if (Scale.GetMin() < UE_SMALL_NUMBER ||
+                    FMath::Abs(Local.X) > Surface->SurfaceSize.X * .5 + Type->Radius / Scale.X ||
+                    FMath::Abs(Local.Y) > Surface->SurfaceSize.Y * .5 + Type->Radius / Scale.Y ||
+                    FMath::Abs(Local.Z) * Scale.Z > Surface->ContactHeight + 12.f)
+                {
+                    continue;
+                }
+                if (Surface->bRequireGrounded)
+                {
+                    FHitResult Ground;
+                    FCollisionQueryParams GroundParams(SCENE_QUERY_STAT(PureMassTerrainGround), false);
+                    if (!GetWorld()->LineTraceSingleByChannel(Ground, Feet + FVector(0, 0, 8),
+                                                               Feet - FVector(0, 0, 16), ECC_WorldStatic,
+                                                               GroundParams) ||
+                        Ground.Normal.Z < .65f)
+                    {
+                        continue;
+                    }
+                }
             }
             auto* Contact = Fragment.TerrainContacts.FindByPredicate(
                 [Surface](const FPureMassFragment::FTerrainContact& C)
                 {
                     return C.Surface == Surface;
                 });
-            if (!Contact)
+            const bool bNewContact = Contact == nullptr;
+            if (bNewContact)
+            {
                 Contact = &Fragment.TerrainContacts.AddDefaulted_GetRef();
+            }
             Contact->Surface = Surface;
             Contact->Remaining = .3f + (Surface->Config->SurfaceType == ETerrainSurfaceType::Vines
                                             ? 0.f
                                             : FinitePositive(Surface->Config->ExitDuration));
+            UAbilityWorkshopTerrainLease::ApplyElementalContact(*Surface, FPureMassCombatTarget(Fragment.Id),
+                                                              bNewContact);
         }
     Fragment.TerrainContacts.RemoveAll(
         [](const FPureMassFragment::FTerrainContact& Contact)
@@ -564,8 +701,8 @@ void UPureMassSubsystem::AttackPlayer(FPureMassFragment& Fragment, APawn* Player
 {
     // 只在原生效阶段拦截；实体句柄来自当前Fragment映射，持续场伤害不会进入此入口。
     const FGuid AttackId = FGuid::NewGuid();
-    if (UPerfectDodgeComponent::TryDodgeMassHit(Player, Fragment.Id, GetEntity(Fragment.Id),
-                                               Fragment.Location, AttackId) ||
+    if (UPerfectDodgeComponent::TryDodgeMassHit(Player, Fragment.Id, GetEntity(Fragment.Id), Fragment.Location,
+                                                AttackId) ||
         UGuardParryComponent::TryParryMass(Player, Fragment.Id, GetEntity(Fragment.Id), Fragment.Location, AttackId))
     {
         return;
@@ -687,9 +824,14 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
     if (!Type || Fragment.Health <= 0)
         return;
     Fragment.Location = ConstrainToRoom(Fragment.Room, Fragment.Location, Type->Radius);
-    Fragment.AttackRemaining = FMath::Max(0.f, Fragment.AttackRemaining - DeltaTime);
-    Fragment.AttackVisualRemaining = FMath::Max(0.f, Fragment.AttackVisualRemaining - DeltaTime);
-    Fragment.AttackWindupRemaining = FMath::Max(0.f, Fragment.AttackWindupRemaining - DeltaTime);
+    const auto InitialExposure = Fragment.ElementalExposure.Get(GetWorld()->GetTimeSeconds());
+    const float AttackRate = InitialExposure == EAbilityExposure::Frozen    ? 0.f
+                             : InitialExposure == EAbilityExposure::Chilled ? AbilityElements::ChillAttackRate
+                                                                            : 1.f;
+    const float AttackDelta = DeltaTime * AttackRate;
+    Fragment.AttackRemaining = FMath::Max(0.f, Fragment.AttackRemaining - AttackDelta);
+    Fragment.AttackVisualRemaining = FMath::Max(0.f, Fragment.AttackVisualRemaining - AttackDelta);
+    Fragment.AttackWindupRemaining = FMath::Max(0.f, Fragment.AttackWindupRemaining - AttackDelta);
     Fragment.RootRemaining = FMath::Max(0.f, Fragment.RootRemaining - DeltaTime);
     Fragment.RootRecovery = FMath::Max(0.f, Fragment.RootRecovery - DeltaTime);
     if (Fragment.StatusRemaining > 0)
@@ -721,11 +863,14 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
     const float TerrainSlow = FMath::Min(UpdateTerrain(Fragment), SpellSlow);
     if (Fragment.Health <= 0)
         return;
+    // 水地接触能立即形成冻结，行动前读取本帧地表结算后的元素状态。
+    const auto Exposure = Fragment.ElementalExposure.Get(GetWorld()->GetTimeSeconds());
+    const bool bFrozen = Exposure == EAbilityExposure::Frozen;
     Fragment.Velocity = FVector::ZeroVector;
     Fragment.State = 0;
     const bool bStunned = Fragment.StunRemaining > 0;
     Fragment.StunRemaining = FMath::Max(0.f, Fragment.StunRemaining - DeltaTime);
-    if (Fragment.PetrifyRemaining > 0 || bStunned)
+    if (Fragment.PetrifyRemaining > 0 || bStunned || bFrozen)
     {
         Fragment.PendingAttackTarget.Reset();
         Fragment.AttackWindupRemaining = 0;
@@ -870,7 +1015,8 @@ void UPureMassSubsystem::UpdateMonster(FPureMassFragment& Fragment)
             }
         }
         Desired = PureMassMovement::Steer(Desired, Separation * 1.5f, bBlocked);
-        const float Speed = FinitePositive(Type->Speed) * FMath::Min(TerrainSlow, Fragment.StatusSlow);
+        const float IceRate = Exposure == EAbilityExposure::Chilled ? AbilityElements::ChillMoveRate : 1.f;
+        const float Speed = FinitePositive(Type->Speed) * FMath::Min(TerrainSlow, Fragment.StatusSlow) * IceRate;
         const float DistanceToCorner = FVector::Dist2D(Fragment.Location, Fragment.Path[Fragment.PathPoint]);
         Move(Fragment, Desired * FMath::Min(Speed * DeltaTime, DistanceToCorner));
         if (Fragment.Velocity.SizeSquared2D() > FMath::Square(10.f))

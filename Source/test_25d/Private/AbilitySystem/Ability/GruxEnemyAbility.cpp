@@ -109,8 +109,7 @@ bool UGruxEnemyAbility::BeginFollowup()
     Stage = 1;
     Snapshot = FrozenConfig->Followup;
     SnapshotDamage = BaseDamageSnapshot * Snapshot.DamageMultiplier;
-    Started = GetWorld()->GetTimeSeconds();
-    LastWarning = Started;
+    ResetAttackClock();
     bLocked = false;
     bMontageStarted = false;
     bHit = false;
@@ -138,7 +137,7 @@ void UGruxEnemyAbility::Advance()
         return;
     }
     if (Stage == 0 && Kind != EGruxAttackKind::Roar && bHit &&
-        GetWorld()->GetTimeSeconds() - Started >= Snapshot.RecoveryEnd)
+        SampleAttackClock(GetWorld()->GetTimeSeconds()) >= Snapshot.RecoveryEnd)
     {
         if (!BeginFollowup())
         {

@@ -102,6 +102,7 @@ FMyGameplayTags FMyGameplayTags::BuildTagSnapshot(bool bRegisterNativeTags)
     Snapshot.Damage_Fire = ResolveTag(TEXT("Damage.Fire"));
     Snapshot.Damage_Thunder = ResolveTag(TEXT("Damage.Thunder"));
     Snapshot.Damage_Water = ResolveTag(TEXT("Damage.Water"));
+    Snapshot.Damage_Ice = ResolveTag(TEXT("Damage.Ice"));
 
     Snapshot.Attributes_Resistance_Fire =
         ResolveTag(TEXT("Attributes.Resistance.Fire"));
@@ -124,6 +125,7 @@ FMyGameplayTags FMyGameplayTags::BuildTagSnapshot(bool bRegisterNativeTags)
     Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Magic, Snapshot.Attributes_Resistance_Magic);
     Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Physics, Snapshot.Attributes_Resistance_Physics);
     Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Water, Snapshot.Attributes_Resistance_Water);
+    Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Ice, Snapshot.Attributes_Resistance_Water);
     Snapshot.DamageTypesToResistance.Add(Snapshot.Damage_Pure, Snapshot.Attributes_Resistance_Pure);
 
     //

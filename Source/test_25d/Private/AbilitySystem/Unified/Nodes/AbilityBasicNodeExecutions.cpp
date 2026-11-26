@@ -3,6 +3,7 @@
 #include "AbilitySystem/Unified/Nodes/AbilityBasicNodeExecutions.h"
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityStatusService.h"
+#include "Materials/MaterialInterface.h"
 
 bool UAbilityDelayNodeConfig::Validate(FString& Error) const
 {
@@ -12,6 +13,22 @@ bool UAbilityDelayNodeConfig::Validate(FString& Error) const
         Error = TEXT("DelaySeconds must be finite and positive.");
     }
     return Error.IsEmpty();
+}
+
+bool UAbilityDelayNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error)
+{
+    if (Parameter != EAbilityConfigParameter::Duration)
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    Error.Reset();
+    if (!FMath::IsFinite(Value) || Value < .01f || Value > 60.f)
+    {
+        Error = TEXT("Delay requires a finite duration from 0.01 to 60 seconds.");
+        return false;
+    }
+    DelaySeconds = Value;
+    return true;
 }
 
 bool UAbilityPetrifyNodeConfig::Validate(FString& Error) const
@@ -97,9 +114,18 @@ bool UAbilityPetrifyNodeExecution::Start(UAbilityGraphInstance& Owner, const FGu
     FVector Location;
     const auto& Petrify = *CastChecked<UAbilityPetrifyNodeConfig>(&Config);
     if (!Input.LiveTargetToken.IsSet() || !AbilityExecutionIdentity::ResolveSource(Input.SourceToken, Source) ||
-        !AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Input.LiveTargetToken.GetValue(), Location) ||
-        !AbilityStatusService::ApplyPetrify(Source, Input.LiveTargetToken->Target, Petrify.DurationSeconds,
-                                            Petrify.StoneMaterial))
+        !AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Input.LiveTargetToken.GetValue(), Location))
+    {
+        Error = TEXT("Petrify requires a valid live target.");
+        return false;
+    }
+    auto* StoneMaterial = Petrify.StoneMaterial.Get();
+    // Mass 的石化材质由渲染批决定。仅 Actor 分支需要解析此可选材质引用。
+    if (!StoneMaterial && Input.LiveTargetToken->Target.IsActor() && !Petrify.SoftStoneMaterial.IsNull())
+    {
+        StoneMaterial = Petrify.SoftStoneMaterial.LoadSynchronous();
+    }
+    if (!AbilityStatusService::ApplyPetrify(Source, Input.LiveTargetToken->Target, Petrify.DurationSeconds, StoneMaterial))
     {
         Error = TEXT("Petrify requires a valid live target and successful state application.");
         return false;

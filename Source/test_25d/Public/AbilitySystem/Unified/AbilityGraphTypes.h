@@ -177,7 +177,19 @@ enum class EAbilityConfigParameter : uint8
     ForkConcurrent,
     TargetSelection,
     ConditionOutcome,
-    Chance
+    Chance,
+    TargetFilter,
+    HealthThreshold,
+    ElementalStatus,
+    TriggerCooldown,
+    ResourceAmount,
+    ElementConversion,
+    BarrierCapacity,
+    ExposureElement,
+    TerrainSurfaceKind,
+    QueryGeometry,
+    TerrainInputKind,
+    TerrainLayer
 };
 
 /** 节点私有配置由图资产实例化；运行时只读，不在这里保存定时器或状态。 */
@@ -252,6 +264,8 @@ class TEST_25D_API UAbilityDelayNodeConfig : public UAbilityNodeConfig
 
 public:
     virtual bool Validate(FString& Error) const override;
+    /** 工作台的Set.Duration只写真实等待秒数。 */
+    virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delay", meta = (ClampMin = "0.001"))
     float DelaySeconds = 0.25f;
 };
@@ -274,6 +288,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Petrify")
     TObjectPtr<UMaterialInterface> StoneMaterial;
+    /** 原生默认图可延迟加载表现。既有资产的直接材质引用保持优先。 */
+    UPROPERTY(EditAnywhere, Category = "Petrify")
+    TSoftObjectPtr<UMaterialInterface> SoftStoneMaterial;
 };
 
 UENUM()

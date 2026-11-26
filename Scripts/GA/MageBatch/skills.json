@@ -7,8 +7,8 @@
    ],"edges":[["Warning","OnExpire","Meteor"],["Meteor","OnExpire","Cinders"]]},
   {"id":"RimeSigil","name":"霜冻符域","summary":"维持 4 秒的霜域每秒造成伤害并减速，消失时向外爆裂。","mode":"GROUND","mana":22,"cooldown":7,"icon":7,
    "nodes":[
-    {"id":"FrostField","kind":"FIELD","damage":11,"radius":390,"duration":4,"period":1,"slow_multiplier":0.65,"slow_duration":1.15,"loop_vfx":"/Game/CompositionBatch6/NS_GlacialStorm"},
-    {"id":"FrostBurst","kind":"BURST","damage":28,"radius":460,"duration":0.1,"impact_vfx":"/Game/Art/CompositionEffects/NS_Frost_Impact"}
+    {"id":"FrostField","kind":"FIELD","element":"Ice","damage":11,"radius":390,"duration":4,"period":1,"slow_multiplier":0.65,"slow_duration":1.15,"loop_vfx":"/Game/CompositionBatch6/NS_GlacialStorm"},
+    {"id":"FrostBurst","kind":"BURST","element":"Ice","damage":28,"radius":460,"duration":0.1,"impact_vfx":"/Game/Art/CompositionEffects/NS_Frost_Impact"}
    ],"edges":[["FrostField","OnExpire","FrostBurst"]]},
   {"id":"PiercingTempest","name":"穿云雷球","summary":"向目标发射雷球，至多穿过 4 个敌人，飞行结束时爆裂。","mode":"ENEMY","mana":20,"cooldown":5,"icon":11,
    "nodes":[

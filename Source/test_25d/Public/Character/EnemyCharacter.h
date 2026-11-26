@@ -11,6 +11,7 @@
 #include "UI/WidgetController/OverlayWidgetController.h"
 #include "Equipment/SharedLootSubsystem.h"
 #include "AbilitySystem/Ability/EnemyCombatReactionAbilities.h"
+#include "AbilitySystem/Unified/AbilityElementalExposure.h"
 #include "Roguelike/DungeonEliteAffix.h"
 #include "Engine/TimerHandle.h"
 
@@ -18,7 +19,22 @@
 
 class UBehaviorTree;
 class AMyAIController;
+class UBrainComponent;
+class UNiagaraComponent;
 struct FOnAttributeChangeData;
+
+/** 同包复制状态及池租约，客户端不会把迟到的冻结表现挂到下一次生命。 */
+USTRUCT()
+struct FEnemyIceState
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    EAbilityExposure Exposure = EAbilityExposure::None;
+
+    UPROPERTY()
+    int32 Lease = 0;
+};
 /**
  * 
  */
@@ -106,6 +122,13 @@ public:
     void InitializeCombatReactions();
     void ApplyCombatDamageReaction(float ActualDamage, const FVector& Launch);
     bool IsCombatReactionBlocking() const;
+    /** 承伤提交后的权威回调。只持有冰系表现和行动控制，元素反应仍由承伤端计算。 */
+    void SetIceCombatState(EAbilityExposure Exposure, float Duration);
+    UFUNCTION(BlueprintPure, Category = "Combat|Ice")
+    bool IsIceFrozen() const;
+    UFUNCTION(BlueprintPure, Category = "Combat|Ice")
+    float GetIceAttackRate() const;
+    float GetIceMovementRate() const;
 
     virtual void StunTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 
@@ -167,6 +190,21 @@ protected:
     }
 
 private:
+    /** 到期或死亡时移除本次生命持有的冰系状态。 */
+    void ClearIceCombatState();
+    /** 服务器主动刷新，客户端收到冰状态、池租约或死亡后重新协调表现。 */
+    UFUNCTION()
+    void OnRep_IceCombatState();
+    EAbilityExposure GetActiveIceCombatState() const;
+    UPROPERTY(ReplicatedUsing = OnRep_IceCombatState)
+    FEnemyIceState IceCombatState;
+    FTimerHandle IceExpiry;
+    TWeakObjectPtr<UBrainComponent> IcePausedBrain;
+    UPROPERTY(Transient)
+    TObjectPtr<UNiagaraComponent> IceVisual;
+    TOptional<float> PreFreezeAnimRate;
+    TOptional<TPair<EMovementMode, uint8>> PreFreezeMovementMode;
+
     // 清理词缀专属计时和委托，死亡复制与 EndPlay 都可以安全调用。
     void ClearDungeonEliteAffix();
     void OnDungeonEliteHealthChanged(const FOnAttributeChangeData& Data);

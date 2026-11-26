@@ -171,6 +171,7 @@ void AMyPlayerController::ReleaseRecipeInput()
     }
 }
 
+// 调试命令打开独立图面板；人物第四页在普通游戏入口显示卡片。
 void AMyPlayerController::RuntimeRecipe()
 {
 #if !UE_BUILD_SHIPPING
@@ -178,19 +179,37 @@ void AMyPlayerController::RuntimeRecipe()
     {
         return;
     }
-    auto* HUD = GetHUD<AMyHUD>();
-    if (!HUD)
+    if (auto* Existing = RecipeDebugPanel.Get(); Existing && Existing->IsInViewport())
+    {
+        if (Existing->IsVisible())
+        {
+            Existing->ClosePanel();
+        }
+        else
+        {
+            Existing->SetVisibility(ESlateVisibility::Visible);
+            RegisterGameplayMenu(Existing);
+        }
+        return;
+    }
+    auto* Developer = GetRecipeDeveloper();
+    if (!Developer || IsGameplayMenuVisible())
     {
         return;
     }
-    auto* Menu = HUD->GetCharacterMenu();
-    if (Menu && Menu->IsInViewport() && Menu->IsVisible() && Menu->GetActivePage() == 3)
+    auto* Panel = CreateWidget<UAbilityRuntimeRecipePanel>(this);
+    if (!Panel)
     {
-        Menu->RequestCloseMenu();
         return;
     }
-    ReleaseRecipeInput();
-    HUD->ShowCharacterMenu(3);
+    RecipeDebugPanel = Panel;
+    Panel->InitializePanel(Developer);
+    Panel->OnHiddenForCasting.AddWeakLambda(this, [this, WeakPanel = RecipeDebugPanel]
+    {
+        UnregisterGameplayMenu(WeakPanel.Get());
+    });
+    Panel->AddToViewport(20);
+    RegisterGameplayMenu(Panel);
 #endif
 }
 
@@ -276,6 +295,10 @@ void AMyPlayerController::RemoveMenuKeyboardRouting()
 void AMyPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     ReleaseRecipeInput();
+    if (auto* Panel = RecipeDebugPanel.Get())
+    {
+        Panel->RemoveFromParent();
+    }
     if (ObservedBackpack.IsValid())
     {
         ObservedBackpack->OnSlotClicked.Remove(BackpackClickHandle);
@@ -546,6 +569,16 @@ void AMyPlayerController::ServerRequestUse_Implementation(int32 SlotIndex)
         MyPlayerState->GetBackpackComponent()->TryUseItemForPawn(SlotIndex, GetPawn());
     }
 }
+// 同一 PlayerState 被无缝旅行保留时，也要在第一场战斗前清除旧世界快照。
+void AMyPlayerController::PostSeamlessTravel()
+{
+    Super::PostSeamlessTravel();
+    if (auto* State = GetPlayerState<AMyPlayerState>())
+    {
+        State->SetKillScoreRoom(NAME_None);
+    }
+}
+
 // 开始游戏后尝试初始化本地输入。
 void AMyPlayerController::BeginPlay()
 {

@@ -82,6 +82,24 @@ struct TEST_25D_API FAbilityRuntimeDeveloperEdit
     FName SourceId;
 };
 
+/** 玩家页的卡片投影。安装来源和图位置由服务器解析与保存。 */
+USTRUCT()
+struct FAbilityRuntimeWorkshopCardView
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FName Id;
+    UPROPERTY()
+    FString Slot;
+    UPROPERTY()
+    FString Label;
+    UPROPERTY()
+    FString Description;
+    UPROPERTY()
+    bool bInstalled = false;
+};
+
 /** 只向所属玩家同步可显示的值，不把服务器瞬态图引用发给客户端。 */
 USTRUCT(BlueprintType)
 struct TEST_25D_API FAbilityRuntimeDeveloperState
@@ -110,6 +128,12 @@ struct TEST_25D_API FAbilityRuntimeDeveloperState
     /** 区分新面板自有nonce与旧工具创建的服务器预览，不能认领别的图面板会话。 */
     UPROPERTY(BlueprintReadOnly)
     bool bGraphPanelSession = false;
+    UPROPERTY()
+    bool bCardPanelSession = false;
+    UPROPERTY()
+    TArray<FAbilityRuntimeWorkshopCardView> Cards;
+    UPROPERTY()
+    FName DraftCard;
     UPROPERTY(BlueprintReadOnly)
     FAbilityRuntimeGraphView AcceptedGraph;
     UPROPERTY(BlueprintReadOnly)
@@ -142,6 +166,10 @@ public:
     bool ApplyEdit(const FAbilityRuntimeDeveloperEdit& Edit, FString& Error);
     /** 仅生成同租约/版本下的私有候选，配置跨GC保活；不发布新版本或执行任何游戏动作。 */
     bool PreviewGraphEdit(const FAbilityRuntimeDeveloperEdit& Edit, FString& Error);
+    /** 只接受当前会话的卡片 ID，服务器用当前版本重新定位并编译候选。 */
+    bool PreviewCard(FName CardId, FGuid Session, int32 ExpectedRevision, FString& Error);
+    /** 第四页只列出具备首批卡片的现有技能。 */
+    static FText GetCardAbilityLabel(FGameplayTag AbilityTag);
     /** 只提交准确草稿；旧令牌/版本/外部修改均拒绝，应用重用已冻结片段及节点身份。 */
     bool ApplyGraphDraft(FGuid Token, int32 ExpectedRevision, FString& Error);
     /** 准确移除自己的历史来源；依赖仍存在时编译拒绝，不悄悄丢弃其它已接受规则。 */
@@ -197,6 +225,12 @@ public:
     /** 开始请求绑定面板自有随机身份，使开始回执前的析构关闭也不会误关后来会话。 */
     UFUNCTION(Server, Reliable)
     void ServerBeginGraphPreview(FName DefinitionId, FGuid RequestedSessionId);
+    UFUNCTION(Server, Reliable)
+    void ServerBeginCardPreview(FName DefinitionId, FGuid RequestedSessionId);
+    UFUNCTION(Server, Reliable)
+    void ServerPreviewCard(FName CardId, FGuid Session, int32 ExpectedRevision);
+    UFUNCTION(Server, Reliable)
+    void ServerRemoveCard(FName CardId, FGuid Session, int32 ExpectedRevision);
     UFUNCTION(Server, Reliable)
     void ServerApplyEdit(const FAbilityRuntimeDeveloperEdit& Edit);
     UFUNCTION(Server, Reliable)
@@ -259,6 +293,8 @@ private:
     TArray<FName> OwnedSources;
     FGuid PreviewId;
     FGuid GraphPanelSessionId;
+    bool bCardPanel = false;
+    TMap<FName, FName> InstalledCardsBySource;
     FString PreviewBaseHash;
     UPROPERTY(Transient)
     FAbilityRuntimeRecipeContribution PendingGraphContribution;
@@ -293,6 +329,11 @@ private:
     void PruneObservations();
     /** 复制下一次施法实际使用的图，并保留服务器提交顺序；刷新日志不会重新创建图节点。 */
     void RefreshGraphView();
+    /** 仅从接受的权威配置投影选项，工具图不参与玩家状态复制。 */
+    void RefreshCardView();
+    /** 编译并冻结草稿，再共用原精确令牌提交。 */
+    bool StageGraphContribution(const FAbilityRuntimeRecipeContribution& Contribution, FName CardId,
+                                FString& Error);
     /** 所有修改/租约失效先清除候选，避免旧令牌在新会话中重放。 */
     void InvalidateGraphDraft();
     /** 复制已接受端口载荷及原生命标识，不重新查找目标或结算伤害。 */

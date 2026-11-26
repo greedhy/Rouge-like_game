@@ -56,9 +56,15 @@ public:
     // 验证角色存活、阵营与落地条件，并检查脚底是否位于地块局部范围内。
     UFUNCTION(BlueprintPure, Category = "Terrain")
     bool CanAffectCharacter(ABaseCharacter* Character) const;
+    /** 只有云层使用统一体积，Actor 与 Mass 均以身体中心而非脚底采样。 */
+    bool ContainsCloudSample(const FVector& BodyCenter) const;
     // 服务器进行宽范围重叠查询，按角色去重后向状态组件续期有效接触。
     UFUNCTION(BlueprintCallable, Category = "Terrain")
     void UpdateContacts();
+
+protected:
+    /** 租约仍存地面锚点。云类的表现与体积使用同一个向上偏移。 */
+    static constexpr float CloudCenterHeight = 105.f;
 
 private:
     // 尺寸复制到客户端后重新应用构造期的网格和特效缩放。

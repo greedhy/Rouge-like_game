@@ -122,6 +122,7 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
         return;
     // Mark terminal state before loot/ability callbacks can reenter Die.
     bDead = true;
+    ClearIceCombatState();
     BloodFX->NotifyDeath(FMath::Abs(DungeonPoolLife), GetActorLocation(), DeathImpulse,
                          GetLootRank() != EEnemyLootRank::Normal);
     ClearDungeonEliteAffix();
@@ -158,6 +159,8 @@ void AEnemyCharacter::Die(const FVector& DeathImpulse)
 
 void AEnemyCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    IcePausedBrain.Reset();
+    ClearIceCombatState();
     ClearDungeonEliteAffix();
     if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
         Manager->UnregisterEnemy(this);
@@ -197,6 +200,7 @@ void AEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
     DOREPLIFETIME(AEnemyCharacter, DungeonPoolDeathImpulse);
     DOREPLIFETIME(AEnemyCharacter, DungeonEliteAffix);
     DOREPLIFETIME(AEnemyCharacter, bDungeonEliteEnraged);
+    DOREPLIFETIME(AEnemyCharacter, IceCombatState);
 }
 
 void AEnemyCharacter::EnableDungeonPooling(float CorpseSeconds)
@@ -306,6 +310,7 @@ void AEnemyCharacter::OnRep_DungeonPoolLife()
         GetCharacterMovement()->SetMovementMode(MOVE_Walking);
         RefreshMovementSpeed();
     }
+    OnRep_IceCombatState();
     ReconcileEnemyPresentation();
 }
 
@@ -325,6 +330,7 @@ void AEnemyCharacter::SleepForDungeonPool(bool bKeepCorpse)
     bPoolResetDone = true;
     DungeonPoolLife = -FMath::Max(1, FMath::Abs(DungeonPoolLife));
     bDead = true;
+    ClearIceCombatState();
     SetLifeSpan(0);
     if (auto* Manager = GetWorld()->GetSubsystem<UMonsterManagementSubsystem>())
         Manager->UnregisterEnemy(this);
@@ -470,7 +476,8 @@ void AEnemyCharacter::InitializeCombatReactions()
 
 void AEnemyCharacter::ApplyCombatDamageReaction(float ActualDamage, const FVector& Launch)
 {
-    if (!HasAuthority() || bDead || IsDungeonPoolSleeping() || !FMath::IsFinite(ActualDamage) || ActualDamage <= 0.f ||
+    if (!HasAuthority() || bDead || IsDungeonPoolSleeping() || IsIceFrozen() ||
+        !FMath::IsFinite(ActualDamage) || ActualDamage <= 0.f ||
         !AbilitySystemComponent->FindAbilitySpecFromHandle(PoiseBreakSpec))
     {
         return;
@@ -514,15 +521,15 @@ void AEnemyCharacter::ApplyCombatDamageReaction(float ActualDamage, const FVecto
 
 bool AEnemyCharacter::IsCombatReactionBlocking() const
 {
-    return AbilitySystemComponent &&
+    return IsIceFrozen() || (AbilitySystemComponent &&
            (AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::Hitstun) ||
-            AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::PoiseBroken));
+            AbilitySystemComponent->HasMatchingGameplayTag(EnemyCombatReactionTags::PoiseBroken)));
 }
 
 void AEnemyCharacter::OnCombatReactionTagChanged(FGameplayTag Tag, int32 Count)
 {
     HitReactTagChanged(Tag, Count);
-    if (bDead || IsDungeonPoolSleeping() || !IsCombatReactionBlocking())
+    if (bDead || IsDungeonPoolSleeping() || IsIceFrozen() || !IsCombatReactionBlocking())
     {
         StopCombatReactionPresentation();
         return;
@@ -603,6 +610,7 @@ bool AEnemyCharacter::CanFinishPoolReturn() const
 void AEnemyCharacter::MulticastHandleDeath_Implementation(const FVector& DeathImpulse)
 {
     Super::MulticastHandleDeath_Implementation(DeathImpulse);
+    OnRep_IceCombatState();
     ClearDungeonEliteAffix();
     InvalidateEnemyAttack();
     SetActorTickEnabled(false);

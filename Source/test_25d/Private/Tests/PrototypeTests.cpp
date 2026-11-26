@@ -1123,11 +1123,18 @@ bool FPrototypeFourthCompositions::RunTest(const FString&)
             }
         }
         const FString Skill(Name);
-        const float Expected = Skill == TEXT("Aftershock")   ? 36.f
-                               : Skill == TEXT("FrostFault") ? 22.f
-                               : Skill == TEXT("RippleMine") ? 28.f
-                                                             : 84.f;
-        TestEqual(*FString::Printf(TEXT("%s real GE damage"), Name), F.Health(Enemy), 1000.f - Expected);
+        float Expected = Skill == TEXT("Aftershock") ? 36.f : Skill == TEXT("FrostFault") ? 22.f : 28.f;
+        if (Skill == TEXT("HunterSentry"))
+        {
+            const auto* Shot = C->OnPeriod.Get();
+            const auto* Burst = Shot ? Shot->OnHit.Get() : nullptr;
+            TestTrue(TEXT("HunterSentry alternates the authored Fire shot and Arcane burst"),
+                     Shot && Burst && Shot->DamageType == FMyGameplayTags::Get().Damage_Fire &&
+                         Burst->DamageType == FMyGameplayTags::Get().Damage_Magic);
+            // 三次火弹与三次奥术爆点。第一颗火弹先施加灼热，其余五次交替命中增幅20%。
+            Expected = 18.f + 2.f * 18.f * 1.2f + 3.f * 10.f * 1.2f;
+        }
+        TestEqual(*FString::Printf(TEXT("%s real GE damage"), Name), F.Health(Enemy), 1000.f - Expected, .001f);
         TestEqual(*FString::Printf(TEXT("%s child count"), Name), Context->Spawned,
                   Skill == TEXT("HunterSentry") ? 7
                   : Skill == TEXT("FrostFault") ? 2

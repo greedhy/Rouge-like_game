@@ -121,6 +121,7 @@ public:
     FGameplayTag Damage_Fire;
     FGameplayTag Damage_Thunder;
     FGameplayTag Damage_Water;
+    FGameplayTag Damage_Ice;
     //属性伤害抗性
     FGameplayTag Attributes_Resistance_Fire;    //火属性伤害抵抗 标签
     FGameplayTag Attributes_Resistance_Water;   //水属性伤害抵抗 标签

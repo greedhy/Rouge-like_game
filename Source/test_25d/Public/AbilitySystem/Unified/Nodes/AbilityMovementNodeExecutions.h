@@ -68,16 +68,28 @@ public:
     float Height = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Duration = .3f;
+    /** 显式启用地面目标限距和实际落点输出。原动画位移继续使用旧参数和端口行为。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bUseGroundTarget = false;
+
+    /** GroundDash 能消费地面目标，在实际完成至少一次水平位移后输出 Landed。 */
+    bool UsesGroundTarget() const;
+    /** 校验旧位移参数，地面瞄准额外限制距离和占用时长。 */
     virtual bool Validate(FString& Error) const override;
+    /** 为地面瞄准模式开放距离和持续时间两条类型化配置轴。 */
+    virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
 };
 UCLASS(Transient)
 class TEST_25D_API UAbilityCharacterMoveNodeExecution : public UAbilityNodeExecution
 {
     GENERATED_BODY()
 public:
+    /** 固定本次源位置与最大位移，取得角色移动的排他租约。 */
     virtual bool Start(UAbilityGraphInstance& Owner, const FGuid& Id, const UAbilityNodeConfig& Config,
                        const FAbilityNodeInput& Input, FString& Error) override;
+    /** 推进有界位移，受阻时以真实角色位置收尾。 */
     virtual void Advance(float Delta) override;
+    /** 原生命仍有效时恢复移动状态，取消不能发布落点业务端口。 */
     virtual void Stop(EAbilityGraphEndReason Reason) override;
 
 private:
@@ -87,6 +99,8 @@ private:
     TObjectPtr<UAbilityMovementOwnershipComponent> MovementOwnership;
     FGuid MovementLease;
     FAbilityCharacterMoveState State;
+    FVector StartLocation = FVector::ZeroVector;
+    float TravelDistance = 0.f;
     float Elapsed = 0.f;
     int32 OriginRoom = INDEX_NONE;
     bool bBlockedPublished = false;

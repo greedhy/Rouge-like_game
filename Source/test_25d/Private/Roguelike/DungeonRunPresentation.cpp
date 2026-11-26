@@ -179,7 +179,7 @@ void ADungeonRunDirector::UpdatePlayerViews()
         auto* PC = Cast<ADungeonRunController>(It->Get());
         if (!PC)
             continue;
-        const auto* State = PC->GetPlayerState<AMyPlayerState>();
+        auto* State = PC->GetPlayerState<AMyPlayerState>();
         if (!State)
             continue;
         FDungeonPlayerRunView View;
@@ -209,6 +209,7 @@ void ADungeonRunDirector::UpdatePlayerViews()
                         View.Purchased[Offer] = Economy->IsPurchased(PlayerId, ShopReceipt(Room.RoomId, Offer));
             }
         }
+        State->SetKillScoreRoom(View.CurrentRoom);
         PC->RunView = MoveTemp(View);
         PC->ForceNetUpdate();
     }

@@ -72,7 +72,7 @@ try:
     huntershot=node(COMBO,'DA_HunterSentry_Shot','Homing',display_name='Hunter Bolt',damage=18.0,damage_per_level=3.0,range=900.0,speed=650.0,duration=3.0,on_hit=hunterblast)
     combinations={
         'Aftershock':('Burst',dict(delay,display_name='Aftershock',on_expire=afterring,mana_cost=22.0,cooldown=6.0)),
-        'FrostFault':('Projectile',dict(line,display_name='Frost Fault',damage=22.0,damage_per_level=4.0,damage_type=tag('Damage.Magic'),on_hit=frost,mana_cost=20.0,cooldown=5.0)),
+        'FrostFault':('Projectile',dict(line,display_name='Frost Fault',damage=22.0,damage_per_level=4.0,damage_type=tag('Damage.Ice'),on_hit=frost,mana_cost=20.0,cooldown=5.0)),
         'RippleMine':('Trap',dict(display_name='Ripple Mine',damage=0.0,damage_per_level=0.0,radius=220.0,duration=12.0,on_expire=mine_delay,mana_cost=20.0,cooldown=6.0)),
         'HunterSentry':('Burst',dict(kind=u.AbilityPrototypeKind.EMITTER,display_name='Hunter Sentry',target_self=True,damage=0.0,damage_per_level=0.0,radius=700.0,period=1.0,count=3,duration=5.0,on_period=huntershot,loop_vfx=halo,impact_vfx=None,mana_cost=24.0,cooldown=7.0)),
     }

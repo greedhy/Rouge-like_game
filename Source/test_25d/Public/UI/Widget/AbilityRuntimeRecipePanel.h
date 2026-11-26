@@ -15,6 +15,8 @@ class UVerticalBox;
 class UButton;
 class UHorizontalBox;
 class UPanelWidget;
+class UNativeWidgetHost;
+class USizeBox;
 struct FAbilityRuntimeDeveloperEdit;
 struct FAbilityRuntimeDeveloperState;
 
@@ -60,10 +62,26 @@ public:
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
     virtual void NativeDestruct() override;
 
 private:
     bool bEmbeddedPage = false;
+    UPROPERTY(Transient)
+    TObjectPtr<USizeBox> PageBounds;
+    /** 依据所属游戏视口的 DPI 后尺寸调整页面，滚动区域保留完整按钮大小。 */
+    void UpdatePageSize();
+    /** 下拉控件的关闭态、列表行和选中态共用清晰的浅色样式。 */
+    void ConfigureSelector(UComboBoxString* Selector);
+    UFUNCTION()
+    UWidget* GenerateSelectorOption(FString Option);
+    /** 第四页按卡片协议显示，调试入口仍由原画布构建。 */
+    UPROPERTY(Transient)
+    TObjectPtr<UNativeWidgetHost> CardHost;
+    TArray<FName> CardDefinitionIds;
+    void BuildCardPage(UVerticalBox* Column);
+    void RefreshCardPage(const FAbilityRuntimeDeveloperState& State);
+    void RefreshCardCatalog();
     void CompleteClose();
     UPROPERTY(Transient)
     TObjectPtr<UAbilityRuntimeRecipeDeveloperComponent> Component;

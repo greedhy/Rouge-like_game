@@ -98,9 +98,17 @@ class TEST_25D_API UAbilityTargetDisplaceNodeConfig : public UAbilityNodeConfig
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TObjectPtr<UExtensionNode> Settings;
+    /** 推开时沿权威施法方向；原配置默认继续使用传入位置作为径向中心。 */
+    UPROPERTY(EditAnywhere, Category = "Displacement")
+    bool bUseCastDirection = false;
+    /** 多目标控场可单独跳过移动服务拒绝的目标。 */
+    UPROPERTY(EditAnywhere, Category = "Displacement")
+    bool bContinueOnRejected = false;
     virtual bool Validate(FString& Error) const override;
     /** 位移配置修改必须私有化Settings，不能写回资产或另一玩家共享的原设置。 */
     virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
+    /** 缩放实际移动时长，数值范围与直接设值使用同一校验。 */
+    virtual bool TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier) override;
 };
 
 UCLASS(Transient)

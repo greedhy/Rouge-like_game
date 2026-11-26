@@ -147,11 +147,20 @@ public:
     {
         return Snapshot ? Snapshot->Budget.MaxInvocations : 0;
     }
+    /** 每根施法按图节点身份计数。调用结束不重置，整根结束/取消后释放。 */
+    bool AdmitDamageTrigger(const FGuid& InvocationId, int32 Every, int32 Limit, float Cooldown);
 
     FAbilityGraphFinished OnFinished;
     FAbilityGraphEventObserved OnEvent;
 
 private:
+    struct FDamageTriggerState
+    {
+        int32 SinceLast = 0;
+        int32 Passed = 0;
+        double NextAllowedTime = 0.;
+    };
+    TMap<FGuid, FDamageTriggerState> DamageTriggers;
     struct FInvocation
     {
         FGuid NodeId;

@@ -5,7 +5,9 @@
 #include "AbilitySystem/Unified/AbilityGraphInstance.h"
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
 #include "AbilitySystem/Unified/AbilityTargetSet.h"
+#include "AbilitySystem/Unified/AbilityTargetSelectionService.h"
 #include "AbilitySystem/Unified/AbilityStatusService.h"
+#include "Algo/StableSort.h"
 #include "Character/EnemyCharacter.h"
 #include "Engine/World.h"
 
@@ -15,6 +17,10 @@ bool UAbilityPetrifyAreaQueryConfig::Validate(FString& Error) const
     if (!FMath::IsFinite(Radius) || Radius < 0.f)
     {
         Error = TEXT("Petrify query requires a finite nonnegative original radius.");
+    }
+    else if (FocusedTargetCount < 0 || FocusedTargetCount > 16)
+    {
+        Error = TEXT("Focused petrify accepts between zero and sixteen targets.");
     }
     return Error.IsEmpty();
 }
@@ -28,6 +34,22 @@ bool UAbilityPetrifyAreaQueryConfig::TryScaleRecipeParameter(EAbilityConfigScala
     }
     Radius *= Multiplier;
     return true;
+}
+
+bool UAbilityPetrifyAreaQueryConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value,
+                                                           FString& Error)
+{
+    if (Parameter != EAbilityConfigParameter::Count)
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    if (!FMath::IsFinite(Value) || Value < 1.f || Value > 16.f || FMath::RoundToFloat(Value) != Value)
+    {
+        Error = TEXT("Focused petrify requires a whole target count from one to sixteen.");
+        return false;
+    }
+    FocusedTargetCount = static_cast<int32>(Value);
+    return Validate(Error);
 }
 
 bool UAbilityPetrifyAreaQueryConfig::SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
@@ -146,6 +168,30 @@ bool UAbilityPetrifyAreaQueryExecution::Start(UAbilityGraphInstance& Owner, cons
     {
         Error = TEXT("Complete petrify selection exceeds the typed target-set capacity; no prefix was applied.");
         return false;
+    }
+    if (Settings->FocusedTargetCount > 0)
+    {
+        // 先从原合法目标读取一次血量再排序。并列维持原查询顺序，应用时仍复核原生命。
+        struct FRankedTarget
+        {
+            FAbilityTargetToken Life;
+            float HealthRatio;
+        };
+        TArray<FRankedTarget> Ranked;
+        Ranked.Reserve(Targets->Targets.Num());
+        for (auto& Life : Targets->Targets)
+        {
+            const float HealthRatio =
+                AbilityTargetSelectionService::ReadHealthRatio(Life).Get(TNumericLimits<float>::Max());
+            Ranked.Add({MoveTemp(Life), HealthRatio});
+        }
+        Algo::StableSortBy(Ranked, &FRankedTarget::HealthRatio);
+        const int32 Count = FMath::Min(Settings->FocusedTargetCount, Ranked.Num());
+        Targets->Targets.Reset(Count);
+        for (int32 Index = 0; Index < Count; ++Index)
+        {
+            Targets->Targets.Add(MoveTemp(Ranked[Index].Life));
+        }
     }
     auto Payload = Input;
     Payload.TargetSet = MoveTemp(Targets);

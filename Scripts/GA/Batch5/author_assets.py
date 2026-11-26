@@ -73,7 +73,7 @@ roots['Stack']=projectile('Prototype_Stack',mark,damage=12.0,**rootvals('叠层�
 roots['Displace']=node('Prototype_Displace',K.DISPLACE,target_self=False,duration=.45,radius=320.0,loop_vfx=halo,**rootvals('牵引脉冲',16.0,5.0,'向指定中心牵引敌人'))
 stormchain=node('StormBrand_Chain',K.CHAIN,damage=10.0,damage_per_level=2.0,damage_type=tag('Damage.Thunder'),count=3,period=.15,duration=1.0,radius=350.0,damage_falloff=.75,loop_vfx=chain.get_editor_property('loop_vfx'),impact_vfx=sparks)
 roots['StormBrand']=node('StormBrand',K.ATTACH,period_child=stormchain,loop_vfx=sparks,**rootvals('雷霆烙印',24.0,7.0,'附着放出雷链，死亡后转移'))
-frostpulse=explosion('FrostParasite_Pulse',8.0,120.0)
+frostpulse=explosion('FrostParasite_Pulse',8.0,120.0,'Ice')
 frostground=ground('FrostParasite_Ground',frost)
 roots['FrostParasite']=node('FrostParasite',K.ATTACH,period_child=frostpulse,complete_child=frostground,loop_vfx=load('/Game/Art/TerrainSurfaces/Effects/NS_Frost_Status'),**rootvals('寒霜寄生',20.0,6.0,'周期脉冲，结束留下冰霜地表'))
 emberblast=explosion('EmberBrand_Blast',35.0,180.0,'Fire')

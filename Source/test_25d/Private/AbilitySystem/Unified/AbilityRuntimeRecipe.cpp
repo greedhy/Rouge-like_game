@@ -274,22 +274,8 @@ namespace
                 return true;
             }
         }
-        if (Operation == EAbilityRecipePatchOperation::DamageScale)
-        {
-            if (auto* Damage = Cast<UAbilityDamageNodeConfig>(&Config))
-            {
-                Damage->Damage *= Scale;
-                Damage->DamagePerLevel *= Scale;
-                return true;
-            }
-        }
         if (Operation == EAbilityRecipePatchOperation::RadiusScale)
         {
-            if (auto* Query = Cast<UAbilityQueryNodeConfig>(&Config))
-            {
-                Query->Query.Radius *= Scale;
-                return true;
-            }
             if (auto* Nova = Cast<UAbilityNovaNodeConfig>(&Config))
             {
                 Nova->Radius *= Scale;
@@ -920,7 +906,8 @@ bool AbilityRuntimeRecipes::Compile(UObject* Outer, const UAbilityGraphDefinitio
                     const FString AxisKey =
                         Target.ToString() + TEXT(":") + FString::FromInt(static_cast<int32>(Patch.Parameter));
                     if (!FMath::IsFinite(Patch.Scalar) ||
-                        static_cast<uint8>(Patch.Parameter) > static_cast<uint8>(EAbilityConfigParameter::Chance) ||
+                        static_cast<uint8>(Patch.Parameter) >
+                            static_cast<uint8>(EAbilityConfigParameter::TerrainLayer) ||
                         !Node->Config || (Replaced.Contains(Target) && !CanFollow(LastNodeWriter.FindRef(Target))) ||
                         (ConfiguredAxes.Contains(AxisKey) && !CanFollow(LastAxisWriter.FindRef(AxisKey))))
                     {

@@ -8,9 +8,16 @@ void UAbilityRuntimeRecipeDeveloperComponent::RefreshGraphView()
 {
     DeveloperState.PreviewSessionId = GraphPanelSessionId.IsValid() ? GraphPanelSessionId : PreviewId;
     DeveloperState.bGraphPanelSession = GraphPanelSessionId.IsValid();
+    DeveloperState.bCardPanelSession = bCardPanel && DeveloperState.bPreviewActive;
     DeveloperState.AcceptedGraph = {};
+    DeveloperState.Cards.Reset();
     if (!DeveloperState.bPreviewActive)
     {
+        return;
+    }
+    if (bCardPanel)
+    {
+        RefreshCardView();
         return;
     }
     FAbilityRuntimeRecipeSnapshot Snapshot;
@@ -33,6 +40,7 @@ void UAbilityRuntimeRecipeDeveloperComponent::InvalidateGraphDraft()
     DeveloperState.DraftGraph = {};
     DeveloperState.DraftToken.Invalidate();
     DeveloperState.DraftError.Reset();
+    DeveloperState.DraftCard = NAME_None;
 }
 
 bool UAbilityRuntimeRecipeDeveloperComponent::PreviewGraphEdit(const FAbilityRuntimeDeveloperEdit& Edit, FString& Error)
@@ -44,7 +52,7 @@ bool UAbilityRuntimeRecipeDeveloperComponent::PreviewGraphEdit(const FAbilityRun
     }
     const auto* Entry = Entries.Find(DeveloperState.AbilityTag);
     const FGuid Session = GraphPanelSessionId.IsValid() ? GraphPanelSessionId : PreviewId;
-    if (!DeveloperState.bPreviewActive || !Entry || !Entry->Base || !Entry->Compiled ||
+    if (bCardPanel || !DeveloperState.bPreviewActive || !Entry || !Entry->Base || !Entry->Compiled ||
         Edit.DefinitionId != DeveloperState.SelectedId || Edit.ExpectedPreviewSessionId != Session ||
         !Edit.TargetNodeId.IsValid() || !Edit.SourceId.IsNone())
     {
@@ -89,40 +97,58 @@ bool UAbilityRuntimeRecipeDeveloperComponent::PreviewGraphEdit(const FAbilityRun
         Priority = FMath::Max(Priority, Contribution.Priority + 1);
     }
     FAbilityRuntimeRecipeContribution Contribution;
-    const FGuid Token = FGuid::NewGuid();
     Contribution.SourceId = FName(*FString::Printf(TEXT("Workshop.%s.%d.%s"), *PreviewId.ToString(),
-                                                   NextGraphEditSequence + 1, *Token.ToString()));
+                                                   NextGraphEditSequence + 1, *FGuid::NewGuid().ToString()));
     Contribution.Priority = Priority;
     Contribution.bOrderedWorkshopEdit = true;
     Contribution.Patches.Add(Patch);
-    auto Contributions = Entry->Contributions;
+    return StageGraphContribution(Contribution, NAME_None, Error);
+}
+
+bool UAbilityRuntimeRecipeDeveloperComponent::StageGraphContribution(
+    const FAbilityRuntimeRecipeContribution& Contribution, FName CardId, FString& Error)
+{
+    const auto& Entry = Entries.FindChecked(DeveloperState.AbilityTag);
+    auto Contributions = Entry.Contributions;
+    Contributions.RemoveAll([&Contribution](const FAbilityRuntimeRecipeContribution& Existing)
+    {
+        return Existing.SourceId == Contribution.SourceId;
+    });
     Contributions.Add(Contribution);
     UAbilityGraphDefinition* Compiled = nullptr;
-    if (!AbilityRuntimeRecipes::Compile(this, Entry->Base, Contributions, Compiled, Error))
+    if (!AbilityRuntimeRecipes::Compile(this, Entry.Base, Contributions, Compiled, Error))
     {
+        if (!CardId.IsNone())
+        {
+            return Reject(TEXT("这张卡与当前改装不兼容。可以先拆除冲突的卡片。"), Error);
+        }
         DeveloperState.DraftError = Error;
         return Reject(Error, Error);
     }
     FAbilityRuntimeRecipeSnapshot Snapshot;
     Snapshot.AbilityTag = DeveloperState.AbilityTag;
-    Snapshot.Revision = Entry->Revision + 1;
+    Snapshot.Revision = Entry.Revision + 1;
     Snapshot.Graph = Compiled;
     Snapshot.ContentHash = AbilityRuntimeRecipes::Fingerprint(*Compiled);
     FAbilityRuntimeGraphView View;
-    if (!AbilityRuntimeGraphViews::Build(Snapshot, View, Error))
+    if (CardId.IsNone() && !AbilityRuntimeGraphViews::Build(Snapshot, View, Error))
     {
         return Reject(Error, Error);
     }
     // 只替换已验证的新候选；片段实例及GUID随后应用时不再从模板重建。
     InvalidateGraphDraft();
-    PendingGraphContribution = MoveTemp(Contribution);
-    PendingGraphSession = Session;
-    PendingGraphRevision = Entry->Revision;
-    PendingGraphAcceptedHash = AcceptedHash;
-    DeveloperState.DraftToken = Token;
-    DeveloperState.DraftGraph = MoveTemp(View);
-    DeveloperState.DraftGraph.AppliedSources = OwnedSources;
-    DeveloperState.DraftGraph.AppliedSources.Add(PendingGraphContribution.SourceId);
+    PendingGraphContribution = Contribution;
+    PendingGraphSession = DeveloperState.PreviewSessionId;
+    PendingGraphRevision = Entry.Revision;
+    PendingGraphAcceptedHash = AbilityRuntimeRecipes::Fingerprint(*Entry.Compiled);
+    DeveloperState.DraftToken = FGuid::NewGuid();
+    DeveloperState.DraftCard = CardId;
+    if (CardId.IsNone())
+    {
+        DeveloperState.DraftGraph = MoveTemp(View);
+        DeveloperState.DraftGraph.AppliedSources = OwnedSources;
+        DeveloperState.DraftGraph.AppliedSources.Add(Contribution.SourceId);
+    }
     ++NextGraphEditSequence;
     PublishState();
     return true;
@@ -146,9 +172,11 @@ bool UAbilityRuntimeRecipeDeveloperComponent::ApplyGraphDraft(FGuid Token, int32
         return Reject(TEXT("This draft is stale or belongs to another workshop session. Preview again."), Error);
     }
     const FName Source = PendingGraphContribution.SourceId;
+    const FName CardId = DeveloperState.DraftCard;
+    const bool bAlreadyOwned = OwnedSources.Contains(Source);
     const FGuid ApplyingPreview = PreviewId;
     // 发布回调可同步激活正式技能或关闭预览；先记录所有权，正式隔离与清理都能识别此来源。
-    OwnedSources.Add(Source);
+    OwnedSources.AddUnique(Source);
     bool bAccepted = false;
     {
         TGuardValue<bool> Guard(bInternalEdit, true);
@@ -156,7 +184,7 @@ bool UAbilityRuntimeRecipeDeveloperComponent::ApplyGraphDraft(FGuid Token, int32
     }
     if (!bAccepted)
     {
-        if (PreviewId == ApplyingPreview)
+        if (!bAlreadyOwned && PreviewId == ApplyingPreview)
         {
             OwnedSources.Remove(Source);
         }
@@ -166,6 +194,10 @@ bool UAbilityRuntimeRecipeDeveloperComponent::ApplyGraphDraft(FGuid Token, int32
     {
         Error = TEXT("The preview closed while applying; its owned contribution was released.");
         return false;
+    }
+    if (!CardId.IsNone())
+    {
+        InstalledCardsBySource.Add(Source, CardId);
     }
     InvalidateGraphDraft();
     PublishState();
@@ -202,6 +234,7 @@ bool UAbilityRuntimeRecipeDeveloperComponent::RemoveGraphSource(FName Source, in
         return false;
     }
     OwnedSources.Remove(Source);
+    InstalledCardsBySource.Remove(Source);
     InvalidateGraphDraft();
     PublishState();
     return true;

@@ -1,3 +1,4 @@
+// 调用链：本地地下城控制器创建局内面板 → 构造计分板、地图及交互 → 从玩家和导演视图刷新。
 #include "Roguelike/DungeonRunWidget.h"
 #include "Roguelike/DungeonRunController.h"
 #include "Roguelike/DungeonRunDirector.h"
@@ -16,6 +17,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "UI/Widget/PlayerKillScoreWidget.h"
 
 namespace
 {
@@ -136,6 +138,10 @@ TSharedRef<SWidget> UDungeonRunWidget::RebuildWidget()
         auto* Column = WidgetTree->ConstructWidget<UVerticalBox>();
         Width->SetContent(Column);
         Column->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        if (auto* KillScoreboard = CreateWidget<UPlayerKillScoreWidget>(this))
+        {
+            Column->AddChildToVerticalBox(KillScoreboard)->SetPadding(FMargin(0.f, 0.f, 0.f, 8.f));
+        }
         StatusText = MakeRunText(WidgetTree, Column, TEXT("RunStatus"), 15, FLinearColor(.95f, .85f, .55f));
         MapText = MakeRunText(WidgetTree, Column, TEXT("RunMapLabel"), 11, FLinearColor(.65f, .78f, .85f));
         auto* MapSize = WidgetTree->ConstructWidget<USizeBox>();

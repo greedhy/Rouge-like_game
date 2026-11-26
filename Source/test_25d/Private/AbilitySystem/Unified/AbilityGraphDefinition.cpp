@@ -5,6 +5,7 @@
 #include "AbilitySystem/Unified/AbilityOriginalProjectionValidation.h"
 #include "AbilitySystem/Unified/AbilityRuntimePayloadPolicy.h"
 #include "AbilitySystem/Unified/AbilityRuntimeRecipe.h"
+#include "AbilitySystem/Unified/Nodes/AbilityMovementNodeExecutions.h"
 
 bool UAbilityGraphDefinition::ValidateForAuthoring(TArray<FString>& Errors) const
 {
@@ -259,6 +260,15 @@ bool UAbilityGraphDefinition::Validate(const FAbilityNodeRegistry& Registry, TAr
         {
             Errors.Add(EdgeName + TEXT(": output port is not declared by the source node."));
             continue;
+        }
+        if (Descriptor->TypeId == TEXT("Movement.Character") && Edge.OutputPort == TEXT("Landed"))
+        {
+            const auto* Movement = Cast<UAbilityCharacterMoveNodeConfig>(Nodes[*FromIndex].Config);
+            if (!Movement || !Movement->UsesGroundTarget())
+            {
+                Errors.Add(EdgeName + TEXT(": Landed requires a ground-targeted dash."));
+                continue;
+            }
         }
         if (Edge.OutputPort == TEXT("Cancelled") || Edge.OutputPort == TEXT("Failed"))
         {

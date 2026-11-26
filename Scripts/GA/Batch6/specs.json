@@ -49,7 +49,7 @@
         "radius": 450.0,
         "range": 1200.0,
         "damage_type": {
-          "tag": "Damage.Magic"
+          "tag": "Damage.Ice"
         },
         "loop_vfx": {
           "asset": "/Game/CompositionBatch6/NS_GlacialStorm"

@@ -48,6 +48,13 @@ void AMyPlayerState::BeginPlay()
     }
 }
 
+// 先释放本世界的 Lua 计数，再交给父类完成 PlayerState 清理。
+void AMyPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    ForgetKillScore();
+    Super::EndPlay(EndPlayReason);
+}
+
 // 客户端玩家状态初始化时建立背包本地状态。
 // 客户端PlayerState获得控制器时补初始化背包；复制和控制器就绪先后不固定，Initialize的幂等性用于处理这类时序。
 void AMyPlayerState::ClientInitialize(AController* C)
@@ -66,6 +73,7 @@ void AMyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
     DOREPLIFETIME(AMyPlayerState, SpellPoints);
     DOREPLIFETIME(AMyPlayerState, Profession);
     DOREPLIFETIME(AMyPlayerState, TravelPlayerSlot);
+    DOREPLIFETIME_CONDITION(AMyPlayerState, KillScore, COND_OwnerOnly);
 }
 
 // 返回当前角色或玩家状态持有的能力系统。

@@ -11,6 +11,7 @@
       {
         "id": "Lance",
         "kind": "PIERCING",
+        "element": "Ice",
         "damage": 22,
         "range": 1100,
         "speed": 850,
@@ -23,6 +24,7 @@
       {
         "id": "Shatter",
         "kind": "BURST",
+        "element": "Ice",
         "damage": 30,
         "radius": 300,
         "duration": 0.1,

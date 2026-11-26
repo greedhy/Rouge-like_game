@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Unified/AbilityElementalExposure.h"
 #include "GameplayEffectExtension.h"
 #include "Containers/Map.h"
 #include "MyAttributeSet.generated.h"
@@ -57,6 +58,12 @@ public:
     UMyAttributeSet();
     // 登记属性复制，始终触发 GAS 属性复制通知。
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    /** 权威读回，重新核对当前 Avatar 与对象池租约。 */
+    EAbilityExposure GetElementalExposure() const;
+    /** 已复核生命的图节点可施加元素而不制造伤害。 */
+    bool ApplyElementalExposure(EAbilityElement Element, float DurationScale);
+    /** 消耗这条生命当前匹配的状态，并沿用冰系正常恢复逻辑。 */
+    bool ConsumeElementalExposure(EAbilityExposure Expected);
 
     // 在属性修改前限制生命和法力到当前最大值。
     virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
@@ -262,6 +269,13 @@ private:
 
     // 消费并清零伤害元属性，扣血后结算死亡或受击，再显示数字与施加减益。
     void HandleIncomingDamage(const FEffectProperties& Props, bool bPeriodic);
+    /** 写入当前 Avatar 与租约后返回精确快照，供扣血后的表现/控制二次校验。 */
+    FAbilityElementalExposure CommitElementalExposure(AActor& Avatar, const FAbilityElementalReaction& Reaction,
+                                                     float DurationScale);
+    // ASC可能比Avatar寿命长，弱引用和池租约共同隔离不同生命。
+    FAbilityElementalExposure ElementalExposure;
+    TWeakObjectPtr<AActor> ElementalAvatar;
+    int32 ElementalLease = 0;
     // 消费经验元属性，结算跨级奖励并设置升级资源补满标记。
     void HandleIncomingXP(const FEffectProperties& Props);
     // 构造限时周期伤害 GE，附加状态标签并施加给目标。

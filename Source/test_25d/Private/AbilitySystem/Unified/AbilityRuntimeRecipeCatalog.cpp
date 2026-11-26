@@ -1,5 +1,24 @@
 // 调用链：面板/自动化 -> 只读职业目录 -> 分类与默认图提取；本模块不执行玩法或授予技能。
 #include "AbilitySystem/Unified/AbilityRuntimeRecipeCatalog.h"
+#include "AbilitySystem/Unified/WorkshopUtilityAbilities.h"
+#include "AbilitySystem/Unified/WorkshopElementalAbilities.h"
+#include "AbilitySystem/Unified/WorkshopPropagationAbilities.h"
+#include "AbilitySystem/Unified/WorkshopTerrainAbilities.h"
+#include "AbilitySystem/Unified/WorkshopDispelAbilities.h"
+#include "AbilitySystem/Unified/WorkshopEmberAbilities.h"
+#include "AbilitySystem/Unified/WorkshopGaleAbilities.h"
+#include "AbilitySystem/Unified/WorkshopShatterAbilities.h"
+#include "AbilitySystem/Unified/WorkshopReactionShiftAbilities.h"
+#include "AbilitySystem/Unified/WorkshopRejuvenationAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSpatialStormAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSurfaceConversionAbilities.h"
+#include "AbilitySystem/Unified/WorkshopWaterShallowsAbility.h"
+#include "AbilitySystem/Unified/WorkshopTerrainHarvestAbilities.h"
+#include "AbilitySystem/Unified/WorkshopTidalPhasesAbility.h"
+#include "AbilitySystem/Unified/WorkshopEmberRushAbility.h"
+#include "AbilitySystem/Unified/WorkshopCloudAbilities.h"
+#include "AbilitySystem/Unified/WorkshopExposureComboAbilities.h"
+#include "AbilitySystem/Unified/WorkshopTerrainCatalystAbilities.h"
 #include "AbilitySystem/Unified/AbilityRuntimeRecipe.h"
 #include "AbilitySystem/Unified/AbilityGraphDefinition.h"
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
@@ -237,7 +256,51 @@ bool AbilityRuntimeRecipeCatalog::CollectBaseDefinitions(UObject* Outer, const U
         }
         Catalogs.Add(Catalog);
     }
-    return CollectFromCatalogs(Outer, Catalogs, PreferredCatalog, Out, Diagnostics);
+    if (!CollectFromCatalogs(Outer, Catalogs, PreferredCatalog, Out, Diagnostics))
+    {
+        return false;
+    }
+    // 原生实用法术只进入工作台目录，正常技能树和存档目录继续由原资产管理。
+    FAbilityNodeRegistry Registry;
+    Registry.RegisterBuiltins();
+    for (UClass* TrialClass : {UWorkshopArcaneBarrier::StaticClass(), UWorkshopStasisField::StaticClass(),
+                              UWorkshopSoakingRain::StaticClass(), UWorkshopCinderBlast::StaticClass(),
+                              UWorkshopThunderImpact::StaticClass(), UWorkshopCrystalBurst::StaticClass(),
+                              UWorkshopVenomMire::StaticClass(), UWorkshopMireIgnition::StaticClass(),
+                              UWorkshopFrostSurge::StaticClass(), UWorkshopWetArc::StaticClass(),
+                              UWorkshopTerrainDispel::StaticClass(), UWorkshopGaleSweep::StaticClass(),
+                              UWorkshopIceShatter::StaticClass(), UWorkshopEmberDetonation::StaticClass(),
+                              UWorkshopTidalMend::StaticClass(), UWorkshopFrostAegis::StaticClass(),
+                              UWorkshopLavaFreeze::StaticClass(), UWorkshopFrostCorrode::StaticClass(),
+                              UWorkshopSteamCondensation::StaticClass(), UWorkshopConductiveRecharge::StaticClass(),
+                              UWorkshopThunderMarkBurst::StaticClass(), UWorkshopFrostShower::StaticClass(),
+                              UWorkshopWaterShallows::StaticClass(), UWorkshopWaterFreeze::StaticClass(),
+                              UWorkshopWaterElectrify::StaticClass(), UWorkshopFrostHarvest::StaticClass(),
+                              UWorkshopBogHarvest::StaticClass(), UWorkshopTidalPhases::StaticClass(),
+                              UWorkshopEmberRush::StaticClass(), UWorkshopMistLift::StaticClass(),
+                              UWorkshopMistCondense::StaticClass(), UWorkshopStormMist::StaticClass(),
+                              UWorkshopMistDispel::StaticClass(), UWorkshopStormCatalyst::StaticClass(),
+                              UWorkshopFrostCatalyst::StaticClass(), UWorkshopEmberRupture::StaticClass(),
+                              UWorkshopConductiveRelay::StaticClass()})
+    {
+        const auto* Trial = TrialClass->GetDefaultObject<UWorkshopUtilityAbility>();
+        const FGameplayTag TrialTag = Trial->GetAssetTags().First();
+        if (Out.ContainsByPredicate([TrialTag](const FAbilityRuntimeBaseDefinition& Entry)
+            {
+                return Entry.AbilityTag == TrialTag;
+            }))
+        {
+            continue;
+        }
+        FMyAbilityInfo Item;
+        Item.Ability = TrialClass;
+        Item.AbilityTag = TrialTag;
+        auto Entry = DescribeAbility(Outer, Item, Registry);
+        Entry.bPreferredForWorld = true;
+        Entry.DisplayName = Trial->SpellName;
+        Out.Add(MoveTemp(Entry));
+    }
+    return true;
 }
 
 bool AbilityRuntimeRecipeCatalog::CollectFromCatalogs(UObject* Outer, const TArray<UAbilityInfo*>& Catalogs,

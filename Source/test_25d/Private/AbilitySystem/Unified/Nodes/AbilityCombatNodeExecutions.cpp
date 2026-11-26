@@ -4,6 +4,11 @@
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
 #include "AbilitySystem/Unified/AbilityDamageService.h"
 
+bool UAbilityResolveImpactNodeConfig::MatchesType(FName TypeId) const
+{
+    return !bRequirePositiveDamage || TypeId == TEXT("Target.ResolveDamageTarget");
+}
+
 bool UAbilityResolveImpactNodeConfig::SupportsRuntimePurePayload(FName RegisteredType, EAbilityPortPayload Incoming,
                                                                  FString& Error) const
 {
@@ -11,7 +16,7 @@ bool UAbilityResolveImpactNodeConfig::SupportsRuntimePurePayload(FName Registere
     const bool bExactContract =
         (RegisteredType == TEXT("Target.ResolveImpact") && Incoming == EAbilityPortPayload::ConfirmedImpact) ||
         (RegisteredType == TEXT("Target.ResolveDamageTarget") && Incoming == EAbilityPortPayload::DamageResult);
-    if (!bExactContract || !Validate(Error))
+    if (!bExactContract || !MatchesType(RegisteredType) || !Validate(Error))
     {
         Error =
             TEXT("Repeated target resolution requires its exact registered historical impact or damage-result input.");
@@ -29,8 +34,11 @@ bool UAbilityResolveImpactNodeExecution::Start(UAbilityGraphInstance& Owner, con
         Error = TEXT("Resolving an impact requires an explicit historical snapshot.");
         return false;
     }
+    const auto* Settings = CastChecked<UAbilityResolveImpactNodeConfig>(&Config);
+    const bool bAdmitted = !Settings->bRequirePositiveDamage ||
+                           (Input.bHasDamageResult && Input.bDamageAttempted && Input.ActualDamage.Get(0.f) > 0.f);
     FVector Location;
-    if (AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Input.Impact->ConfirmedTarget, Location))
+    if (bAdmitted && AbilityExecutionIdentity::ResolveTarget(Input.SourceToken, Input.Impact->ConfirmedTarget, Location))
     {
         FAbilityNodeInput Payload = Input;
         Payload.LiveTargetToken = Input.Impact->ConfirmedTarget;
@@ -54,14 +62,131 @@ bool UAbilityQueryNodeConfig::Validate(FString& Error) const
     return Query.Validate(Error);
 }
 
+bool UAbilityQueryNodeConfig::TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier)
+{
+    if (Parameter != EAbilityConfigScalar::Radius || Query.Geometry == EAbilityQueryGeometry::Line ||
+        !FMath::IsFinite(Multiplier) || Multiplier <= 0.f)
+    {
+        return false;
+    }
+    auto Updated = Query;
+    Updated.Radius *= Multiplier;
+    FString Error;
+    return ApplyQueryEdit(Updated, Error);
+}
+
+bool UAbilityQueryNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error)
+{
+    if (!FMath::IsFinite(Value) || Value < 0.f || Value > 10000.f)
+    {
+        Error = TEXT("Query parameters must be finite and within the author's supported range.");
+        return false;
+    }
+    using G = EAbilityQueryGeometry;
+    auto Updated = Query;
+    const bool bLine = Query.Geometry == G::Line;
+    const bool bCone = Query.Geometry == G::Cone;
+    const bool bHeight = bLine || Query.Geometry == G::Ring || Query.Geometry == G::WaveFront ||
+                         (bCone && Query.Profile == EAbilityShapeQueryProfile::Generic);
+    if (Parameter == EAbilityConfigParameter::Radius && !bLine)
+    {
+        Updated.Radius = Value;
+    }
+    else if (Parameter == EAbilityConfigParameter::InnerRadius && Query.Geometry == G::Ring)
+    {
+        Updated.InnerRadius = Value;
+    }
+    else if (Parameter == EAbilityConfigParameter::Range && bLine)
+    {
+        Updated.Range = Value;
+    }
+    else if (Parameter == EAbilityConfigParameter::Width && bLine)
+    {
+        Updated.Width = Value;
+    }
+    else if (Parameter == EAbilityConfigParameter::HalfHeight && bHeight && Value <= 2000.f)
+    {
+        Updated.HalfHeight = Value;
+    }
+    else if (Parameter == EAbilityConfigParameter::Spread && bCone && Value <= 360.f)
+    {
+        Updated.HalfAngleDegrees = Value * .5f;
+    }
+    else if (Parameter == EAbilityConfigParameter::Count && Value >= 1.f && Value <= 64.f &&
+             Value == FMath::RoundToFloat(Value))
+    {
+        Updated.MaxTargets = static_cast<int32>(Value);
+    }
+    else if (Parameter == EAbilityConfigParameter::QueryGeometry && Query.Profile == EAbilityShapeQueryProfile::Generic &&
+             Value <= static_cast<float>(G::Line) && Value == FMath::RoundToFloat(Value))
+    {
+        Updated.Geometry = static_cast<G>(static_cast<uint8>(Value));
+    }
+    else
+    {
+        Error = TEXT("The requested axis is not consumed by this query geometry or exceeds its limits.");
+        return false;
+    }
+    return ApplyQueryEdit(Updated, Error);
+}
+
+bool UAbilityQueryNodeConfig::ApplyQueryEdit(const FAbilityQueryRequest& Edited, FString& Error)
+{
+    const auto Previous = Query;
+    Query = Edited;
+    if (!Validate(Error))
+    {
+        Query = Previous;
+        return false;
+    }
+    return true;
+}
+
 bool UAbilityDamageNodeConfig::Validate(FString& Error) const
 {
     Error.Reset();
     if (!FMath::IsFinite(Damage) || !FMath::IsFinite(DamagePerLevel) || Damage < 0.f || DamagePerLevel < 0.f ||
-        !DamageType.IsValid())
+        !ResolveDamageType().IsValid())
     {
         Error = TEXT("Damage requires finite nonnegative values and a registered damage type.");
         return false;
+    }
+    return true;
+}
+
+FGameplayTag UAbilityDamageNodeConfig::ResolveDamageType() const
+{
+    return ElementOverride == EAbilityElement::Original ? DamageType : AbilityElements::ToDamageTag(ElementOverride);
+}
+
+bool UAbilityDamageNodeConfig::TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier)
+{
+    if (Parameter != EAbilityConfigScalar::Damage || !FMath::IsFinite(Multiplier) || Multiplier < 0.f ||
+        !FMath::IsFinite(Damage * Multiplier) || !FMath::IsFinite(DamagePerLevel * Multiplier))
+    {
+        return false;
+    }
+    Damage *= Multiplier;
+    DamagePerLevel *= Multiplier;
+    return true;
+}
+
+bool UAbilityDamageNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error)
+{
+    if (Parameter != EAbilityConfigParameter::ElementConversion)
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    if (!FMath::IsFinite(Value) || Value < 0.f || Value > static_cast<float>(EAbilityElement::Ice) ||
+        Value != FMath::RoundToFloat(Value))
+    {
+        Error = TEXT("Damage element conversion requires an integer from 0 to 5.");
+        return false;
+    }
+    // 0 保留当前类型；移除这项贡献时由配方编译器重放原图。
+    if (Value > 0.f)
+    {
+        ElementOverride = static_cast<EAbilityElement>(static_cast<uint8>(Value));
     }
     return true;
 }
@@ -101,7 +226,13 @@ bool UAbilityQueryNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid
         {
             Owner.Publish(Id, TEXT("NoTarget"), Input);
         }
-        Owner.Publish(Id, TEXT("Completed"), Input);
+        auto Completed = Input;
+        Completed.ShapeRadius.Reset();
+        if (Query.Geometry == EAbilityQueryGeometry::Sphere)
+        {
+            Completed.ShapeRadius = Query.Radius;
+        }
+        Owner.Publish(Id, TEXT("Completed"), Completed);
     }
     return true;
 }
@@ -117,7 +248,7 @@ bool UAbilityDamageNodeExecution::Start(UAbilityGraphInstance& Owner, const FGui
     const auto* Damage = CastChecked<UAbilityDamageNodeConfig>(&Config);
     auto Params = Input.DamageParams;
     Params.BaseDamage = Damage->Damage + Damage->DamagePerLevel * FMath::Clamp(Input.Level - 1.f, 0.f, 99.f);
-    Params.DamageType = Damage->DamageType;
+    Params.DamageType = Damage->ResolveDamageType();
     const auto Result = AbilityDamageService::Apply(Input.SourceToken, Input.LiveTargetToken.GetValue(), Params);
     if (bStopped || Owner.IsFinished())
     {

@@ -46,7 +46,7 @@ try:
     stormburst=node('StormSeal_Burst','Burst',damage=30.0,damage_per_level=4.0,radius=250.0,damage_type=tag('Damage.Thunder'))
     specs={
       'FireSeed':('Projectile',dict(display_name='Fire Seed',mana_cost=18.0,cooldown=4.0,damage=20.0,on_hit=firefield)),
-      'FrostFan':('Multishot',dict(display_name='Frost Fan',mana_cost=20.0,cooldown=5.0,damage=12.0,on_hit=frost)),
+      'FrostFan':('Multishot',dict(display_name='Frost Fan',mana_cost=20.0,cooldown=5.0,damage=12.0,damage_type=tag('Damage.Ice'),on_hit=frost)),
       'BrambleMine':('Trap',dict(display_name='Bramble Mine',mana_cost=20.0,cooldown=5.0,damage=10.0,radius=220.0,duration=6.0,on_expire=mineburst)),
       'StormSeal':('Field',dict(display_name='Storm Seal',mana_cost=22.0,cooldown=6.0,damage=10.0,duration=3.0,damage_type=tag('Damage.Thunder'),on_expire=stormburst)),
     }

@@ -10,7 +10,9 @@
 
 当前注册类型、实际默认图可改参数和可信追加片段见[节点能力覆盖表](ga-node-capability-coverage.md)。传播原位修改、并发分裂、选敌和条件的操作及网络/生命周期合同见[玩法扩展指南](ga-graph-gameplay-expansion.md)。
 
-2026-11-21新增的[免费技能图工作台](runtime-graph-workshop-guide.md)从游戏内属性窗口第四页“技能组装”进入，`RuntimeRecipe`保留为同一页面的调试快捷入口。它展示服务端已接受的真实节点、类型化端口和连线，可预览/应用节点修改、并行追加及精确边串接，并继续编辑新增节点。它复用临时测试Spec和原T施法，不接入正式元素球掉落/消耗/存档；各轮实际界面、施法、生命周期验证及既有基线见[验证记录](runtime-graph-workshop-validation.md)。
+有限时序片段、命中计数、资源反馈和初级元素反应见[元素组装指南](ga-elemental-composition.md)。
+
+游戏内属性窗口第四页“技能组装”通过改装卡展示技能的效果、触发时机与限制。开发者用 `RuntimeRecipe` 打开独立图工作台，按真实节点、端口和连线调试。两种入口复用同一服务器配方事务、临时 Spec 和 T 键施法。玩法与操作见[免费试装指南](runtime-graph-workshop-guide.md)，既有图工作台的版本和验收范围见[验证记录](runtime-graph-workshop-validation.md)。
 
 本指南是后续 GA 开发入口，对应 [框架与调用链](ga-framework-reference.md) 和 [原设计及演进](superpowers/specs/2026-11-08-unified-ga-environment.md)。新技能使用 Schema 2 的注册策略与类型化端口；专用动画前端可调用相同共享动作。现有玩家/AI 激活、ASC、装备实例、输入槽、技能身份和存档路径继续沿用，旧原型 DA 通过兼容编译接入同一执行协议。
 

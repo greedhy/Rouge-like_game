@@ -38,10 +38,12 @@ bool FCharacterMenuFourthPage::RunTest(const FString&)
     Menu->ShowPage(3);
     TestEqual(TEXT("Fourth page remains selected instead of clamping to Skills"), Menu->GetActivePage(), 3);
     auto* Panel = Menu->GetRuntimeRecipePanel();
-    if (!TestNotNull(TEXT("Fourth page contains the original complete graph workshop"), Panel))
+    if (!TestNotNull(TEXT("Fourth page contains the skill card workshop"), Panel))
     {
         return false;
     }
+    TestNotNull(TEXT("The player page builds the card controls"), Panel->GetWidgetFromName(TEXT("RecipeCards")));
+    TestNull(TEXT("The player page omits graph node controls"), Panel->GetWidgetFromName(TEXT("RecipeNode")));
     auto* Begin = Cast<UButton>(Panel->GetWidgetFromName(TEXT("RecipeBegin")));
     if (!TestNotNull(TEXT("Embedded workshop builds actual Begin button"), Begin))
     {
@@ -51,6 +53,7 @@ bool FCharacterMenuFourthPage::RunTest(const FString&)
     const auto Handle = F.Developer->GetPreviewHandle();
     const FGuid Session = F.Developer->GetDeveloperState().PreviewSessionId;
     TestTrue(TEXT("Begin grants a real preview and exact session"), Handle.IsValid() && Session.IsValid());
+    TestTrue(TEXT("The real page starts a sanitized card session"), F.Developer->GetDeveloperState().bCardPanelSession);
     Menu->ShowPage(0);
     Menu->ShowPage(3);
     TestTrue(TEXT("Tab switching reuses the same panel and temporary spec"),

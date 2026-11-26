@@ -110,6 +110,9 @@ bool FStoneGolemLifeTest::RunTest(const FString&)
     const int32 Second = Actor->BeginAttack(T, FVector::ZeroVector, 0);
     Actor->FinishAttack(First);
     TestTrue(TEXT("Stale finish cannot end new attack"), Actor->IsAttackCurrent(Second, Lease));
+    Actor->SetIceCombatState(EAbilityExposure::Frozen, AbilityElements::FreezeSeconds);
+    TestFalse(TEXT("Freeze immediately cancels a Stone Golem attack"), Actor->IsAttackCurrent(Second, Lease));
+    TestEqual(TEXT("Freeze rejects a new attack"), Actor->BeginAttack(T, FVector::ZeroVector, 0), 0);
     const bool BaselineRotation = Actor->GetCharacterMovement()->bUseControllerDesiredRotation;
     Actor->GetCharacterMovement()->bUseControllerDesiredRotation = !BaselineRotation;
     Actor->Die(FVector::ZeroVector);
@@ -117,6 +120,8 @@ bool FStoneGolemLifeTest::RunTest(const FString&)
     TestFalse(TEXT("Death removes active presentation"), Actor->IsAttacking());
     Actor->SleepForDungeonPool(false);
     TestTrue(TEXT("Pooled actor wakes"), Actor->WakeFromDungeonPool(FTransform::Identity, NAME_None));
+    TestFalse(TEXT("New lease cannot inherit freeze"), Actor->IsIceFrozen());
+    TestTrue(TEXT("New lease can animate"), Actor->GetMesh()->GlobalAnimRateScale > 0.f);
     TestEqual(TEXT("New life restores controller rotation"),
               Actor->GetCharacterMovement()->bUseControllerDesiredRotation, BaselineRotation);
     const int32 Third = Actor->BeginAttack(T, FVector::ZeroVector, 0);

@@ -1529,6 +1529,31 @@ void UAbilityGraphInstance::Cancel(EAbilityGraphEndReason Reason)
     Finish(Reason == EAbilityGraphEndReason::Completed ? EAbilityGraphEndReason::Cancelled : Reason);
 }
 
+bool UAbilityGraphInstance::AdmitDamageTrigger(const FGuid& InvocationId, int32 Every, int32 Limit, float Cooldown)
+{
+    const auto* Invocation = Invocations.Find(InvocationId);
+    auto* World = RootInput.SourceToken.World.Get();
+    if (bFinished || !Invocation || Invocation->bTerminal || !World || Every < 1 || Limit < 1 ||
+        !FMath::IsFinite(Cooldown) || Cooldown < 0.f)
+    {
+        return false;
+    }
+    auto& State = DamageTriggers.FindOrAdd(Invocation->NodeId);
+    const double Now = World->GetTimeSeconds();
+    if (State.Passed >= Limit || Now < State.NextAllowedTime)
+    {
+        return false;
+    }
+    if (++State.SinceLast < Every)
+    {
+        return false;
+    }
+    State.SinceLast = 0;
+    ++State.Passed;
+    State.NextAllowedTime = Now + Cooldown;
+    return true;
+}
+
 void UAbilityGraphInstance::Finish(EAbilityGraphEndReason Reason)
 {
     if (bFinished)
@@ -1537,6 +1562,7 @@ void UAbilityGraphInstance::Finish(EAbilityGraphEndReason Reason)
     }
     bFinished = true;
     bImmediateDrainRequested = false;
+    DamageTriggers.Reset();
     EndReason = Reason;
     TArray<FAbilityGraphEvent> Diagnostics;
     if (Reason != EAbilityGraphEndReason::Completed)

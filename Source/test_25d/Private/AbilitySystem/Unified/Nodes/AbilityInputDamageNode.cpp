@@ -7,11 +7,29 @@
 bool UAbilityInputDamageNodeConfig::Validate(FString& Error) const
 {
     Error.Reset();
-    if (!FMath::IsFinite(DamageMultiplier) || DamageMultiplier < 0.f)
+    if (!FMath::IsFinite(DamageMultiplier) || DamageMultiplier < 0.f || ElementOverride > EAbilityElement::Ice)
     {
-        Error = TEXT("Input payload multiplier must be finite and nonnegative.");
+        Error = TEXT("Input damage requires a valid element and a finite nonnegative multiplier.");
         return false;
     }
+    return true;
+}
+
+bool UAbilityInputDamageNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value,
+                                                          FString& Error)
+{
+    if (Parameter != EAbilityConfigParameter::ElementConversion)
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    Error.Reset();
+    if (!FMath::IsFinite(Value) || Value < 0.f || Value > static_cast<float>(EAbilityElement::Ice) ||
+        Value != FMath::RoundToFloat(Value))
+    {
+        Error = TEXT("Element conversion requires 0 original, 1 fire, 2 water, 3 thunder, 4 arcane or 5 ice.");
+        return false;
+    }
+    ElementOverride = static_cast<EAbilityElement>(static_cast<uint8>(Value));
     return true;
 }
 
@@ -58,6 +76,10 @@ bool UAbilityInputDamageNodeExecution::Start(UAbilityGraphInstance& Owner, const
     {
         Error = TEXT("Input damage requires finite unscaled values and cumulative scales.");
         return false;
+    }
+    if (const auto Converted = AbilityElements::ToDamageTag(Settings->ElementOverride); Converted.IsValid())
+    {
+        Prepared.DamageType = Converted;
     }
     const auto Result = AbilityDamageService::Apply(Input.SourceToken, Input.LiveTargetToken.GetValue(), Prepared, 1.f,
                                                     Settings->bCaptureLocationAfterDamage);

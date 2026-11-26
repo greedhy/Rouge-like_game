@@ -6,7 +6,9 @@
 #include "GameFramework/HUD.h"
 #include "Components/Button.h"
 #include "UI/Widget/CharacterMenuWidget.h"
+#include "UI/Widget/PlayerKillScoreWidget.h"
 #include "UI/WidgetController/SpellMenuWidgetController.h"
+#include "Roguelike/DungeonRunController.h"
 #include "UObject/ConstructorHelpers.h"
 
 // 持有两个现有设计器资产的类引用，使打包时保留人物窗口的子页。
@@ -80,6 +82,7 @@ void AMyHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystem
 
     //添加进视口
     Widget->AddToViewport();
+    InitKillScoreboard(PC);
     if (auto* Attributes = Cast<UUserWidget>(OverlayWidget->GetWidgetFromName(TEXT("AttributeMenuButton"))))
     {
         if (auto* Button = Cast<UButton>(Attributes->GetWidgetFromName(TEXT("Button"))))
@@ -93,6 +96,23 @@ void AMyHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystem
         {
             Button->OnClicked.AddUniqueDynamic(this, &ThisClass::ShowSkills);
         }
+    }
+}
+
+// 保持右上角 DPI 锚定，并复用同 HUD 已创建的组件。
+void AMyHUD::InitKillScoreboard(APlayerController* PC)
+{
+    if (!PC || !PC->IsLocalController() || PC->IsA<ADungeonRunController>() || IsValid(KillScoreboard))
+    {
+        return;
+    }
+    KillScoreboard = CreateWidget<UPlayerKillScoreWidget>(PC);
+    if (KillScoreboard && KillScoreboard->AddToPlayerScreen(5))
+    {
+        KillScoreboard->SetAnchorsInViewport(FAnchors(1.f, 0.f));
+        KillScoreboard->SetAlignmentInViewport(FVector2D(1.f, 0.f));
+        KillScoreboard->SetPositionInViewport(FVector2D(-18.f, 18.f), false);
+        KillScoreboard->SetDesiredSizeInViewport(FVector2D(284.f, 77.f));
     }
 }
 
@@ -131,6 +151,10 @@ void AMyHUD::ShowCharacterMenu(int32 PageIndex)
 // 切换 HUD 或结束世界时，移除它持有的窗口并释放输入注册。
 void AMyHUD::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (KillScoreboard)
+    {
+        KillScoreboard->RemoveFromParent();
+    }
     if (CharacterMenu)
     {
         CharacterMenu->SetVisibility(ESlateVisibility::Collapsed);

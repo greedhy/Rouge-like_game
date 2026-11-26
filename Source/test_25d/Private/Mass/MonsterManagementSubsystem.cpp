@@ -104,6 +104,11 @@ void UMonsterManagementSubsystem::SetActive(FRecord& Record, bool bActive)
     if (!Enemy)
         return;
     Record.bActive = bActive;
+    // 冻结期间保留距离暂停的所有权，解冻后管理器再依据距离决定恢复。
+    if (Enemy->IsIceFrozen())
+    {
+        return;
+    }
     if (bActive)
     {
         if (auto* Brain = Record.PausedBrain.Get())

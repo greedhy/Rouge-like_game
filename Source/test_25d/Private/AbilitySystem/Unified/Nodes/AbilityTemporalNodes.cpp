@@ -125,6 +125,14 @@ bool UAbilityWavefrontNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter 
     case EAbilityConfigParameter::Duration:
         Candidate->Duration = Value;
         break;
+    case EAbilityConfigParameter::Count:
+        if (Value < 1.f || Value > 16.f || Value != FMath::FloorToFloat(Value))
+        {
+            Error = TEXT("A finite wave target limit must be an integer from 1 to 16.");
+            return false;
+        }
+        Candidate->MaxTargets = static_cast<int32>(Value);
+        break;
     default:
         return Super::TrySetRecipeParameter(Parameter, Value, Error);
     }
@@ -136,6 +144,7 @@ bool UAbilityWavefrontNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter 
     Radius = Candidate->Radius;
     Speed = Candidate->Speed;
     Duration = Candidate->Duration;
+    MaxTargets = Candidate->MaxTargets;
     return true;
 }
 
@@ -199,9 +208,10 @@ bool UAbilityWavefrontNodeConfig::Validate(FString& Error) const
     Error.Reset();
     if (!AbilityTemporalNodeDetails::ValidTargets(Radius, bIncludeActors, bIncludeMass) || !FMath::IsFinite(Speed) ||
         Speed <= 0.f || Speed > 10000.f || !FMath::IsFinite(Duration) || Duration < .01f || Duration > 60.f ||
-        Profile < EAbilityWaveQueryProfile::ActorFront3D || Profile > EAbilityWaveQueryProfile::Batch6Growing3D)
+        MaxTargets < 0 || MaxTargets > 16 || Profile < EAbilityWaveQueryProfile::ActorFront3D ||
+        Profile > EAbilityWaveQueryProfile::Batch6Growing3D)
     {
-        Error = TEXT("Wave requires finite positive geometry, duration .01..60, target types and an explicit profile.");
+        Error = TEXT("Wave needs finite geometry, duration .01..60, limit 0..16, target types and a profile.");
     }
     return Error.IsEmpty();
 }
@@ -315,7 +325,18 @@ bool UAbilityWavefrontNodeExecution::Start(UAbilityGraphInstance& Owner, const F
     Age = Radius = 0.f;
     OriginalLives.Reset();
     Visited.Reset();
-    return Settings->Validate(Error);
+    if (!Settings->Validate(Error))
+    {
+        return false;
+    }
+    // 未连接的 Started 不占原图预算。半径由本次快照计算，表现能反映速度和寿命改装。
+    if (Owner.HasSuccessor(Id, TEXT("Started")))
+    {
+        auto Payload = AbilityTemporalNodeDetails::PositionOnly(Input);
+        Payload.ShapeRadius = FMath::Min(Settings->Radius, Settings->Speed * Settings->Duration);
+        return Owner.Publish(Id, TEXT("Started"), Payload);
+    }
+    return true;
 }
 
 void UAbilityWavefrontNodeExecution::Advance(float DeltaSeconds)
@@ -332,6 +353,7 @@ void UAbilityWavefrontNodeExecution::Advance(float DeltaSeconds)
     }
     const float Duration = Settings->Duration;
     const float Maximum = Settings->Radius;
+    const int32 TargetLimit = Settings->MaxTargets;
     const auto Profile = Settings->Profile;
     const bool bIncludeFinal = Profile != EAbilityWaveQueryProfile::MixedGrowing3D;
     float ActiveDelta = DeltaSeconds;
@@ -389,9 +411,15 @@ void UAbilityWavefrontNodeExecution::Advance(float DeltaSeconds)
         if (Owner->Publish(InvocationId, TEXT("TargetFound"), Payload))
         {
             Visited.Add(Candidate.Target);
+            // 只消耗已发布的原生命，挡墙、无效目标和重复覆盖不占用限额。
+            if (TargetLimit > 0 && Visited.Num() >= TargetLimit)
+            {
+                break;
+            }
         }
     }
-    if (!bStopped && !Owner->IsFinished() && (Radius >= Maximum || Age >= Duration))
+    const bool bAtTargetLimit = TargetLimit > 0 && Visited.Num() >= TargetLimit;
+    if (!bStopped && !Owner->IsFinished() && (Radius >= Maximum || Age >= Duration || bAtTargetLimit))
     {
         Owner->Publish(InvocationId, TEXT("Completed"), AbilityTemporalNodeDetails::PositionOnly(Input));
     }
@@ -529,7 +557,8 @@ void AbilityTemporalNodes::Register(FAbilityNodeRegistry& Registry)
     Wave.ConfigClass = UAbilityWavefrontNodeConfig::StaticClass();
     Wave.ExecutionClass = UAbilityWavefrontNodeExecution::StaticClass();
     Wave.bRuntimeFiniteSafe = true; // 只推进空间/发布原生命，独立后继受同根事件/调用预算。
-    Wave.Ports = {{TEXT("TargetFound"), EAbilityPortPayload::LiveTarget, false},
+    Wave.Ports = {{TEXT("Started"), EAbilityPortPayload::Origin, false},
+                  {TEXT("TargetFound"), EAbilityPortPayload::LiveTarget, false},
                   {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
     FAbilityNodeDescriptor Emitter = Wait;
     Emitter.TypeId = TEXT("Control.Emitter");

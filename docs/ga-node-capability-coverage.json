@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedUtc": "2026-11-21T18:20:20.013Z",
+  "generatedUtc": "2026-11-21T19:26:46.895Z",
   "scope": "Actual registry + configured Mage catalog; declarations do not prove every port publishes, and absence from catalog does not prove a strategy is unusable.",
   "types": [
     {
@@ -206,6 +206,81 @@
       "observedModifiers": []
     },
     {
+      "type": "Condition.DamageApplied",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": true,
+      "observedCatalogInstances": 0,
+      "input": "DamageResult",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "DamageResult",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "DamageResult",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
+      "type": "Condition.ElementalStatus",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": true,
+      "observedCatalogInstances": 0,
+      "input": "LiveTarget",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "LiveTarget",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "LiveTarget",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
+      "type": "Condition.HealthBelow",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": true,
+      "observedCatalogInstances": 0,
+      "input": "LiveTarget",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "LiveTarget",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "LiveTarget",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
       "type": "Condition.Killed",
       "configClass": "/Script/test_25d.AbilityKilledGateConfig",
       "executionClass": "/Script/test_25d.AbilityGameplayGateExecution",
@@ -225,6 +300,31 @@
         {
           "name": "Rejected",
           "payload": "Origin",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
+      "type": "Control.DamageTriggerLimit",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": false,
+      "observedCatalogInstances": 0,
+      "input": "DamageResult",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "DamageResult",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "DamageResult",
           "terminal": true
         }
       ],
@@ -310,6 +410,31 @@
         {
           "name": "Completed",
           "payload": "Origin",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
+      "type": "Control.EveryNthDamage",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": false,
+      "observedCatalogInstances": 0,
+      "input": "DamageResult",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "DamageResult",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "DamageResult",
           "terminal": true
         }
       ],
@@ -1451,7 +1576,8 @@
       "observedModifiers": [
         "Append.Status.Petrify",
         "Replace.Status.Petrify",
-        "Scale.Damage"
+        "Scale.Damage",
+        "Set.ElementConversion"
       ]
     },
     {
@@ -1538,6 +1664,56 @@
         "Append.Status.Petrify",
         "Replace.Status.Petrify"
       ]
+    },
+    {
+      "type": "Effect.RestoreHealth",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": false,
+      "observedCatalogInstances": 0,
+      "input": "DamageResult",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "DamageResult",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "DamageResult",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
+    },
+    {
+      "type": "Effect.RestoreMana",
+      "configClass": "/Script/test_25d.AbilityCombatRuleConfig",
+      "executionClass": "/Script/test_25d.AbilityCombatRuleExecution",
+      "actor": true,
+      "mass": true,
+      "async": false,
+      "runtimeFinite": true,
+      "runtimePure": false,
+      "observedCatalogInstances": 0,
+      "input": "DamageResult",
+      "declaredPorts": [
+        {
+          "name": "Passed",
+          "payload": "DamageResult",
+          "terminal": true
+        },
+        {
+          "name": "Rejected",
+          "payload": "DamageResult",
+          "terminal": true
+        }
+      ],
+      "observedModifiers": []
     },
     {
       "type": "Effect.ShardDamageBatch",
@@ -5612,13 +5788,13 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "6675D8254CEA9C04DBBF3C81E8761BA8",
+          "id": "1C5C25EA45F8406982A979929CEA3A98",
           "type": "Query.NovaTargets",
           "parameters": "Input: 0 | Radius: 450",
           "modifiers": []
         },
         {
-          "id": "F889673443D741E151B32C981C612C8E",
+          "id": "ED942DD745F801D1DF65468D1CDE31E3",
           "type": "Effect.NovaDamage",
           "parameters": "Input: 4",
           "modifiers": [
@@ -5628,7 +5804,7 @@
           ]
         },
         {
-          "id": "433170454B38688ABC1847BC38D3957D",
+          "id": "A5441ECE4A5A8F75C1ED27A1909444D9",
           "type": "Presentation.NovaCue",
           "parameters": "Input: 0",
           "modifiers": []
@@ -5641,25 +5817,25 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "80A19EA04D7011844D0456BBAD4DB447",
+          "id": "FDCD37634A451C02CC01DCA471DF96F1",
           "type": "Control.ShardPoints",
           "parameters": "Input: 0 | Radius: 250",
           "modifiers": []
         },
         {
-          "id": "4D615DC142E17F4739E189991608979F",
+          "id": "763342FF4289D92BCB3118A76F2DBCDD",
           "type": "Presentation.ShardCue",
           "parameters": "Input: 0",
           "modifiers": []
         },
         {
-          "id": "08534D5A456936C3D98E0C8DE79D3D3B",
+          "id": "EAD51E684A61DC5025337F9CCE719109",
           "type": "Query.ShardTargets",
           "parameters": "Input: 0",
           "modifiers": []
         },
         {
-          "id": "CC0274A84AD1468A5E3A25B3AB8A5813",
+          "id": "75D30D744E3874F7696C7EB4D6A6AA4D",
           "type": "Effect.ShardDamageBatch",
           "parameters": "Input: 4",
           "modifiers": [
@@ -5678,7 +5854,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 250 | Period: 1 | Count: 5 | DamageFalloff: 0.9",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 250 | Period: 1 | Count: 5 | DamageFalloff: 0.9 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -5722,7 +5898,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -5789,7 +5965,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 330 | Period: 0.5 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 330 | Period: 0.5 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -5828,7 +6004,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -5887,7 +6063,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -5934,7 +6110,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 430 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 430 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -5993,7 +6169,7 @@
         {
           "id": "7AE99C5019DD71F482DBFCCBF70B8799",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 800 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 800 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6025,7 +6201,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "0CD2780E4BEBDFF75B43E8AAA8428E69",
+          "id": "DA1ED5694C3953E3CD5B179AD50DAE67",
           "type": "Control.LightningSteps",
           "parameters": "Input: 1 | MaxTargets: 12 | JumpDelay: 0.1",
           "modifiers": [
@@ -6034,7 +6210,7 @@
           ]
         },
         {
-          "id": "FEBA3B4243AB0B05FB8F94B87B10102F",
+          "id": "946C08F44BE97692928747AC6EDFA1ED",
           "type": "Query.LightningTargets",
           "parameters": "Input: 0 | JumpRadius: 400",
           "modifiers": [
@@ -6042,7 +6218,7 @@
           ]
         },
         {
-          "id": "D012FE364AB1CA7A8AA9C0A4289B427A",
+          "id": "94AA6A0B462F372391D4C7A9EED1A4AD",
           "type": "Effect.LightningDamageBatch",
           "parameters": "Input: 4 | DamageFalloff: 0.8",
           "modifiers": [
@@ -6051,7 +6227,7 @@
           ]
         },
         {
-          "id": "29A0DBB0490A1B44D153BE9513C47AC3",
+          "id": "1800546B471BA3CF0E5C0A81B872AD6F",
           "type": "Presentation.LightningBeams",
           "parameters": "Input: 0",
           "modifiers": []
@@ -6066,7 +6242,7 @@
         {
           "id": "CB8524284394DE6D529BA2F740472905",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.8 | Cooldown: 5",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -6080,7 +6256,7 @@
         {
           "id": "E971B54CFFA806E965A9744B4C7E663E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6126,7 +6302,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "A2F931634ECAF0A27B8278BC9D1E2C12",
+          "id": "2525415840CA996BD1DE0E922C427F55",
           "type": "Query.PetrifyArea",
           "parameters": "Input: 0 | Radius: 650",
           "modifiers": [
@@ -6134,7 +6310,7 @@
           ]
         },
         {
-          "id": "0879685041BA5F557FA976A443A42F3A",
+          "id": "2B2917F4432CCAD9010995B2D1E9CF71",
           "type": "Status.PetrifyBatch",
           "parameters": "Input: 4 | Duration: 3",
           "modifiers": [
@@ -6150,7 +6326,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "3B0883ED492EEB4171A3898187F5CAA9",
+          "id": "3AF646814BA76BECD01B1CB799CE89AF",
           "type": "Control.LightningSteps",
           "parameters": "Input: 1 | MaxTargets: 6 | JumpDelay: 0.1",
           "modifiers": [
@@ -6159,7 +6335,7 @@
           ]
         },
         {
-          "id": "31D89E724FAB6DC1E278F581F43ECE2F",
+          "id": "B6B6B0DB4B94F8BEF522D1B81D5BC30A",
           "type": "Query.LightningTargets",
           "parameters": "Input: 0 | JumpRadius: 400",
           "modifiers": [
@@ -6167,7 +6343,7 @@
           ]
         },
         {
-          "id": "B03F42C04E949FDCA6B1AFB1BF6ADE25",
+          "id": "8B09676242F5DDCF9F89E482E1F5D109",
           "type": "Effect.LightningDamageBatch",
           "parameters": "Input: 4 | DamageFalloff: 1",
           "modifiers": [
@@ -6176,7 +6352,7 @@
           ]
         },
         {
-          "id": "A0DD4CDB4758076FAD09C7AFDCC8EE10",
+          "id": "59D49BBC4AFB6D883A2E6BB013527C24",
           "type": "Presentation.LightningBeams",
           "parameters": "Input: 0",
           "modifiers": []
@@ -6191,7 +6367,7 @@
         {
           "id": "8FEEE79E4989C11372FF66AA0A0AE7EA",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 380 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 380 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -6227,7 +6403,7 @@
         {
           "id": "7ECD01357ECA88FFFA27A820A498D839",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 380 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 380 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6274,7 +6450,7 @@
         {
           "id": "FD4774AE4079CDF0CD95A8692D8037FD",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6313,7 +6489,7 @@
         {
           "id": "52F84A70FE68E3BF4DF44FDBE2E9B4A6",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 1 | Cooldown: 6",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -6327,7 +6503,7 @@
         {
           "id": "BD28D52FFB833436C5D63182021F1CBB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.6 | Radius: 420 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.6 | Radius: 420 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6360,7 +6536,7 @@
         {
           "id": "8D4D76A9E6AFCFB0EEF8403A1E9EF3FC",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 90 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 90 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6399,7 +6575,7 @@
         {
           "id": "52F84A70FE68E3BF4DF44FDBE2E9B4A6",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 1 | Cooldown: 6",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -6413,7 +6589,7 @@
         {
           "id": "BD28D52FFB833436C5D63182021F1CBB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.6 | Radius: 420 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.6 | Radius: 420 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6446,7 +6622,7 @@
         {
           "id": "8D4D76A9E6AFCFB0EEF8403A1E9EF3FC",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 90 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 90 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6493,7 +6669,7 @@
         {
           "id": "0B9E5FC9A3AD032A5F03103419082FE3",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6526,7 +6702,7 @@
         {
           "id": "8AB985DB44DE15CDB23BD0B7FFD3D465",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6558,7 +6734,7 @@
         {
           "id": "C4DFF0C693568B8BC2B952726299B892",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -6593,7 +6769,7 @@
         {
           "id": "0B9E5FC9A3AD032A5F03103419082FE3",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6626,7 +6802,7 @@
         {
           "id": "8AB985DB44DE15CDB23BD0B7FFD3D465",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6666,7 +6842,7 @@
         {
           "id": "C4DFF0C693568B8BC2B952726299B892",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -6701,7 +6877,7 @@
         {
           "id": "8137E9B92A6343C7034966B95524DB25",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -6737,7 +6913,7 @@
         {
           "id": "1C35FB1B7CB9EEC34628AA8713BBEEF2",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6777,7 +6953,7 @@
         {
           "id": "8137E9B92A6343C7034966B95524DB25",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -6821,7 +6997,7 @@
         {
           "id": "1C35FB1B7CB9EEC34628AA8713BBEEF2",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -6861,7 +7037,7 @@
         {
           "id": "0E3ADB16291C69D9EB0F0AA804C6143C",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Set.Count",
             "Set.Spread"
@@ -6878,7 +7054,7 @@
         {
           "id": "3262EFD9F173697BEEF1E6F9A4A3CFB8",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -6914,7 +7090,7 @@
         {
           "id": "0EC2AAF12EACF6E3AA3005852CB4B024",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 150 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 150 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -6949,7 +7125,7 @@
         {
           "id": "0E3ADB16291C69D9EB0F0AA804C6143C",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Set.Count",
             "Set.Spread"
@@ -6966,7 +7142,7 @@
         {
           "id": "3262EFD9F173697BEEF1E6F9A4A3CFB8",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7010,7 +7186,7 @@
         {
           "id": "0EC2AAF12EACF6E3AA3005852CB4B024",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 150 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 150 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7045,7 +7221,7 @@
         {
           "id": "9EA0A2A7611878AD6ACB10A1FDAB0BB3",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7078,7 +7254,7 @@
         {
           "id": "1E666EE6F514D3787B3A6FF6BD76F09D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7113,7 +7289,7 @@
         {
           "id": "9EA0A2A7611878AD6ACB10A1FDAB0BB3",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7154,7 +7330,7 @@
         {
           "id": "1E666EE6F514D3787B3A6FF6BD76F09D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7189,7 +7365,7 @@
         {
           "id": "02A4139514B3252DD01E9728E8F9935F",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 700 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 700 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 7",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7207,7 +7383,7 @@
         {
           "id": "B80B6647DA3B1DEA5DB18A1A21E91F33",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7244,7 +7420,7 @@
         {
           "id": "B52B74C1B252F36AE5A2E60663A05C8D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7283,7 +7459,7 @@
         {
           "id": "02A4139514B3252DD01E9728E8F9935F",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 700 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 700 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 7",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7301,7 +7477,7 @@
         {
           "id": "B80B6647DA3B1DEA5DB18A1A21E91F33",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7338,7 +7514,7 @@
         {
           "id": "B52B74C1B252F36AE5A2E60663A05C8D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7385,7 +7561,7 @@
         {
           "id": "6DB943AC51553EFEC1928F2A9DA1D36E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 12 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 12 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7418,7 +7594,7 @@
         {
           "id": "22FFA3F5CCB2DECE636A62B9A7057B59",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.6 | Cooldown: 0",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -7432,7 +7608,7 @@
         {
           "id": "06323D10D568444DAAC717C8FF849F8E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7474,7 +7650,7 @@
         {
           "id": "6DB943AC51553EFEC1928F2A9DA1D36E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 12 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 12 | Radius: 220 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7507,7 +7683,7 @@
         {
           "id": "22FFA3F5CCB2DECE636A62B9A7057B59",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.6 | Cooldown: 0",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -7521,7 +7697,7 @@
         {
           "id": "06323D10D568444DAAC717C8FF849F8E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 450 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7563,7 +7739,7 @@
         {
           "id": "49FB51615335B0DCA6B7D83221080A68",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7602,7 +7778,7 @@
         {
           "id": "FC0C5539D490B08E0EDE069A125B1A7E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7641,7 +7817,7 @@
         {
           "id": "49FB51615335B0DCA6B7D83221080A68",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7682,7 +7858,7 @@
         {
           "id": "FC0C5539D490B08E0EDE069A125B1A7E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -7729,7 +7905,7 @@
         {
           "id": "01562F0AF2BA47EE0AF58AF537604828",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Duration",
             "Set.Period",
@@ -7756,7 +7932,7 @@
         {
           "id": "0F56B569CE98FDC9D58C91A5A0567DEB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 100 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -7807,7 +7983,7 @@
         {
           "id": "3687CEC7872D237D7029692549926D10",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 7",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -7845,7 +8021,7 @@
         {
           "id": "65658260ED92204AB3E4136FE869004F",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.45 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.45 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Duration",
             "Set.MoveDistance",
@@ -7871,7 +8047,7 @@
         {
           "id": "7DD21E26E66DD6BE2891700F40ABE025",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration"
@@ -7899,7 +8075,7 @@
         {
           "id": "214F4329A37E1F10455BE5124F711E1E",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.45 | Radius: 320 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.45 | Radius: 320 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -7923,7 +8099,7 @@
         {
           "id": "183AF870DBCDF7B0FC34B5F9F622DA73",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0.8",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -7963,7 +8139,7 @@
         {
           "id": "FAE6D6C84901AD8F69A9653120D38800",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Set.StackThreshold",
             "Set.DetonationDelay"
@@ -7980,7 +8156,7 @@
         {
           "id": "F9040B31441662E7573D3CC43FC00772",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -8045,7 +8221,7 @@
         {
           "id": "95413AE392E1ED6CD9E9CB7D75B8654C",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Duration",
             "Set.Period",
@@ -8072,7 +8248,7 @@
         {
           "id": "7DBA6447616474827434431736A05FFF",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 120 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 120 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -8116,7 +8292,7 @@
         {
           "id": "73570F720E587A3368D13598DAF01158",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 130 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration"
@@ -8138,7 +8314,7 @@
         {
           "id": "DAC0051BBE70CD9AA1A5B27DCB807E14",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.45 | Radius: 320 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.45 | Radius: 320 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 7",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -8155,7 +8331,7 @@
         {
           "id": "09ED59AB513224726BA1AF74539BDFA9",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.35 | Cooldown: 0",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -8169,7 +8345,7 @@
         {
           "id": "0A757D48313E1B31DAB5B0F03A5BCA12",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 230 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 230 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -8220,7 +8396,7 @@
         {
           "id": "376B8F5BAC4A40B497BC479AC19394CE",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0.8",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -8260,7 +8436,7 @@
         {
           "id": "D873A03818CB6E10CC2B8CCFD557CD30",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Set.StackThreshold",
             "Set.DetonationDelay"
@@ -8277,7 +8453,7 @@
         {
           "id": "772206C55001AFA723900AAD3D6A0CD5",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 180 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -8342,7 +8518,7 @@
         {
           "id": "484DE3BC6DEB2B802FDED04793786643",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 7",
           "modifiers": [
             "Scale.Duration",
             "Set.Period",
@@ -8369,7 +8545,7 @@
         {
           "id": "86CD87C7B1E170C22524A51E23E6C196",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 1 | Radius: 350 | Period: 0.15 | Count: 3 | DamageFalloff: 0.75",
+          "parameters": "Input: 0 | Duration: 1 | Radius: 350 | Period: 0.15 | Count: 3 | DamageFalloff: 0.75 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8418,7 +8594,7 @@
         {
           "id": "189B63E9FB61AF7FCB46345458B1E2FE",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 1 | Radius: 350 | Period: 0.2 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 1 | Radius: 350 | Period: 0.2 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 2",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8460,7 +8636,7 @@
         {
           "id": "011B85E1B4BE4D503A0F8EA457F5CF44",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Set.StackThreshold",
             "Set.DetonationDelay"
@@ -8477,7 +8653,7 @@
         {
           "id": "96D015905DE105E017B22CCC79F826AD",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 160 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 160 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius"
@@ -8540,7 +8716,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "A990E8B24A4FC7F72270C58E527D021A",
+          "id": "1789E4FB44C3B08B3C15B0BF5A8AA5EA",
           "type": "Prepare.NativeFireBolt",
           "parameters": "Input: 0",
           "modifiers": [
@@ -8548,7 +8724,7 @@
           ]
         },
         {
-          "id": "914585494D8A17DFD6CF80960576BE43",
+          "id": "07E6FEA34D958298E2562886AE3B18BB",
           "type": "Distribution.Scatter",
           "parameters": "Input: 0 | Count: 3",
           "modifiers": [
@@ -8557,7 +8733,7 @@
           ]
         },
         {
-          "id": "C57CAFCC46A173C1C7DC71A757CC9119",
+          "id": "6DD759A343B144393CF71795E9DA4E42",
           "type": "Delivery.ProjectileAwait",
           "parameters": "Input: 0",
           "modifiers": [
@@ -8568,19 +8744,20 @@
           ]
         },
         {
-          "id": "2FD4D5BA4A29780549DD508DF6E50B28",
+          "id": "8CC61C4B4699A3B5631DCC98DE951F4D",
           "type": "Target.ResolveImpact",
           "parameters": "Input: 2",
           "modifiers": []
         },
         {
-          "id": "75BD56144D3FC983A7EC95858A230E0F",
+          "id": "C419528741AD7ED9CF7120BAFAD876D8",
           "type": "Effect.InputDamage",
-          "parameters": "Input: 1",
+          "parameters": "Input: 1 | ElementOverride: 0",
           "modifiers": [
             "Scale.Damage",
             "Append.Status.Petrify",
-            "Replace.Status.Petrify"
+            "Replace.Status.Petrify",
+            "Set.ElementConversion"
           ]
         }
       ]
@@ -8606,7 +8783,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 625 | Period: 0.8 | Count: 5 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 625 | Period: 0.8 | Count: 5 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -8630,7 +8807,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.18 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.18 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -8695,7 +8872,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.65 | Cooldown: 0",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -8715,7 +8892,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8761,7 +8938,7 @@
         {
           "id": "ED08CAD7851C6D835C72887E1A9795C0",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 300 | Period: 0.75 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 300 | Period: 0.75 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8819,7 +8996,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 250 | Period: 1 | Count: 4 | DamageFalloff: 0.85",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 250 | Period: 1 | Count: 4 | DamageFalloff: 0.85 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -8863,7 +9040,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 245 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 245 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8922,7 +9099,7 @@
         {
           "id": "2E081A29AC44E6BC74C5A5EF2BF793AB",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 390 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 390 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -8969,7 +9146,7 @@
         {
           "id": "C2E3871D488A248D1DBDD06FAFEFAF92",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.1 | Radius: 460 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.1 | Radius: 460 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9050,7 +9227,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "E6D2EB104599DCCE9FDA62A1431DCC1D",
+          "id": "4409D5604D5FD46E6220D385147203EC",
           "type": "Inventory.NativeOrbit",
           "parameters": "Input: 0",
           "modifiers": [
@@ -9058,25 +9235,26 @@
           ]
         },
         {
-          "id": "835FFB3947F676DDD5115B8EDE628C0B",
+          "id": "89B56977493FB39063C07D9FD0D19560",
           "type": "Delivery.NativeOrbitBolt",
           "parameters": "Input: 5",
           "modifiers": []
         },
         {
-          "id": "5C3A156B4ADBA19DE3A479A901526B96",
+          "id": "7643DD0249B0C0BF62DD8C93F3AD7481",
           "type": "Target.ResolveImpact",
           "parameters": "Input: 2",
           "modifiers": []
         },
         {
-          "id": "3674B68A4267CB1D7D4F8A961B359099",
+          "id": "76F142DE45BCFE6459FACEAC3B6790D4",
           "type": "Effect.InputDamage",
-          "parameters": "Input: 1",
+          "parameters": "Input: 1 | ElementOverride: 0",
           "modifiers": [
             "Scale.Damage",
             "Append.Status.Petrify",
-            "Replace.Status.Petrify"
+            "Replace.Status.Petrify",
+            "Set.ElementConversion"
           ]
         }
       ]
@@ -9089,7 +9267,7 @@
         {
           "id": "C932B5E6A387E63C8EF5C7C66598600A",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 0.5 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 0.5 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 2",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9122,7 +9300,7 @@
         {
           "id": "C932B5E6A387E63C8EF5C7C66598600A",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 0.5 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 0.5 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 2",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9155,7 +9333,7 @@
         {
           "id": "FF93D61F6226D2EA31CBA1B42715D01A",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9194,7 +9372,7 @@
         {
           "id": "FF93D61F6226D2EA31CBA1B42715D01A",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9241,7 +9419,7 @@
         {
           "id": "6D7E92B78F2F5C0848D95D133BC21B2D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 450 | Period: 0.4 | Count: 3 | DamageFalloff: 0.75",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 450 | Period: 0.4 | Count: 3 | DamageFalloff: 0.75 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9278,7 +9456,7 @@
         {
           "id": "6D7E92B78F2F5C0848D95D133BC21B2D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 450 | Period: 0.4 | Count: 3 | DamageFalloff: 0.75",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 450 | Period: 0.4 | Count: 3 | DamageFalloff: 0.75 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9315,7 +9493,7 @@
         {
           "id": "E3B8CE66B0AE7440F52A3C9C72C001DE",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 350 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 350 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9354,7 +9532,7 @@
         {
           "id": "E3B8CE66B0AE7440F52A3C9C72C001DE",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 350 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 350 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9401,7 +9579,7 @@
         {
           "id": "076930932C9B1E776C84CA2B9FB10814",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 1 | Cooldown: 4",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -9415,7 +9593,7 @@
         {
           "id": "9676631CB84AF3547C503A123BDFB4F9",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9454,7 +9632,7 @@
         {
           "id": "076930932C9B1E776C84CA2B9FB10814",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 2 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 1 | Cooldown: 4",
           "modifiers": [
             "Set.ArmDelay"
           ]
@@ -9468,7 +9646,7 @@
         {
           "id": "9676631CB84AF3547C503A123BDFB4F9",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.4 | Radius: 300 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9515,7 +9693,7 @@
         {
           "id": "110DC842B2E837BADDF93B2710F4A285",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 700 | Period: 1 | Count: 4 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 700 | Period: 1 | Count: 4 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -9533,7 +9711,7 @@
         {
           "id": "C464FBCA33C4F3BDEB2AA415DF469F53",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9576,7 +9754,7 @@
         {
           "id": "110DC842B2E837BADDF93B2710F4A285",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 700 | Period: 1 | Count: 4 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 700 | Period: 1 | Count: 4 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 6",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -9594,7 +9772,7 @@
         {
           "id": "C464FBCA33C4F3BDEB2AA415DF469F53",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9645,7 +9823,7 @@
         {
           "id": "D9E2EB664B388661B84DA06DACC797DF",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9691,7 +9869,7 @@
         {
           "id": "D9E2EB664B388661B84DA06DACC797DF",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -9739,7 +9917,7 @@
         {
           "id": "74D311CA2290AE647EEFB794CAC87977",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9783,7 +9961,7 @@
         {
           "id": "74D311CA2290AE647EEFB794CAC87977",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 4 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9835,7 +10013,7 @@
         {
           "id": "237C183D247401B1E60DABDBAF0CAE5B",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9875,7 +10053,7 @@
         {
           "id": "237C183D247401B1E60DABDBAF0CAE5B",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9923,7 +10101,7 @@
         {
           "id": "9DDA344FACAC731989204BE93C85939D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Set.Count",
             "Set.Spread"
@@ -9940,7 +10118,7 @@
         {
           "id": "7FC01D4D0F75AB827594989F8ECEC8D1",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -9983,7 +10161,7 @@
         {
           "id": "9DDA344FACAC731989204BE93C85939D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Set.Count",
             "Set.Spread"
@@ -10000,7 +10178,7 @@
         {
           "id": "7FC01D4D0F75AB827594989F8ECEC8D1",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10051,7 +10229,7 @@
         {
           "id": "2A2C89D736A76D84EE702F84B73010B4",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage"
           ]
@@ -10073,11 +10251,12 @@
         {
           "id": "FA30C13C678A798163373AB50EB4CDE1",
           "type": "Effect.InputDamage",
-          "parameters": "Input: 1",
+          "parameters": "Input: 1 | ElementOverride: 0",
           "modifiers": [
             "Scale.Damage",
             "Append.Status.Petrify",
-            "Replace.Status.Petrify"
+            "Replace.Status.Petrify",
+            "Set.ElementConversion"
           ]
         }
       ]
@@ -10090,7 +10269,7 @@
         {
           "id": "3E31CE1231148E6C7B3B496C0F7FFA96",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 0",
           "modifiers": [
             "Scale.Damage",
             "Set.CollisionRadius"
@@ -10113,11 +10292,12 @@
         {
           "id": "023E87CC2ADB4D84C9BB6A83B1FF8DE1",
           "type": "Effect.InputDamage",
-          "parameters": "Input: 1",
+          "parameters": "Input: 1 | ElementOverride: 0",
           "modifiers": [
             "Scale.Damage",
             "Append.Status.Petrify",
-            "Replace.Status.Petrify"
+            "Replace.Status.Petrify",
+            "Set.ElementConversion"
           ]
         }
       ]
@@ -10130,7 +10310,7 @@
         {
           "id": "AF3DFB1D47AEA4FAF65369CD35CD3B68",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.8",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.8 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10175,7 +10355,7 @@
         {
           "id": "AF3DFB1D47AEA4FAF65369CD35CD3B68",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.8",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.8 | ArmDelay: 0.75 | Cooldown: 3",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10228,7 +10408,7 @@
         {
           "id": "793B871C51244DAD757FD6961A9257CD",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 2",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10271,7 +10451,7 @@
         {
           "id": "793B871C51244DAD757FD6961A9257CD",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 2",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10322,7 +10502,7 @@
         {
           "id": "F68532FD651A2F5BF8A325C51B829F36",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.6",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.6 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10367,7 +10547,7 @@
         {
           "id": "F68532FD651A2F5BF8A325C51B829F36",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.6",
+          "parameters": "Input: 0 | Duration: 5 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 0.6 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Duration",
@@ -10420,7 +10600,7 @@
         {
           "id": "394F26EFF7C19CCCE6B2D5F273ABBE0D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10460,7 +10640,7 @@
         {
           "id": "394F26EFF7C19CCCE6B2D5F273ABBE0D",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 0.6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 0.6 | Radius: 360 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10500,7 +10680,7 @@
         {
           "id": "9B406D7E84B80A435DF2077677266EC8",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 200 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 200 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -10535,7 +10715,7 @@
         {
           "id": "9B406D7E84B80A435DF2077677266EC8",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 6 | Radius: 200 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 6 | Radius: 200 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 5",
           "modifiers": [
             "Scale.Radius",
             "Scale.Duration",
@@ -10570,7 +10750,7 @@
         {
           "id": "19E96650F8BC70E873C45E4D13664C16",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 12 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 12 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10616,7 +10796,7 @@
         {
           "id": "19E96650F8BC70E873C45E4D13664C16",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 12 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 12 | Radius: 250 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10664,7 +10844,7 @@
         {
           "id": "6639F070E0F6E79B365ABB2E5BDF6F88",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 500 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 500 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10706,7 +10886,7 @@
         {
           "id": "6639F070E0F6E79B365ABB2E5BDF6F88",
           "type": "Scope.Prototype",
-          "parameters": "Input: 0 | Duration: 3 | Radius: 500 | Period: 1 | Count: 3 | DamageFalloff: 1",
+          "parameters": "Input: 0 | Duration: 3 | Radius: 500 | Period: 1 | Count: 3 | DamageFalloff: 1 | ArmDelay: 0.75 | Cooldown: 4",
           "modifiers": [
             "Scale.Damage",
             "Scale.Radius",
@@ -10746,7 +10926,7 @@
       "selectable": true,
       "actualNodes": [
         {
-          "id": "82946CCB4EA8D4E08B18D4B24D806A27",
+          "id": "AB9A6872461EACA14C53729A62077ED2",
           "type": "Channel.ElectrocuteHost",
           "parameters": "Input: 0",
           "modifiers": [
@@ -10754,7 +10934,7 @@
           ]
         },
         {
-          "id": "2B5A27094FEC95A6137D92AFF3BDD5A3",
+          "id": "11588AA2449003CB271CE9A10A3F7D96",
           "type": "Effect.ElectrocutePeriod",
           "parameters": "Input: 4",
           "modifiers": [
@@ -10763,7 +10943,7 @@
           ]
         },
         {
-          "id": "91B1A0F54EF1F44518A33FA966F98138",
+          "id": "9D6CCDC7407EC8517AD3CEB9A157D42D",
           "type": "Effect.ElectrocuteFinal",
           "parameters": "Input: 4",
           "modifiers": [
@@ -10780,6 +10960,17 @@
     "Target.Slow",
     "Query.SelectTargets",
     "Condition.Killed",
-    "Condition.Chance"
+    "Condition.Chance",
+    "Control.DelayOrigin",
+    "Control.Repeat",
+    "Query.WaitForTarget",
+    "Spatial.Wavefront",
+    "Condition.HealthBelow",
+    "Condition.ElementalStatus",
+    "Condition.DamageApplied",
+    "Control.EveryNthDamage",
+    "Control.DamageTriggerLimit",
+    "Effect.RestoreMana",
+    "Effect.RestoreHealth"
   ]
 }

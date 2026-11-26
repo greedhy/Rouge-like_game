@@ -76,6 +76,8 @@ struct FPureMassNetEntity : public FFastArraySerializerItem
     UPROPERTY()
     bool bStunned = false;
     UPROPERTY()
+    EAbilityExposure IceExposure = EAbilityExposure::None;
+    UPROPERTY()
     TObjectPtr<UPureMassMonsterType> Type;
 
     FPureMassView ToView() const;
@@ -124,6 +126,8 @@ struct FPureMassRenderBatch
 struct FPureMassRenderInstance
 {
     TWeakObjectPtr<UNiagaraComponent> StunStars;
+    TWeakObjectPtr<UNiagaraComponent> IceVisual;
+    EAbilityExposure IceExposure = EAbilityExposure::None;
     FPrimitiveInstanceId Instance;
     FPrimitiveInstanceId WeaponInstance;
     int32 BatchIndex = INDEX_NONE;
@@ -195,7 +199,9 @@ private:
     void UpdateTransforms(float DeltaSeconds);
     int32 FindOrCreateBatch(UPureMassMonsterType* Type, bool bPetrified);
     void RemoveRenderInstance(FPureMassRenderInstance& Instance);
-    void SetAnimation(FPureMassRenderInstance& Instance, uint8 State);
+    /** 根据权威快照改变速度或固定当前采样姿势；客户端不自行结束控制。 */
+    void SetAnimation(FPureMassRenderInstance& Instance, uint8 State,
+                      EAbilityExposure IceExposure = EAbilityExposure::None);
 
     UPROPERTY(Replicated)
     FPureMassNetEntities NetEntities;

@@ -211,7 +211,7 @@ bool UAbilityRuntimeRecipeDeveloperComponent::ApplyEdit(const FAbilityRuntimeDev
         return Reject(Error, Error);
     }
     const auto* Entry = Entries.Find(DeveloperState.AbilityTag);
-    if (!DeveloperState.bPreviewActive || !Entry || !Entry->Base)
+    if (bCardPanel || !DeveloperState.bPreviewActive || !Entry || !Entry->Base)
     {
         return Reject(TEXT("Start a preview before changing its recipe."), Error);
     }
@@ -1047,6 +1047,8 @@ void UAbilityRuntimeRecipeDeveloperComponent::ReleasePreviewGrant()
     // 不能依赖 ClearAbility 或最多 16 个弱观察订阅回收其资源。
     TGuardValue<bool> Guard(bLifecycleCleanup, true);
     InvalidateGraphDraft();
+    bCardPanel = false;
+    InstalledCardsBySource.Reset();
     GraphPanelSessionId.Invalidate();
     UnbindPreviewAvatar();
     const auto Handle = PreviewHandle;
@@ -1204,6 +1206,10 @@ void UAbilityRuntimeRecipeDeveloperComponent::GraphFinished(UAbilityGraphInstanc
 
 void UAbilityRuntimeRecipeDeveloperComponent::AppendObservation(FAbilityRuntimeDeveloperObservation Record)
 {
+    if (bCardPanel)
+    {
+        return;
+    }
     Record.Sequence = ++ObservationSequence;
     Record.ServerSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
     if (Observations.Num() >= 128)

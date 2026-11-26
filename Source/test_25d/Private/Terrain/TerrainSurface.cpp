@@ -81,6 +81,10 @@ bool ATerrainSurface::CanAffectCharacter(ABaseCharacter* Character) const
         return false;
     if (Character->ActorHasTag(TEXT("Enemy")) && !bAffectEnemies)
         return false;
+    if (TerrainSurfaceTypes::IsCloud(Config->SurfaceType))
+    {
+        return ContainsCloudSample(Character->GetActorLocation());
+    }
     if (bRequireGrounded && !Character->GetCharacterMovement()->IsMovingOnGround())
         return false;
     // 将脚底转换到地块局部空间，支持旋转地块的矩形范围判定。
@@ -89,6 +93,18 @@ bool ATerrainSurface::CanAffectCharacter(ABaseCharacter* Character) const
     const FVector Local = GetActorTransform().InverseTransformPosition(Feet);
     return FMath::Abs(Local.X) <= SurfaceSize.X * .5f && FMath::Abs(Local.Y) <= SurfaceSize.Y * .5f &&
            FMath::Abs(Local.Z) <= ContactHeight;
+}
+
+bool ATerrainSurface::ContainsCloudSample(const FVector& BodyCenter) const
+{
+    if (!Config || !TerrainSurfaceTypes::IsCloud(Config->SurfaceType))
+    {
+        return false;
+    }
+    // 保留地面原位置供转化和选择使用。上下楼层即使 XY 重合，也须真的进入空气体积。
+    const FVector Local = GetActorTransform().InverseTransformPosition(BodyCenter);
+    return FMath::Abs(Local.X) <= SurfaceSize.X * .5f && FMath::Abs(Local.Y) <= SurfaceSize.Y * .5f &&
+           FMath::Abs(Local.Z - CloudCenterHeight) <= ContactHeight;
 }
 
 // 服务器进行宽范围重叠查询，按角色去重后向状态组件续期有效接触。

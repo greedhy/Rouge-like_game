@@ -276,6 +276,10 @@ FGameplayEffectContextHandle UMyAbilitySystemLibrary::ApplyDamageEffect(const FD
     FGameplayEffectContextHandle EffectContexthandle =
         DamageEffectParams.SourceAbilitySystemComponent->MakeEffectContext();
     EffectContexthandle.AddSourceObject(SourceAvatarActor);
+    if (auto* Context = FMyGameplayEffectContext::GetMutable(EffectContexthandle))
+    {
+        Context->DirectDamageType = DamageEffectParams.DamageType;
+    }
     SetDeathImpulse(EffectContexthandle, DamageEffectParams.DeathImpulse);
     SetKnockbackForce(EffectContexthandle, DamageEffectParams.KnockbackForce);
 

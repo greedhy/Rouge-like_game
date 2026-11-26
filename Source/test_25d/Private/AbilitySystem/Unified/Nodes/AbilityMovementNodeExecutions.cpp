@@ -10,6 +10,10 @@
 
 namespace
 {
+    constexpr float MaxGroundTargetDistance = 1200.f;
+    constexpr float MinGroundTargetDuration = .05f;
+    constexpr float MaxGroundTargetDuration = 1.5f;
+
     ACharacter* CurrentCharacter(const FAbilitySourceToken& Source, const TFunction<bool()>& IsCurrent)
     {
         AActor* Avatar = nullptr;
@@ -223,6 +227,11 @@ void AbilityMovementActions::WeaponArc(const FAbilitySourceToken& Source, const 
     }
 }
 
+bool UAbilityCharacterMoveNodeConfig::UsesGroundTarget() const
+{
+    return bUseGroundTarget && Profile == EAbilityCharacterMoveProfile::GroundDash;
+}
+
 bool UAbilityCharacterMoveNodeConfig::Validate(FString& Error) const
 {
     Error.Reset();
@@ -232,7 +241,40 @@ bool UAbilityCharacterMoveNodeConfig::Validate(FString& Error) const
     {
         Error = TEXT("Character movement requires finite bounded distance/height and positive duration.");
     }
+    else if (bUseGroundTarget && (!UsesGroundTarget() || Distance > MaxGroundTargetDistance ||
+                                  Duration < MinGroundTargetDuration || Duration > MaxGroundTargetDuration))
+    {
+        Error = TEXT("Ground-target movement requires GroundDash, distance up to 1200 cm, and duration 0.05–1.5 s.");
+    }
     return Error.IsEmpty();
+}
+
+bool UAbilityCharacterMoveNodeConfig::TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value,
+                                                            FString& Error)
+{
+    if (!UsesGroundTarget() ||
+        (Parameter != EAbilityConfigParameter::MoveDistance && Parameter != EAbilityConfigParameter::Duration))
+    {
+        return Super::TrySetRecipeParameter(Parameter, Value, Error);
+    }
+    Error.Reset();
+    const bool bDistance = Parameter == EAbilityConfigParameter::MoveDistance;
+    const float MinValue = bDistance ? 0.f : MinGroundTargetDuration;
+    const float MaxValue = bDistance ? MaxGroundTargetDistance : MaxGroundTargetDuration;
+    if (!FMath::IsFinite(Value) || Value < MinValue || Value > MaxValue)
+    {
+        Error = FString::Printf(TEXT("Ground-target movement parameter must be in [%.2f, %.2f]."), MinValue, MaxValue);
+        return false;
+    }
+    if (bDistance)
+    {
+        Distance = Value;
+    }
+    else
+    {
+        Duration = Value;
+    }
+    return true;
 }
 
 bool UAbilityCharacterMoveNodeExecution::Start(UAbilityGraphInstance& Owner, const FGuid& Id,
@@ -250,6 +292,21 @@ bool UAbilityCharacterMoveNodeExecution::Start(UAbilityGraphInstance& Owner, con
         return false;
     }
     Settings = DuplicateObject(CastChecked<UAbilityCharacterMoveNodeConfig>(&Config), this);
+    StartLocation = Player->GetActorLocation();
+    TravelDistance = Settings->Distance;
+    if (Settings->UsesGroundTarget())
+    {
+        // Ground 入口固定的瞄准位置只限定方向和最大距离；实际落点由权威胶囊扫掠决定。
+        const FVector AimOffset = Input.Origin - StartLocation;
+        TravelDistance = FMath::Min(TravelDistance, static_cast<float>(AimOffset.Size2D()));
+        if (TravelDistance <= KINDA_SMALL_NUMBER)
+        {
+            auto Output = Input;
+            Output.Origin = StartLocation;
+            return Owner.Publish(Id, TEXT("Completed"), Output);
+        }
+        Input.Direction = AimOffset.GetSafeNormal2D();
+    }
     if (auto* Director = ADungeonRunDirector::Find(Input.SourceToken.World.Get()))
     {
         OriginRoom = Director->GetRoomIndex(Player->GetActorLocation());
@@ -283,7 +340,7 @@ void UAbilityCharacterMoveNodeExecution::Advance(float Delta)
     };
     if (Settings->Profile == EAbilityCharacterMoveProfile::GroundDash)
     {
-        AbilityMovementActions::GroundDash(Input.SourceToken, Forward, Settings->Distance * After, OriginRoom, State,
+        AbilityMovementActions::GroundDash(Input.SourceToken, Forward, TravelDistance * After, OriginRoom, State,
                                            IsCurrent);
     }
     else
@@ -310,6 +367,26 @@ void UAbilityCharacterMoveNodeExecution::Advance(float Delta)
     }
     if (After >= 1.f || (State.bBlocked && Settings->Profile == EAbilityCharacterMoveProfile::GroundDash))
     {
+        // AppliedDistance 包含尝试的扫掠步长，不能用它判定成功。用已复核来源的实际水平位置。
+        if (Settings->UsesGroundTarget() &&
+            FVector::DistSquared2D(StartLocation, Output.Origin) > UE_KINDA_SMALL_NUMBER)
+        {
+            AActor* CurrentAvatar = nullptr;
+            if (!AbilityExecutionIdentity::ResolveSource(Input.SourceToken, CurrentAvatar))
+            {
+                Owner->Cancel(EAbilityGraphEndReason::SourceInvalid);
+                return;
+            }
+            auto Landed = Output;
+            Landed.EventCenter = Landed.Origin;
+            Landed.LiveTargetToken.Reset();
+            Landed.Impact.Reset();
+            Landed.ShapeRadius.Reset();
+            if (!Owner->Publish(InvocationId, TEXT("Landed"), Landed))
+            {
+                return;
+            }
+        }
         Owner->Publish(InvocationId, TEXT("Completed"), Output);
     }
 }
@@ -336,6 +413,7 @@ void AbilityMovementNodes::Register(FAbilityNodeRegistry& Registry)
     Move.bSupportsActorTargets = Move.bSupportsSnapshotTargets = true;
     Move.bIsAsync = true;
     Move.Ports = {{TEXT("Blocked"), EAbilityPortPayload::Origin, false},
+                  {TEXT("Landed"), EAbilityPortPayload::Origin, false},
                   {TEXT("Completed"), EAbilityPortPayload::Origin, true}};
     if (!Registry.Find(Move.TypeId))
     {

@@ -195,8 +195,10 @@ void ABaseCharacter::RefreshMovementSpeed()
     const float Multiplier = FMath::Min(TerrainStatus ? TerrainStatus->GetTerrainMovementMultiplier() : 1.f,
                                         UBatch6SlowComponent::GetMultiplier(this));
     const float EliteMultiplier = Enemy ? Enemy->GetDungeonEliteMovementMultiplier() : 1.f;
+    const float IceMultiplier = Enemy ? Enemy->GetIceMovementRate() : 1.f;
     GetCharacterMovement()->MaxWalkSpeed =
-        (bDead || bIsStunned || bHitReact || bRooted) ? 0.f : BaseWalkSpeed * Multiplier * EliteMultiplier;
+        (bDead || bIsStunned || bHitReact || bRooted) ? 0.f
+                                                    : BaseWalkSpeed * Multiplier * EliteMultiplier * IceMultiplier;
     if (bRooted)
         GetCharacterMovement()->StopMovementImmediately();
 }

@@ -2,6 +2,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AbilitySystem/MyAttributeSet.h"
+#include "AbilitySystem/Unified/AbilityBarrier.h"
 #include <Net/UnrealNetwork.h>
 #include <GameFramework/Character.h>
 #include "AbilitySystemBlueprintLibrary.h"
@@ -17,6 +18,7 @@
 #include "test_25d/MyLogChannels.h"
 #include "Terrain/TerrainStatusComponent.h"
 #include "Roguelike/DungeonRunDirector.h"
+#include "Player/MyPlayerState.h"
 
 UMyAttributeSet::UMyAttributeSet()
 {
@@ -354,6 +356,69 @@ void UMyAttributeSet::OnRep_MaxPoise(const FGameplayAttributeData& OldMaxPoise) 
     GAMEPLAYATTRIBUTE_REPNOTIFY(UMyAttributeSet, MaxPoise, OldMaxPoise);
 }
 
+EAbilityExposure UMyAttributeSet::GetElementalExposure() const
+{
+    const auto* ASC = GetOwningAbilitySystemComponent();
+    const auto* Avatar = ASC ? ASC->GetAvatarActor() : nullptr;
+    const auto* Enemy = Cast<AEnemyCharacter>(Avatar);
+    return IsValid(Avatar) && Avatar->HasAuthority() && Avatar == ElementalAvatar.Get() &&
+                   (!Enemy || Enemy->GetDungeonPoolLease() == ElementalLease) && GetHealth() > 0.f
+               ? ElementalExposure.Get(Avatar->GetWorld()->GetTimeSeconds())
+               : EAbilityExposure::None;
+}
+
+FAbilityElementalExposure UMyAttributeSet::CommitElementalExposure(AActor& Avatar,
+                                                                   const FAbilityElementalReaction& Reaction,
+                                                                   float DurationScale)
+{
+    const auto* Enemy = Cast<AEnemyCharacter>(&Avatar);
+    ElementalAvatar = &Avatar;
+    ElementalLease = Enemy ? Enemy->GetDungeonPoolLease() : 0;
+    ElementalExposure = {Reaction.Next, Avatar.GetWorld()->GetTimeSeconds() + Reaction.Duration * DurationScale};
+    return ElementalExposure;
+}
+
+bool UMyAttributeSet::ApplyElementalExposure(EAbilityElement Element, float DurationScale)
+{
+    const auto* ASC = GetOwningAbilitySystemComponent();
+    auto* Avatar = ASC ? ASC->GetAvatarActor() : nullptr;
+    if (!IsValid(Avatar) || !Avatar->HasAuthority() || GetHealth() <= 0.f ||
+        !AbilityElements::CanApply(Element, DurationScale))
+    {
+        return false;
+    }
+    const auto Reaction = AbilityElements::Evaluate(GetElementalExposure(), Element);
+    if (Reaction.bKeepCurrent)
+    {
+        return false;
+    }
+    CommitElementalExposure(*Avatar, Reaction, DurationScale);
+    if (auto* Enemy = Cast<AEnemyCharacter>(Avatar))
+    {
+        Enemy->SetIceCombatState(Reaction.Next, Reaction.Duration * DurationScale);
+    }
+    return true;
+}
+
+bool UMyAttributeSet::ConsumeElementalExposure(EAbilityExposure Expected)
+{
+    if (Expected == EAbilityExposure::None || GetElementalExposure() != Expected)
+    {
+        return false;
+    }
+    auto* Enemy = Cast<AEnemyCharacter>(ElementalAvatar.Get());
+    // 先清权威槽位。冰系恢复会刷新移动和 AI，相关回调此时读到的已经是空槽。
+    ElementalAvatar.Reset();
+    ElementalLease = 0;
+    ElementalExposure = {};
+    if (Enemy && (Expected == EAbilityExposure::Frozen || Expected == EAbilityExposure::Chilled))
+    {
+        Enemy->SetIceCombatState(EAbilityExposure::None, 0.f);
+    }
+    return true;
+}
+
+// 直接元素命中在提交Health前更新状态，确保同步属性监听器能看到同一顺序。
 void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool bPeriodic)
 {
 
@@ -372,8 +437,50 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
             }
         }
         const float PreviousHealth = GetHealth();
+        TOptional<FAbilityElementalReaction> PendingReaction;
+        TOptional<FAbilityElementalExposure> CommittedExposure;
+        const auto* HitContext = FMyGameplayEffectContext::GetMutable(Props.EffectContextHandle);
+        if (!bPeriodic && HitContext && IsValid(Props.TargetAvatarActor) && Props.TargetAvatarActor->HasAuthority() &&
+            EffectiveDamage > 0.f && PreviousHealth > 0.f)
+        {
+            const auto Incoming = AbilityElements::FromDamageTag(HitContext->DirectDamageType);
+            if (Incoming != EAbilityElement::Original)
+            {
+                PendingReaction = AbilityElements::Evaluate(GetElementalExposure(), Incoming);
+                EffectiveDamage *= PendingReaction->DamageMultiplier;
+            }
+        }
+        if (EffectiveDamage > 0.f && IsValid(Props.TargetAvatarActor) && Props.TargetAvatarActor->HasAuthority() &&
+            PreviousHealth > 0.f)
+        {
+            if (auto* Barrier = Props.TargetAvatarActor->FindComponentByClass<UAbilityBarrierComponent>())
+            {
+                EffectiveDamage = Barrier->ConsumeDamage(EffectiveDamage);
+                if (EffectiveDamage <= 0.f)
+                {
+                    // 完全吸收时回传实际生命伤害为零，同时跳过受击与元素状态写入。
+                    if (auto* Context = FMyGameplayEffectContext::GetMutable(Props.EffectContextHandle);
+                        Context && !bPeriodic)
+                    {
+                        Context->ResolvedHealthDamage = 0.f;
+                    }
+                    return;
+                }
+            }
+        }
+        if (PendingReaction && EffectiveDamage < PreviousHealth && !PendingReaction->bKeepCurrent)
+        {
+            CommittedExposure = CommitElementalExposure(*Props.TargetAvatarActor, *PendingReaction, 1.f);
+        }
         const float NewHealth = FMath::Clamp(PreviousHealth - EffectiveDamage, 0.f, GetMaxHealth());
         const float HealthRemoved = FMath::Max(0.f, PreviousHealth - NewHealth);
+        const bool bFatal = NewHealth <= 0.f;
+        if (bFatal)
+        {
+            // 即便项目以后在同一Avatar上复活，也不能继承这条已死亡生命的元素状态。
+            ElementalAvatar.Reset();
+            ElementalExposure = {};
+        }
         const int32 EnemyLife = Enemy ? Enemy->GetDungeonPoolLease() : 0;
         if (auto* Context = FMyGameplayEffectContext::GetMutable(Props.EffectContextHandle); Context && !bPeriodic)
         {
@@ -381,15 +488,25 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
         }
         SetHealth(NewHealth);
 
-        const bool bFatal = NewHealth <= 0.f;
         if (bFatal)
         {
             ICombatInterface* CombatInterface = Cast<ICombatInterface>(Props.TargetAvatarActor);
             if (CombatInterface)
             {
-                FVector Impulse = UMyAbilitySystemLibrary::GetDeathImpulse(Props.EffectContextHandle);
-
+                // 保留死亡前的房间和等级。池化敌人进入尸体状态后会翻转同一租约的符号。
+                const bool bNewEnemyDeath = IsValid(Enemy) && Enemy->HasAuthority() && PreviousHealth > 0.f &&
+                                            EnemyLife == Enemy->GetDungeonPoolLease() && !Enemy->IsDead_Implementation();
+                const FName VictimRoom = bNewEnemyDeath ? Enemy->MonsterRoomId : NAME_None;
+                const auto Rank = bNewEnemyDeath ? Enemy->GetLootRank() : EEnemyLootRank::None;
                 CombatInterface->Die(UMyAbilitySystemLibrary::GetDeathImpulse(Props.EffectContextHandle));
+                if ((Rank == EEnemyLootRank::Normal || Rank == EEnemyLootRank::Elite) && IsValid(Enemy) &&
+                    FMath::Abs(Enemy->GetDungeonPoolLease()) == EnemyLife && Enemy->IsDead_Implementation())
+                {
+                    // GAS 的玩家 ASC 属于 PlayerState，持续伤害也能沿原效果上下文找到归属。
+                    auto* SourceState = Props.SourceASC ? Cast<AMyPlayerState>(Props.SourceASC->GetOwnerActor()) : nullptr;
+                    AActor* Source = SourceState ? static_cast<AActor*>(SourceState) : Props.SourceAvatarActor;
+                    PlayerKillScore::Credit(Source, Enemy->GetWorld(), VictimRoom, Rank == EEnemyLootRank::Elite);
+                }
             }
             SendXPEvent(Props);
         }
@@ -397,8 +514,15 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
         {
             const bool bTerrain = Cast<UTerrainStatusComponent>(Props.EffectContextHandle.GetSourceObject()) != nullptr;
             const FVector Knockback = UMyAbilitySystemLibrary::GetKnockbackForce(Props.EffectContextHandle);
-            if (IsValid(Enemy) && EnemyLife == Enemy->GetDungeonPoolLease())
+            if (IsValid(Enemy) && EnemyLife == Enemy->GetDungeonPoolLease() && GetHealth() > 0.f)
             {
+                // 健康值监听器执行后仍属同一生命，才允许冻结取消攻击或接管移动。
+                if (CommittedExposure && CommittedExposure->Status == ElementalExposure.Status &&
+                    CommittedExposure->ExpiresAt == ElementalExposure.ExpiresAt)
+                {
+                    const double Remaining = CommittedExposure->ExpiresAt - Enemy->GetWorld()->GetTimeSeconds();
+                    Enemy->SetIceCombatState(CommittedExposure->Status, Remaining);
+                }
                 if (!bTerrain && !bPeriodic)
                 {
                     Enemy->ApplyCombatDamageReaction(HealthRemoved, Knockback);
@@ -409,7 +533,8 @@ void UMyAttributeSet::HandleIncomingDamage(const FEffectProperties& Props, bool 
                 if (!bTerrain && Props.TargetCharacter->Implements<UCombatInterface>() &&
                     !ICombatInterface::Execute_IsBeingShocked(Props.TargetCharacter))
                 {
-                    Props.TargetASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FMyGameplayTags::Get().Effects_HitReact));
+                    Props.TargetASC->TryActivateAbilitiesByTag(
+                        FGameplayTagContainer(FMyGameplayTags::Get().Effects_HitReact));
                 }
                 if (!Knockback.IsNearlyZero(1.f))
                 {

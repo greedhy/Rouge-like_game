@@ -86,6 +86,8 @@ struct FMyGameplayEffectContext : public FGameplayEffectContext
 public:
     // 只用于本次服务端 Apply 的同步结算回执，无需跨网络或延续到另一个伤害 GE。
     TOptional<float> ResolvedHealthDamage;
+    /** 只供服务器即时承伤读取。独立于旧随机Debuff的DamageType，不随GE上下文复制。 */
+    FGameplayTag DirectDamageType;
 
     static FMyGameplayEffectContext* GetMutable(FGameplayEffectContextHandle Context)
     {

@@ -14,8 +14,22 @@ enum class ETerrainSurfaceType : uint8
     Lava,
     Frost,
     Toxic,
-    Vines
+    Vines,
+    // Append so previously authored Blueprint and DataAsset integer values remain stable.
+    Water,
+    Conductive,
+    MistCloud,
+    ConductiveCloud
 };
+
+namespace TerrainSurfaceTypes
+{
+    /** 云使用空气体积，旧地表与水系地层保持脚底判定。 */
+    constexpr bool IsCloud(ETerrainSurfaceType Type)
+    {
+        return Type == ETerrainSurfaceType::MistCloud || Type == ETerrainSurfaceType::ConductiveCloud;
+    }
+}
 
 /** Shared tuning for a terrain tile. Values are read by the authority. */
 UCLASS(BlueprintType)

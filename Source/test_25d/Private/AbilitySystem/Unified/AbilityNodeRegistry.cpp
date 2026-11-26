@@ -1,5 +1,16 @@
 // 调用链：环境/测试注册策略 -> 图静态校验 -> 每次调用按 ExecutionClass 实例化。
 #include "AbilitySystem/Unified/AbilityNodeRegistry.h"
+#include "AbilitySystem/Unified/AbilityBarrier.h"
+#include "AbilitySystem/Unified/Nodes/AbilityElementalNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityWorkshopTerrainNodes.h"
+#include "AbilitySystem/Unified/WorkshopPropagationAbilities.h"
+#include "AbilitySystem/Unified/WorkshopDispelAbilities.h"
+#include "AbilitySystem/Unified/WorkshopEmberAbilities.h"
+#include "AbilitySystem/Unified/WorkshopShatterAbilities.h"
+#include "AbilitySystem/Unified/WorkshopRejuvenationAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSpatialStormAbilities.h"
+#include "AbilitySystem/Unified/WorkshopSurfaceConversionAbilities.h"
+#include "AbilitySystem/Unified/WorkshopTerrainCatalystAbilities.h"
 #include "AbilitySystem/Unified/Nodes/AbilityGraphPassThroughNodes.h"
 #include "AbilitySystem/Unified/AbilityNodeExecution.h"
 #include "AbilitySystem/Unified/Nodes/AbilityBasicNodeExecutions.h"
@@ -186,6 +197,17 @@ void FAbilityNodeRegistry::RegisterBuiltins()
     AbilityPrototypePresentationNodes::Register(*this);
     AbilityForkedPropagationNodes::Register(*this);
     AbilityGameplayRuleNodes::Register(*this);
+    AbilityBarrierNodes::Register(*this);
+    AbilityElementalNodes::Register(*this);
+    AbilityWorkshopTerrainNodes::Register(*this);
+    WorkshopPropagationAbilities::RegisterNodes(*this);
+    AbilityWorkshopDispel::RegisterNodes(*this);
+    WorkshopEmberAbilities::RegisterNodes(*this);
+    WorkshopShatterAbilities::RegisterNodes(*this);
+    WorkshopRejuvenationAbilities::RegisterNodes(*this);
+    WorkshopSpatialStormAbilities::RegisterNodes(*this);
+    AbilityWorkshopSurfaceConversion::RegisterNodes(*this);
+    AbilityWorkshopTerrainCatalyst::RegisterNodes(*this);
     AbilityPrototypeSurfaceNodes::Register(*this);
     AbilityNativeProjectileParameters::Register(*this);
     AbilityArcaneShardFragments::Register(*this);

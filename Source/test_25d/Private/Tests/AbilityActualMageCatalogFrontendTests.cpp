@@ -257,6 +257,8 @@ namespace AbilityActualMageCatalogFrontendTests
         const float Initial = Case.bMass ? 1000.f : 10000.f;
         float OriginalDamage = 0.f;
         float OriginalSecondaryDamage = 0.f;
+        const FString SkillName(Case.Name);
+        const bool bIceSpell = SkillName == TEXT("RimeSigil") || SkillName == TEXT("GlacialLance");
         for (const bool bPreview : {false, true})
         {
             auto* Ability = Grant(Test, F, Row, bPreview);
@@ -297,7 +299,30 @@ namespace AbilityActualMageCatalogFrontendTests
             Test.TestEqual(TEXT("Original TargetData commits one original cooldown"), Cooldowns, 1);
             Test.TestEqual(TEXT("Original actual asset's mana amount is preserved"),
                            F.PlayerASC->GetNumericAttribute(UMyAttributeSet::GetManaAttribute()), 10000.f - Case.Mana);
-            F.Step(6.f);
+            bool bSawChill = false;
+            bool bSawFreeze = false;
+            for (int32 Sample = 0; Sample < 60; ++Sample)
+            {
+                F.Step(.1f);
+                if (bIceSpell)
+                {
+                    const auto Exposure = Case.bMass
+                                              ? Mass->GetElementalExposure(First)
+                                              : F.Target->GetAbilitySystemComponent()
+                                                    ->GetSet<UMyAttributeSet>()->GetElementalExposure();
+                    bSawChill |= Exposure == EAbilityExposure::Chilled;
+                    bSawFreeze |= Exposure == EAbilityExposure::Frozen;
+                }
+            }
+            if (bIceSpell)
+            {
+                Test.TestTrue(TEXT("Actual cast applies ice through its real damage nodes"), bSawChill || bSawFreeze);
+            }
+            if (SkillName == TEXT("RimeSigil"))
+            {
+                Test.TestTrue(TEXT("Repeated hits from the real field consume Chill and freeze Mass"),
+                              bSawChill && bSawFreeze);
+            }
             const float Damage = BeforeHealth - Health(First);
             const float SecondaryDamage = Case.bMass ? BeforeSecondary - Health(Second) : 0.f;
             Test.TestTrue(TEXT("Actual original backend removes real target health"), Damage > 0.f);

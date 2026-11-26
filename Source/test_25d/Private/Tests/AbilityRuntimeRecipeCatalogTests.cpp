@@ -74,6 +74,22 @@ bool FRuntimeMageCatalogCoverage::RunTest(const FString&)
             }
         }
     }
+    // 工作台补充的原生类不在技能树资产中，仍应逐项证明实际身份和类匹配。
+    for (const TCHAR* Trial : {TEXT("ArcaneBarrier"), TEXT("StasisField"), TEXT("SoakingRain"), TEXT("CinderBlast"),
+                              TEXT("ThunderImpact"), TEXT("CrystalBurst"), TEXT("VenomMire"), TEXT("MireIgnition"),
+                              TEXT("FrostSurge"), TEXT("WetArc"), TEXT("TerrainDispel"), TEXT("GaleSweep"),
+                              TEXT("IceShatter"), TEXT("EmberDetonation"), TEXT("TidalMend"), TEXT("FrostAegis"),
+                              TEXT("LavaFreeze"), TEXT("FrostCorrode"), TEXT("SteamCondensation"),
+                              TEXT("ConductiveRecharge"), TEXT("ThunderMarkBurst"), TEXT("FrostShower"),
+                              TEXT("WaterShallows"), TEXT("WaterFreeze"), TEXT("WaterElectrify"), TEXT("FrostHarvest"),
+                              TEXT("BogHarvest"), TEXT("TidalPhases"), TEXT("EmberRush"), TEXT("MistLift"),
+                              TEXT("MistCondense"), TEXT("StormMist"), TEXT("MistDispel"), TEXT("StormCatalyst"),
+                              TEXT("FrostCatalyst"), TEXT("EmberRupture"), TEXT("ConductiveRelay")})
+    {
+        const FString Identity = FString::Printf(TEXT("Abilities.Mage.%s"), Trial);
+        ExpectedIdentities.Add(FGameplayTag::RequestGameplayTag(FName(*Identity)));
+        ExpectedVariants.Add(FString::Printf(TEXT("%s|/Script/test_25d.Workshop%s"), *Identity, Trial));
+    }
     TArray<FAbilityRuntimeBaseDefinition> Definitions;
     TArray<FString> Diagnostics;
     if (!TestTrue(TEXT("Runtime catalog reads actual complete mage union"),

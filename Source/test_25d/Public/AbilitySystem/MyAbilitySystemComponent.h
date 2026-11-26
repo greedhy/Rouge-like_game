@@ -131,6 +131,9 @@ public:
 
     UFUNCTION(NetMulticast, Unreliable)
     void MulticastActivatePassiveEffect(const FGameplayTag& AbilityTag, bool bActivate);
+    /** 服务器发出短暂区域表现。收到事件的一端使用本地素材，伤害已由图单独结算。 */
+    UFUNCTION(NetMulticast, Unreliable)
+    void MulticastPlayElementPulse(const FSoftObjectPath& SystemPath, FVector Location, float Radius);
 
     UFUNCTION(Server, Reliable)
     // 排除装备专属技能，消耗点数解锁或升级并同步等级状态。

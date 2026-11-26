@@ -17,6 +17,7 @@ public class test_25d : ModuleRules
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("ProceduralMeshComponent");
         PrivateDependencyModuleNames.Add("ApplicationCore");
+        PrivateDependencyModuleNames.AddRange(new string[] { "UnLua", "Lua" });
         PublicDependencyModuleNames.Add("MassEntity");
         PublicDependencyModuleNames.Add("MassCore");
         PrivateDependencyModuleNames.Add("MassSimulation");

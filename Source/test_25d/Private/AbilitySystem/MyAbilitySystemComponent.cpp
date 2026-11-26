@@ -28,6 +28,40 @@
 #include "Animation/AnimMontage.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Misc/App.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "TimerManager.h"
+
+void UMyAbilitySystemComponent::MulticastPlayElementPulse_Implementation(const FSoftObjectPath& SystemPath,
+                                                                         FVector Location, float Radius)
+{
+    auto* World = GetWorld();
+    if (!World || World->bIsTearingDown || World->GetNetMode() == NM_DedicatedServer || !FApp::CanEverRender() ||
+        Location.ContainsNaN() || !FMath::IsFinite(Radius) || Radius <= 0.f)
+    {
+        return;
+    }
+    if (auto* System = Cast<UNiagaraSystem>(SystemPath.TryLoad()))
+    {
+        // 只用权威查询的实际半径。表现有独立的短寿命，可在图结束后继续播完。
+        const FVector Scale(FMath::Clamp(Radius / 300.f, .1f, 10.f));
+        auto* Particles = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+            World, System, Location + FVector(0.f, 0.f, 15.f), FRotator::ZeroRotator, Scale);
+        if (Particles)
+        {
+            FTimerHandle Cleanup;
+            World->GetTimerManager().SetTimer(Cleanup,
+                                              FTimerDelegate::CreateWeakLambda(Particles,
+                                                                               [Particles]()
+                                                                               {
+                                                                                   Particles->DestroyComponent();
+                                                                               }),
+                                              .9f, false);
+        }
+    }
+}
 
 void UMyAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor)
 {

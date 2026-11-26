@@ -1,6 +1,7 @@
 // 调用链：真实Hit -> ResolveImpact原生命复核 -> InputDamage -> 共享接触参数/伤害服务。
 #pragma once
 #include "AbilitySystem/Unified/AbilityNodeExecution.h"
+#include "AbilitySystem/Unified/AbilityElementalExposure.h"
 #include "AbilityInputDamageNode.generated.h"
 class FAbilityNodeRegistry;
 
@@ -15,6 +16,10 @@ public:
     float DamageMultiplier = 1.f;
     virtual bool Validate(FString& Error) const override;
     virtual bool TryScaleRecipeParameter(EAbilityConfigScalar Parameter, float Multiplier) override;
+    /** 修改本节点实际结算的元素；原输入、费用和其它分支继续使用各自的冻结配置。 */
+    virtual bool TrySetRecipeParameter(EAbilityConfigParameter Parameter, float Value, FString& Error) override;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EAbilityElement ElementOverride = EAbilityElement::Original;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bCaptureLocationAfterDamage = false;
 };

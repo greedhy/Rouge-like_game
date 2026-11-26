@@ -16,6 +16,7 @@
 #include "Backpack/BackpackPersistence.h"
 
 #include "Game/PlayerProfession.h"
+#include "Player/PlayerKillScore.h"
 #include "MyPlayerState.generated.h"
 
 class ULevelUpInfo;
@@ -54,6 +55,15 @@ public:
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
     // 客户端玩家状态初始化时建立背包本地状态。
     virtual void ClientInitialize(AController* C) override;
+    /** 权威端接收导演定位的玩家当前房间，None 表示房间外。 */
+    void SetKillScoreRoom(FName Room);
+    /** 权威端转发已经结算的死亡事件。 */
+    void RecordMonsterKill(FName VictimRoom, bool bElite);
+    /** HUD 读取当前玩家的只读统计快照。 */
+    const FPlayerKillScore& GetKillScore() const
+    {
+        return KillScore;
+    }
     // 返回共享属性集合。
     UAttributeSet* GetAttributeSet() const
     {
@@ -175,6 +185,7 @@ public:
 protected:
     // 设置物品目录，服务器初始化背包。
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
@@ -191,6 +202,17 @@ protected:
     FString BackpackPersistencePlayerId;
 
 private:
+    /** 进房时仅投影，击杀时同时更新 Lua 的世界与房间计数。 */
+    void UpdateKillScore(FName Room, FName VictimRoom, int32 Kind);
+    /** 释放退出世界或断线的玩家在 Lua 模块中的数据。 */
+    void ForgetKillScore();
+
+    UPROPERTY(Transient, Replicated)
+    FPlayerKillScore KillScore;
+
+    TWeakObjectPtr<UWorld> KillScoreWorld;
+    FString KillScoreSession;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Travel", meta = (AllowPrivateAccess = "true"))
     int32 TravelPlayerSlot = INDEX_NONE;
     UPROPERTY(Transient)

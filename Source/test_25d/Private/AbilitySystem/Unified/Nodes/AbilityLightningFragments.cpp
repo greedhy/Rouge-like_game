@@ -8,15 +8,16 @@
 
 namespace
 {
-    const FName HostSlot(TEXT("Lightning.FiniteSteps"));
+    const FName LightningStepsHostSlot(TEXT("Lightning.FiniteSteps"));
 
     /** 帧只授予同根资源索引；跨施法、已完成步骤或停止宿主均无法重新借用。 */
     UAbilityLightningStepsExecution* HostFor(UAbilityGraphInstance& Owner, const FAbilityNodeInput& Input,
                                              const UAbilityLightningStepFrame* Step, FString& Error)
     {
-        auto* Host = Step && Step->BelongsTo(Owner.GetExecutionId(), Input.SourceToken)
-                         ? Cast<UAbilityLightningStepsExecution>(Owner.FindRuntimeResource(*Step, HostSlot))
-                         : nullptr;
+        auto* Host =
+            Step && Step->BelongsTo(Owner.GetExecutionId(), Input.SourceToken)
+                ? Cast<UAbilityLightningStepsExecution>(Owner.FindRuntimeResource(*Step, LightningStepsHostSlot))
+                : nullptr;
         if (!Host)
         {
             Error = TEXT("Lightning fragment requires its current original-root step frame.");
@@ -179,7 +180,7 @@ bool UAbilityLightningStepsExecution::EmitStep(FString& Error)
     bEmptySelection = true;
     bWaiting = false;
     PendingResults.Reset();
-    if (!Owner->RegisterRuntimeResource(*CurrentFrame, HostSlot, this))
+    if (!Owner->RegisterRuntimeResource(*CurrentFrame, LightningStepsHostSlot, this))
     {
         CurrentFrame = nullptr;
         Error = TEXT("Lightning step resource registration failed.");
@@ -242,7 +243,7 @@ void UAbilityLightningStepsExecution::StepFinished()
         return;
     }
     const TStrongObjectPtr<UAbilityLightningStepFrame> FrameGuard(CurrentFrame.Get());
-    Owner->UnregisterRuntimeResource(*CurrentFrame, HostSlot, this);
+    Owner->UnregisterRuntimeResource(*CurrentFrame, LightningStepsHostSlot, this);
     CurrentFrame = nullptr;
     auto Results = MoveTemp(PendingResults);
     // 宿主不属于Step continuation；附加的延迟OnHit具有自身寿命，不能改变原闪电节拍。
@@ -295,7 +296,7 @@ void UAbilityLightningStepsExecution::Stop(EAbilityGraphEndReason Reason)
     {
         if (auto* Owner = GraphOwner.Get())
         {
-            Owner->UnregisterRuntimeResource(*CurrentFrame, HostSlot, this);
+            Owner->UnregisterRuntimeResource(*CurrentFrame, LightningStepsHostSlot, this);
         }
     }
     CurrentFrame = nullptr;

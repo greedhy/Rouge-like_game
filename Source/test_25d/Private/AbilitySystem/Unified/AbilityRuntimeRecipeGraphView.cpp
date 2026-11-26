@@ -7,6 +7,7 @@
 #include "AbilitySystem/Unified/AbilityRuntimeModifierTemplates.h"
 #include "AbilitySystem/Unified/AbilityRuntimeRecipeDeveloperComponent.h"
 #include "AbilitySystem/Unified/Nodes/AbilityPrototypeParameterNodes.h"
+#include "AbilitySystem/Unified/Nodes/AbilityCombatNodeExecutions.h"
 #include "AbilitySystem/Prototypes/AbilityPrototype.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/UnrealType.h"
@@ -42,6 +43,19 @@ namespace
             {
                 FString Error;
                 bSupported = Copy->TrySetRecipeParameter(Parameter->Parameter, Parameter->Minimum, Error);
+                // 全局端点可能等于原地表，或超出本策略的局部界限，再探测另一个端点和常用范围。
+                if (!bSupported)
+                {
+                    bSupported = Copy->TrySetRecipeParameter(Parameter->Parameter, Parameter->Maximum, Error);
+                }
+                if (!bSupported && Parameter->Parameter == EAbilityConfigParameter::Radius)
+                {
+                    bSupported = Copy->TrySetRecipeParameter(Parameter->Parameter, 350.f, Error);
+                }
+                if (!bSupported && Parameter->Parameter == EAbilityConfigParameter::Duration)
+                {
+                    bSupported = Copy->TrySetRecipeParameter(Parameter->Parameter, .3f, Error);
+                }
             }
             else
             {
@@ -67,15 +81,66 @@ namespace
         {
             return Result;
         }
+        if (const auto* Shape = Cast<UAbilityQueryNodeConfig>(Config))
+        {
+            const auto& Query = Shape->Query;
+            Result += FString::Printf(TEXT(" | Geometry: %s | MaxTargets: %d"),
+                                      *StaticEnum<EAbilityQueryGeometry>()->GetNameStringByValue(
+                                          static_cast<int64>(Query.Geometry)), Query.MaxTargets);
+            if (Query.Geometry == EAbilityQueryGeometry::Line)
+            {
+                Result += FString::Printf(TEXT(" | Range: %.3g | Width: %.3g"), Query.Range, Query.Width);
+            }
+            else
+            {
+                Result += FString::Printf(TEXT(" | Radius: %.3g"), Query.Radius);
+            }
+            if (Query.Geometry == EAbilityQueryGeometry::Cone)
+            {
+                Result += FString::Printf(TEXT(" | Spread: %.3g"), Query.HalfAngleDegrees * 2.f);
+            }
+            else if (Query.Geometry == EAbilityQueryGeometry::Ring)
+            {
+                Result += FString::Printf(TEXT(" | InnerRadius: %.3g"), Query.InnerRadius);
+            }
+        }
         const auto* Scope = Cast<UAbilityPrototypeScopeNodeConfig>(Config);
         const UObject* Values = Scope && Scope->Parameters ? static_cast<const UObject*>(Scope->Parameters.Get())
                                                            : static_cast<const UObject*>(Config);
-        for (const FName Name :
-             {FName(TEXT("Duration")), FName(TEXT("DurationSeconds")), FName(TEXT("Radius")), FName(TEXT("Period")),
-              FName(TEXT("Count")), FName(TEXT("MaxTargets")), FName(TEXT("JumpDelay")), FName(TEXT("JumpRadius")),
-              FName(TEXT("DamageFalloff")), FName(TEXT("MaxDepth")), FName(TEXT("BranchesPerTarget")),
-              FName(TEXT("bConcurrentBranches")), FName(TEXT("TargetSelection")), FName(TEXT("Chance")),
-              FName(TEXT("bExpectedKilled"))})
+        for (const FName Name : {FName(TEXT("Duration")),
+                                 FName(TEXT("DurationSeconds")),
+                                 FName(TEXT("Radius")),
+                                 FName(TEXT("Period")),
+                                 FName(TEXT("Count")),
+                                 FName(TEXT("MaxTargets")),
+                                 FName(TEXT("JumpDelay")),
+                                 FName(TEXT("JumpRadius")),
+                                 FName(TEXT("DamageFalloff")),
+                                 FName(TEXT("MaxDepth")),
+                                 FName(TEXT("BranchesPerTarget")),
+                                 FName(TEXT("bConcurrentBranches")),
+                                 FName(TEXT("TargetSelection")),
+                                 FName(TEXT("Chance")),
+                                 FName(TEXT("bExpectedKilled")),
+                                 FName(TEXT("DelaySeconds")),
+                                 FName(TEXT("Distance")),
+                                 FName(TEXT("ArmDelay")),
+                                 FName(TEXT("TargetFilter")),
+                                 FName(TEXT("ElementOverride")),
+                                 FName(TEXT("Element")),
+                                 FName(TEXT("Kind")),
+                                 FName(TEXT("InputKind")),
+                                 FName(TEXT("ResultKind")),
+                                 FName(TEXT("bCloudLayer")),
+                                 FName(TEXT("bAllowCloud")),
+                                 FName(TEXT("Expected")),
+                                 FName(TEXT("Amount")),
+                                 FName(TEXT("bMana")),
+                                 FName(TEXT("Speed")),
+                                 FName(TEXT("DurationScale")),
+                                 FName(TEXT("Damage")),
+                                 FName(TEXT("Value")),
+                                 FName(TEXT("Cooldown"))})
         {
             if (const auto* Property = FindFProperty<FNumericProperty>(Values->GetClass(), Name))
             {
@@ -135,6 +200,12 @@ bool AbilityRuntimeGraphViews::Build(const FAbilityRuntimeRecipeSnapshot& Snapsh
         View.SupportedModifiers = DescribeModifiers(*Snapshot.Graph, Node);
         for (const auto& Port : Descriptor->Ports)
         {
+            FString PortError;
+            if (Node.TypeId == TEXT("Movement.Character") && Port.Name == TEXT("Landed") &&
+                !AbilityRuntimeModifierTemplates::CanPublishConfiguredPort(Node, Port.Name, Registry, PortError))
+            {
+                continue;
+            }
             View.Ports.Add({Port.Name, Port.Payload});
         }
         Out.Nodes.Add(MoveTemp(View));

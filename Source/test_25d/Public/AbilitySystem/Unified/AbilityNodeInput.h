@@ -24,6 +24,8 @@ struct TEST_25D_API FAbilityNodeInput
 {
     FAbilitySourceToken SourceToken;
     TOptional<FAbilityTargetToken> LiveTargetToken;
+    /** 空间锚点可仅供后续选敌排除同一单位；此身份不授权旧目标状态和伤害。 */
+    TOptional<FPureMassCombatTarget> ExcludedAnchorTarget;
     /** 批查询与批效果复用同一组原生命；接收方仍须逐个 Resolve，不能把集合当作永久权限。 */
     TSharedPtr<const FAbilityTargetSetSnapshot> TargetSet;
     FVector Origin = FVector::ZeroVector;
